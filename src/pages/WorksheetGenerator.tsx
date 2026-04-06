@@ -1,0 +1,387 @@
+import { useMemo, useState } from "react";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Download,
+  FileText,
+  Loader2,
+  PlayCircle,
+  Settings2,
+  Sparkles,
+  Wand2,
+  CheckCircle2,
+  Users,
+  GraduationCap,
+  HeartHandshake,
+} from "lucide-react";
+
+const operations = ["Addition", "Subtraction", "Multiplication", "Division"] as const;
+const rowsOptions = ["5", "10", "15", "20"] as const;
+const questionsOptions = ["10", "20", "50", "100"] as const;
+
+const features = [
+  {
+    title: "Complete Customization",
+    desc: "Pick operations, rows, and question counts to match each learner.",
+    icon: Settings2,
+  },
+  {
+    title: "Auto Answer Keys",
+    desc: "Get instant answers with every worksheet for quick checking.",
+    icon: CheckCircle2,
+  },
+  {
+    title: "Unlimited Worksheets",
+    desc: "Generate as many practice sets as you need, anytime.",
+    icon: Sparkles,
+  },
+  {
+    title: "Free Access",
+    desc: "Create worksheets without extra cost or hidden fees.",
+    icon: HeartHandshake,
+  },
+];
+
+const benefits = [
+  {
+    title: "For Teachers",
+    desc: "Save prep time and deliver differentiated practice instantly.",
+    icon: GraduationCap,
+  },
+  {
+    title: "For Parents",
+    desc: "Support daily practice at home with structured worksheets.",
+    icon: Users,
+  },
+  {
+    title: "For Students",
+    desc: "Build speed, accuracy, and confidence with consistent drills.",
+    icon: FileText,
+  },
+];
+
+const faqs = [
+  {
+    q: "Is the worksheet generator free to use?",
+    a: "Yes. You can generate unlimited worksheets without any fees.",
+  },
+  {
+    q: "Can I download worksheets as PDF?",
+    a: "Yes. Use the Download PDF button to save and print worksheets.",
+  },
+  {
+    q: "Do worksheets include answer keys?",
+    a: "Yes. Each worksheet can include an auto-generated answer key.",
+  },
+  {
+    q: "Can I change operations and difficulty?",
+    a: "Yes. Select an operation and adjust rows and questions for the right level.",
+  },
+  {
+    q: "Will this work on mobile devices?",
+    a: "Absolutely. The generator is fully responsive for phones and tablets.",
+  },
+];
+
+const WorksheetGenerator = () => {
+  const [operation, setOperation] = useState<typeof operations[number]>("Addition");
+  const [rows, setRows] = useState<typeof rowsOptions[number]>("10");
+  const [questions, setQuestions] = useState<typeof questionsOptions[number]>("20");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
+
+  const [name, setName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
+  const [errors, setErrors] = useState<{ name?: string; mobile?: string }>({});
+
+  const previewSummary = useMemo(
+    () => `${operation} • ${rows} Rows • ${questions} Questions`,
+    [operation, rows, questions],
+  );
+
+  const handleGenerate = () => {
+    setIsGenerating(true);
+    setPreviewVisible(false);
+    window.setTimeout(() => {
+      setIsGenerating(false);
+      setPreviewVisible(true);
+    }, 900);
+  };
+
+  const handleUserSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextErrors: { name?: string; mobile?: string } = {};
+    if (!name.trim()) {
+      nextErrors.name = "Name is required";
+    }
+    if (!mobile.trim()) {
+      nextErrors.mobile = "Mobile number is required";
+    }
+    setErrors(nextErrors);
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <main className="pt-16">
+        <section className="py-16">
+          <div className="container mx-auto px-4">
+            <div className="max-w-4xl mx-auto rounded-2xl border border-border bg-white p-6 md:p-8 shadow-card">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <h1 className="text-3xl md:text-4xl font-heading font-bold text-foreground">Worksheet Generator</h1>
+                <div className="flex items-center gap-2 rounded-full bg-[#f97316]/10 px-4 py-2 text-sm text-[#f97316]">
+                  <Sparkles className="h-4 w-4" />
+                  <span>Instant worksheets</span>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Operation</Label>
+                  <Select value={operation} onValueChange={(value) => setOperation(value as typeof operation)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select operation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operations.map((op) => (
+                        <SelectItem key={op} value={op}>
+                          {op}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Total Rows</Label>
+                  <Select value={rows} onValueChange={(value) => setRows(value as typeof rows)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Rows" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rowsOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Total Questions</Label>
+                  <Select value={questions} onValueChange={(value) => setQuestions(value as typeof questions)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Questions" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {questionsOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 md:grid-cols-3">
+                <Button variant="outline" className="w-full">
+                  <PlayCircle className="mr-2 h-4 w-4" />
+                  Start Solving Online
+                </Button>
+                <Button className="w-full bg-[#f97316] hover:bg-[#ea580c]">
+                  {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                  Generate Question
+                </Button>
+                <Button variant="secondary" className="w-full">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </Button>
+              </div>
+
+              <div className="mt-6 rounded-xl border border-dashed border-border bg-muted/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Preview</p>
+                    <p className="text-xs text-muted-foreground">{previewSummary}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={handleGenerate} disabled={isGenerating}>
+                    {isGenerating ? "Generating..." : "Refresh Preview"}
+                  </Button>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  {[1, 2, 3].map((item) => (
+                    <div
+                      key={item}
+                      className="rounded-lg border border-border bg-white p-3 text-sm text-muted-foreground"
+                    >
+                      {previewVisible ? `${operation} question ${item}` : "Preview will appear here"}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="max-w-4xl mx-auto mt-8 rounded-2xl border border-border bg-white p-6 md:p-8 shadow-card">
+              <h2 className="text-2xl font-heading font-bold text-foreground">User Details</h2>
+              <p className="text-sm text-muted-foreground mt-2">
+                Share your details to receive updates and access saved worksheets.
+              </p>
+              <form onSubmit={handleUserSubmit} className="mt-6 grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name *</Label>
+                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+                  {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mobile">Mobile *</Label>
+                  <Input id="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} required />
+                  {errors.mobile && <p className="text-xs text-red-500">{errors.mobile}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email (optional)</Label>
+                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
+                <div className="md:col-span-3">
+                  <Button type="submit" className="w-full md:w-auto bg-[#4B1E83] hover:bg-[#3c176a]">
+                    Continue
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-4">
+            <div className="max-w-3xl">
+              <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground">
+                Download Custom Abacus Worksheets
+              </h2>
+              <p className="mt-3 text-muted-foreground text-lg">
+                Create worksheets tailored to your child or classroom. Choose operations, adjust the volume, and export
+                as printable PDFs in seconds.
+              </p>
+            </div>
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {features.map((feature) => (
+                <div key={feature.title} className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#f97316]/10 text-[#f97316]">
+                    <feature.icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">{feature.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{feature.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16">
+          <div className="container mx-auto px-4">
+            <div className="text-center">
+              <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground">How It Works</h2>
+              <p className="mt-3 text-muted-foreground">
+                Generate a personalized worksheet in just a few steps.
+              </p>
+            </div>
+            <div className="mt-10 grid gap-6 md:grid-cols-3">
+              {[
+                {
+                  title: "Select Operation",
+                  desc: "Choose the math operation you want to practice.",
+                  icon: Settings2,
+                },
+                {
+                  title: "Set Questions & Rows",
+                  desc: "Pick how many rows and total questions you need.",
+                  icon: FileText,
+                },
+                {
+                  title: "Generate & Download PDF",
+                  desc: "Create instantly and download a printable worksheet.",
+                  icon: Download,
+                },
+              ].map((step, index) => (
+                <div key={step.title} className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#4B1E83] text-white font-semibold">
+                      {index + 1}
+                    </span>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#4B1E83]/10 text-[#4B1E83]">
+                      <step.icon className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold text-foreground">{step.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-4">
+            <div className="text-center">
+              <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground">Benefits</h2>
+              <p className="mt-3 text-muted-foreground">Designed for everyone supporting student success.</p>
+            </div>
+            <div className="mt-10 grid gap-6 md:grid-cols-3">
+              {benefits.map((benefit) => (
+                <div key={benefit.title} className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#f97316]/10 text-[#f97316]">
+                    <benefit.icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">{benefit.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{benefit.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16">
+          <div className="container mx-auto px-4">
+            <div className="max-w-3xl">
+              <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground">FAQ</h2>
+              <p className="mt-3 text-muted-foreground">Find quick answers to common questions.</p>
+            </div>
+            <div className="mt-8 max-w-3xl">
+              <Accordion type="single" collapsible className="space-y-3">
+                {faqs.map((item, index) => (
+                  <AccordionItem key={item.q} value={`faq-${index}`} className="rounded-2xl border border-border bg-white px-4">
+                    <AccordionTrigger className="text-left text-base font-medium text-foreground">
+                      {item.q}
+                    </AccordionTrigger>
+                    <AccordionContent className="text-sm text-muted-foreground">
+                      {item.a}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </div>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </div>
+  );
+};
+
+export default WorksheetGenerator;

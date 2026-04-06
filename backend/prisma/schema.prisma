@@ -1,0 +1,162 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  student
+  tutor
+  admin
+}
+
+enum SubscriptionStatus {
+  active
+  expired
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole @default(student)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student Student?
+  tutor   Tutor?
+}
+
+model Student {
+  id                 String              @id @default(uuid())
+  userId             String              @unique
+  tutorId            String?
+  levelId            String?
+  batches            Json?
+  subscriptionPlan   String?
+  subscriptionStart  DateTime?
+  subscriptionEnd    DateTime?
+  subscriptionStatus SubscriptionStatus @default(expired)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id])
+  tutor  Tutor? @relation(fields: [tutorId], references: [id])
+  level  Level? @relation(fields: [levelId], references: [id])
+
+  videoHistory         VideoHistory[]
+  worksheetCompletion  WorksheetCompletion[]
+  progress             Progress[]
+}
+
+model Tutor {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id])
+  students   Student[]
+  videos     Video[]
+  worksheets Worksheet[]
+}
+
+model Level {
+  id          String   @id @default(uuid())
+  levelName   String
+  duration    Int
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  students   Student[]
+  videos     Video[]
+  worksheets Worksheet[]
+  progress   Progress[]
+}
+
+model Video {
+  id         String   @id @default(uuid())
+  title      String
+  url        String
+  levelId    String
+  uploadedBy String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  level   Level @relation(fields: [levelId], references: [id])
+  tutor   Tutor @relation(fields: [uploadedBy], references: [id])
+  history VideoHistory[]
+}
+
+model Worksheet {
+  id        String   @id @default(uuid())
+  title     String
+  pdfUrl    String
+  levelId   String
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  level      Level @relation(fields: [levelId], references: [id])
+  tutor      Tutor @relation(fields: [createdBy], references: [id])
+  completion WorksheetCompletion[]
+}
+
+model SubscriptionPlan {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  durationDays Int
+  price        Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Progress {
+  id               String   @id @default(uuid())
+  studentId        String
+  levelId          String?
+  score            Int      @default(0)
+  completedLessons Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id])
+  level   Level?  @relation(fields: [levelId], references: [id])
+
+  @@unique([studentId, levelId])
+}
+
+model VideoHistory {
+  id              String   @id @default(uuid())
+  studentId       String
+  videoId         String
+  watchedAt       DateTime @default(now())
+  progressPercent Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id])
+  video   Video   @relation(fields: [videoId], references: [id])
+
+  @@unique([studentId, videoId])
+}
+
+model WorksheetCompletion {
+  id          String   @id @default(uuid())
+  studentId   String
+  worksheetId String
+  completedAt DateTime @default(now())
+  score       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student   Student   @relation(fields: [studentId], references: [id])
+  worksheet Worksheet @relation(fields: [worksheetId], references: [id])
+
+  @@unique([studentId, worksheetId])
+}
