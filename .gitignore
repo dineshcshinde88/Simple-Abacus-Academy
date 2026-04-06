@@ -11,6 +11,17 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+
+# Uploads and generated assets
+/admin/uploads/
+/backend/uploads/
+
+# Large reference media
+/_reference/*.mp4
+/_reference/*.mov
 
 # Editor directories and files
 .vscode/*
