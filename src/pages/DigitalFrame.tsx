@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ const TOP_REGION = 70;
 const BOTTOM_REGION = 170;
 const BAR_THICKNESS = 8;
 const ROD_PADDING_Y = 16;
+const ROD_CELL_WIDTH = 34;
 
 const createRods = (count: number): RodState[] =>
   Array.from({ length: count }, () => ({ topActive: false, bottomActive: 0 }));
@@ -27,6 +28,9 @@ const DigitalFrame = () => {
   const [rodCount, setRodCount] = useState(17);
   const [rods, setRods] = useState<RodState[]>(() => createRods(17));
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const frameWrapRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const [frameScale, setFrameScale] = useState(1);
 
   const allowedRodCounts = useMemo(() => [9, 11, 17], []);
   const normalizedRodCount = useMemo(() => (allowedRodCounts.includes(rodCount) ? rodCount : 17), [rodCount, allowedRodCounts]);
@@ -112,6 +116,25 @@ const DigitalFrame = () => {
 
   const getBottomInactiveTop = (index: number) =>
     bottomInactiveStart + index * (BEAD_SIZE + BEAD_GAP);
+  const minFrameWidth = normalizedRodCount * ROD_CELL_WIDTH + 48;
+
+  const recalcFrameScale = useCallback(() => {
+    if (!frameWrapRef.current || !frameRef.current) return;
+    const availableWidth = frameWrapRef.current.clientWidth;
+    const baseWidth = frameRef.current.offsetWidth;
+    if (!availableWidth || !baseWidth) return;
+    const maxScale = 1.15;
+    const nextScale = Math.min(maxScale, availableWidth / baseWidth);
+    setFrameScale(nextScale);
+  }, []);
+
+  useLayoutEffect(() => {
+    recalcFrameScale();
+    const observer = new ResizeObserver(() => recalcFrameScale());
+    if (frameWrapRef.current) observer.observe(frameWrapRef.current);
+    if (frameRef.current) observer.observe(frameRef.current);
+    return () => observer.disconnect();
+  }, [recalcFrameScale, normalizedRodCount]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -146,55 +169,67 @@ const DigitalFrame = () => {
             </div>
 
             <div className="mt-10">
-              <div className="mx-auto max-w-6xl rounded-xl border-4 border-black bg-white p-3 shadow-card">
-                <div className="relative">
+              <div ref={frameWrapRef} className="mx-auto w-full">
+                <div className="relative w-full h-[520px]">
                   <div
-                    className="absolute left-0 right-0 bg-black"
-                    style={{ top: TOP_REGION + ROD_PADDING_Y, height: BAR_THICKNESS }}
-                  />
-                  <div
-                    className="grid"
-                    style={{ gridTemplateColumns: `repeat(${normalizedRodCount}, minmax(26px, 1fr))` }}
+                    ref={frameRef}
+                    className="absolute left-1/2 top-1/2 w-fit rounded-xl border-4 border-black bg-white p-3 shadow-card"
+                    style={{
+                      minWidth: minFrameWidth,
+                      transform: `translate(-50%, -50%) scale(${frameScale})`,
+                      transformOrigin: "center",
+                    }}
                   >
-                    {rods.slice(0, normalizedRodCount).map((rod, rodIndex) => (
-                      <div key={rodIndex} className="relative flex flex-col items-center px-1 py-4">
-                        <div className="absolute left-1/2 top-2 bottom-2 w-1 -translate-x-1/2 bg-amber-700" />
+                    <div className="relative">
+                      <div
+                        className="absolute left-0 right-0 bg-black"
+                        style={{ top: TOP_REGION + ROD_PADDING_Y, height: BAR_THICKNESS }}
+                      />
+                      <div
+                        className="grid"
+                        style={{ gridTemplateColumns: `repeat(${normalizedRodCount}, minmax(26px, 1fr))` }}
+                      >
+                        {rods.slice(0, normalizedRodCount).map((rod, rodIndex) => (
+                          <div key={rodIndex} className="relative flex flex-col items-center px-1 py-4">
+                            <div className="absolute left-1/2 top-2 bottom-2 w-1 -translate-x-1/2 bg-amber-700" />
 
-                        <div className="relative z-10 w-full" style={{ height: TOP_REGION }}>
-                          <button
-                            type="button"
-                            onClick={() => toggleTop(rodIndex)}
-                            className={`absolute left-1/2 h-5 w-5 -translate-x-1/2 rotate-45 rounded-sm shadow-md transition-all duration-200 ${
-                              rod.topActive ? "bg-orange-500" : "bg-[#5b21b6]"
-                            }`}
-                            style={{ top: rod.topActive ? topActive : topInactive }}
-                            aria-label="Toggle top bead"
-                          />
-                        </div>
-
-                        <div className="relative z-10 w-full" style={{ height: BOTTOM_REGION }}>
-                          {Array.from({ length: 4 }).map((_, beadIndex) => {
-                            const isActive = beadIndex < rod.bottomActive;
-                            return (
+                            <div className="relative z-10 w-full" style={{ height: TOP_REGION }}>
                               <button
-                                key={beadIndex}
                                 type="button"
-                                onClick={() => setBottom(rodIndex, beadIndex)}
+                                onClick={() => toggleTop(rodIndex)}
                                 className={`absolute left-1/2 h-5 w-5 -translate-x-1/2 rotate-45 rounded-sm shadow-md transition-all duration-200 ${
-                                  isActive ? "bg-orange-500" : "bg-[#5b21b6]"
+                                  rod.topActive ? "bg-orange-500" : "bg-[#5b21b6]"
                                 }`}
-                                style={{
-                                  top: isActive
-                                    ? bottomActiveStart + beadIndex * (BEAD_SIZE + BEAD_GAP)
-                                    : getBottomInactiveTop(beadIndex),
-                                }}
-                                aria-label={`Set bottom beads ${beadIndex + 1}`}
+                                style={{ top: rod.topActive ? topActive : topInactive }}
+                                aria-label="Toggle top bead"
                               />
-                            );
-                          })}
-                        </div>
+                            </div>
+
+                            <div className="relative z-10 w-full" style={{ height: BOTTOM_REGION }}>
+                              {Array.from({ length: 4 }).map((_, beadIndex) => {
+                                const isActive = beadIndex < rod.bottomActive;
+                                return (
+                                  <button
+                                    key={beadIndex}
+                                    type="button"
+                                    onClick={() => setBottom(rodIndex, beadIndex)}
+                                    className={`absolute left-1/2 h-5 w-5 -translate-x-1/2 rotate-45 rounded-sm shadow-md transition-all duration-200 ${
+                                      isActive ? "bg-orange-500" : "bg-[#5b21b6]"
+                                    }`}
+                                    style={{
+                                      top: isActive
+                                        ? bottomActiveStart + beadIndex * (BEAD_SIZE + BEAD_GAP)
+                                        : getBottomInactiveTop(beadIndex),
+                                    }}
+                                    aria-label={`Set bottom beads ${beadIndex + 1}`}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -466,7 +501,7 @@ const DigitalFrame = () => {
                 <div className="mt-5 space-y-3 text-muted-foreground">
                   <p>Each rod represents a place value (ones, tens, hundreds, etc.).</p>
                   <p>Beads move up and down toward the center bar to form values.</p>
-                  <p>Numbers are formed visually, so learners see the processâ€”not just the answer.</p>
+                  <p>Numbers are formed visually, so learners see the process—not just the answer.</p>
                 </div>
               </div>
             </div>
@@ -656,4 +691,7 @@ const DigitalFrame = () => {
 };
 
 export default DigitalFrame;
+
+
+
 

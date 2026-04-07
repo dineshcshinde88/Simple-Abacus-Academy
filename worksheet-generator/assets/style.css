@@ -1,0 +1,227 @@
+﻿:root {
+  --ink: #111827;
+  --muted: #6b7280;
+  --accent: #f97316;
+  --accent-dark: #ea580c;
+  --violet: #6d28d9;
+  --panel: #ffffff;
+  --bg: #f5f7fb;
+  --shadow: 0 10px 28px rgba(17, 24, 39, 0.08);
+  --soft-border: #e9d5ff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  background: #ffffff;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+
+.hero {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.hero h1 {
+  font-size: clamp(26px, 4vw, 40px);
+  margin: 0;
+  letter-spacing: -0.02em;
+  color: #5b21b6;
+}
+
+.hero p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 680px;
+}
+
+.card {
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 22px;
+  border: 1px solid #f1f5f9;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 18px;
+}
+
+.form-section {
+  grid-column: span 5;
+}
+
+.preview-section {
+  grid-column: span 7;
+}
+
+label {
+  font-weight: 600;
+  font-size: 0.92rem;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.form-control, .form-select {
+  border-radius: 999px;
+  border: 1px solid var(--soft-border);
+  padding: 10px 16px;
+  font-weight: 500;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+  justify-content: space-between;
+}
+
+.action-left,
+.action-right {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.btn-accent:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: #ffffff;
+}
+
+.btn-outline-accent {
+  border-radius: 10px;
+  font-weight: 600;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-outline-accent:hover {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.preview {
+  min-height: 520px;
+  border: 1px solid #f1f5f9;
+  border-radius: 16px;
+  padding: 22px;
+  background: #ffffff;
+}
+
+.preview .meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+}
+
+.preview h2 {
+  margin: 0 0 14px;
+  font-size: 1.2rem;
+  color: #111827;
+}
+
+.question-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.question-card {
+  background: #f9fafb;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.05);
+}
+
+.question-card h4 {
+  font-size: 0.95rem;
+  color: #6d28d9;
+  text-align: center;
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.question-nums {
+  font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+  font-size: 0.95rem;
+  display: grid;
+  gap: 6px;
+}
+
+.question-line {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.question-operator {
+  color: #059669;
+  font-weight: 700;
+  width: 14px;
+  text-align: center;
+}
+
+.question-footer {
+  border-top: 1px solid #9ca3af;
+  margin-top: 10px;
+  padding-top: 8px;
+  text-align: right;
+  font-weight: 600;
+  color: #111827;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.badge-soft {
+  background: #ede9fe;
+  color: #5b21b6;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 992px) {
+  .form-section, .preview-section { grid-column: span 12; }
+}
+
+.small-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
