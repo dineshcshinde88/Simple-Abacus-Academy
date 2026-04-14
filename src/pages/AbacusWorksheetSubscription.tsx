@@ -82,27 +82,7 @@ const AbacusWorksheetSubscription = () => {
               </div>
             </div>
 
-            <div className="mt-10 grid items-start gap-6 lg:grid-cols-[420px_1fr]">
-              <div className="w-full aspect-[4/3] overflow-hidden rounded-2xl bg-gradient-to-br from-purple-200 via-purple-300 to-purple-400 shadow-card">
-                <div className="relative h-full p-6">
-                  <div className="absolute left-6 top-6 flex flex-wrap gap-2">
-                    {["Faster Maths", "Accurate Results", "Sharper Mind", "Boosts Confidence"].map((pill) => (
-                      <span
-                        key={pill}
-                        className="rounded-full bg-orange-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow-sm"
-                      >
-                        {pill}
-                      </span>
-                    ))}
-                  </div>
-                  <img
-                    src={placeholderImages.worksheetPractice}
-                    alt="Abacus Senior Worksheets"
-                    className="h-full w-full rounded-xl object-cover"
-                  />
-                </div>
-              </div>
-
+            <div className="mt-10 grid items-start gap-6">
               <div className="rounded-2xl border border-border bg-white p-6 shadow-card">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <h3 className="text-2xl font-heading font-bold text-orange-500">Abacus Senior</h3>

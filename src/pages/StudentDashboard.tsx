@@ -140,8 +140,11 @@ const StudentDashboard = () => {
               {card.button && (
                 <Button
                   className="mt-5 w-full bg-slate-900 hover:bg-slate-800"
-                  onClick={() => navigate(card.to)}
+                  onClick={
+                    isExpired && card.disabledWhenExpired ? undefined : () => navigate(card.to)
+                  }
                   disabled={isExpired && card.disabledWhenExpired}
+                  title={isExpired && card.disabledWhenExpired ? "Subscription expired" : undefined}
                 >
                   {card.button}
                 </Button>

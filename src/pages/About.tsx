@@ -5,9 +5,9 @@ import { Target, Eye, Heart, Users, Award, BookOpen } from "lucide-react";
 import { placeholderImages } from "@/data/placeholderImages";
 
 const stats = [
-  { label: "Students Trained", value: "12,500+" },
+  { label: "Students Trained", value: "100+" },
   { label: "Certified Trainers", value: "180+" },
-  { label: "Active Learning Centers", value: "35+" },
+  { label: "Active Learning Centres", value: "3+" },
   { label: "Years of Excellence", value: "14+" },
 ];
 

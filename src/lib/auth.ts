@@ -20,7 +20,7 @@ type AuthResponse = {
   user: AuthUser;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5002";
 
 async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   try {

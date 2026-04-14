@@ -177,6 +177,90 @@ const WorksheetGenerator = () => {
     }, 300);
   };
 
+  const buildPrintHtml = (items: { numbers: number[]; operator: string; answer: number }[]) => {
+    const rowsPerPage = Math.max(1, Number(rows));
+    const pages = Math.ceil(items.length / rowsPerPage);
+    const title = `Worksheet Generator - ${previewSummary.replace(/�/g, "•")}`;
+    const renderQuestion = (item: { numbers: number[]; operator: string; answer: number }, idx: number) => `
+      <div class="question">
+        <div class="q-title">Q${idx + 1}.</div>
+        <div class="nums">
+          ${item.numbers
+            .map((num, i) => `
+              <div class="row">
+                <span class="op">${i === item.numbers.length - 1 ? item.operator : ""}</span>
+                <span class="num">${num}</span>
+              </div>
+            `)
+            .join("")}
+          <div class="line"></div>
+        </div>
+      </div>
+    `;
+    const renderPage = (pageIndex: number) => {
+      const start = pageIndex * rowsPerPage;
+      const slice = items.slice(start, start + rowsPerPage);
+      return `
+        <div class="page">
+          <div class="page-header">
+            <h1>${title}</h1>
+            <div class="meta">Generated: ${new Date().toLocaleDateString()}</div>
+          </div>
+          <div class="grid">
+            ${slice.map(renderQuestion).join("")}
+          </div>
+        </div>
+      `;
+    };
+    return `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <title>${title}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+            .page { page-break-after: always; }
+            .page:last-child { page-break-after: auto; }
+            .page-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+            h1 { font-size: 18px; margin: 0; }
+            .meta { font-size: 12px; color: #6b7280; }
+            .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+            .question { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+            .q-title { font-weight: 700; font-size: 12px; color: #6d28d9; margin-bottom: 8px; text-align: center; }
+            .nums { font-family: "Courier New", monospace; font-size: 14px; }
+            .row { display: flex; justify-content: flex-end; gap: 8px; }
+            .op { width: 12px; text-align: center; color: #10b981; font-weight: 700; }
+            .line { border-top: 1px solid #374151; margin-top: 8px; height: 12px; }
+            @media print { body { margin: 8mm; } }
+          </style>
+        </head>
+        <body>
+          ${Array.from({ length: pages }, (_, i) => renderPage(i)).join("")}
+        </body>
+      </html>
+    `;
+  };
+
+  const handleDownloadPdf = () => {
+    const items = worksheetQuestions.length ? worksheetQuestions : generateQuestions();
+    if (!worksheetQuestions.length) {
+      setWorksheetQuestions(items);
+      setPreviewVisible(true);
+    }
+    const html = buildPrintHtml(items);
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) return;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+  };
+
   const handleUserSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors: { name?: string; mobile?: string } = {};
@@ -249,8 +333,8 @@ const WorksheetGenerator = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
               </div>
-            </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
@@ -300,37 +384,37 @@ const WorksheetGenerator = () => {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-3">
-              <Button variant="outline" className="w-full">
-                <PlayCircle className="mr-2 h-4 w-4" />
-                  Start Solving Online
-                </Button>
-                <Button className="w-full bg-[#f97316] hover:bg-[#ea580c]" onClick={handleGenerate}>
-                  {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                  Generate Question
-                </Button>
-                <Button variant="secondary" className="w-full">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download PDF
-                </Button>
-              </div>
+            <div className="mt-6 grid gap-3 md:grid-cols-2">
+              <Button className="w-full bg-[#f97316] hover:bg-[#ea580c]" onClick={handleGenerate}>
+                {isGenerating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="mr-2 h-4 w-4" />
+                )}
+                Generate Question
+              </Button>
+              <Button variant="secondary" className="w-full" onClick={handleDownloadPdf}>
+                <Download className="mr-2 h-4 w-4" />
+                Download PDF
+              </Button>
+            </div>
 
-              <div className="mt-6 rounded-xl border border-dashed border-border bg-muted/40 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Preview</p>
-                    <p className="text-xs text-muted-foreground">{previewSummary}</p>
+              {previewVisible && worksheetQuestions.length > 0 ? (
+                <div className="mt-6 rounded-xl border border-dashed border-border bg-muted/40 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Preview</p>
+                      <p className="text-xs text-muted-foreground">{previewSummary}</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={handleGenerate} disabled={isGenerating}>
+                      {isGenerating ? "Generating..." : "Refresh Preview"}
+                    </Button>
                   </div>
-                  <Button size="sm" variant="outline" onClick={handleGenerate} disabled={isGenerating}>
-                    {isGenerating ? "Generating..." : "Refresh Preview"}
-                  </Button>
-                </div>
-                <div
-                  className="mt-4 grid gap-4"
-                  style={{ gridTemplateColumns: `repeat(${Math.min(Number(rows), 4)}, minmax(0, 1fr))` }}
-                >
-                  {previewVisible && worksheetQuestions.length > 0 ? (
-                    worksheetQuestions.map((item, index) => (
+                  <div
+                    className="mt-4 grid gap-4"
+                    style={{ gridTemplateColumns: `repeat(${Math.min(Number(rows), 4)}, minmax(0, 1fr))` }}
+                  >
+                    {worksheetQuestions.map((item, index) => (
                       <div key={index} className="rounded-xl border border-border bg-white p-4 shadow-sm">
                         <p className="text-sm font-semibold text-[#6d28d9] text-center">Q{index + 1}.</p>
                         <div className="mt-3 space-y-2 font-mono text-sm">
@@ -347,19 +431,10 @@ const WorksheetGenerator = () => {
                           </div>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    [1, 2, 3].map((item) => (
-                      <div
-                        key={item}
-                        className="rounded-lg border border-border bg-white p-3 text-sm text-muted-foreground"
-                      >
-                        Preview will appear here
-                      </div>
-                    ))
-                  )}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
 
             <div className="max-w-4xl mx-auto mt-8 rounded-2xl border border-border bg-white p-6 md:p-8 shadow-card">

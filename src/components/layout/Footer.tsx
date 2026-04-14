@@ -140,15 +140,15 @@ const Footer = () => (
             <div className="mt-4 space-y-3 text-sm text-white/85">
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4" />
-                <span>+91 7842 885 885</span>
+                <span>+91 89991 64139</span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4" />
-                <span>+91 9985 777 494</span>
+                <span>+91 89991 64139</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
-                <span>info@abacustrainer.com</span>
+                <span>simpleabacuspune@gmail.com</span>
               </div>
               <div className="flex items-start gap-2">
                 <MapPin className="mt-1 h-4 w-4" />

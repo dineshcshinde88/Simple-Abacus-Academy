@@ -5,8 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { placeholderImages } from "@/data/placeholderImages";
-import { login } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 const buildCaptcha = () => {
@@ -21,6 +20,7 @@ const buildCaptcha = () => {
 const InstructorLogin = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [captcha, setCaptcha] = useState(buildCaptcha());
   const [captchaInput, setCaptchaInput] = useState("");
@@ -50,10 +50,9 @@ const InstructorLogin = () => {
 
     try {
       setIsSubmitting(true);
-      const response = await login(form.email.trim(), form.password, "tutor");
-      localStorage.setItem("abacus_auth_token", response.token);
+      await login(form.email.trim(), form.password, "tutor");
       toast({ title: "Login successful", description: "Welcome back!" });
-      navigate("/tutor/dashboard");
+      navigate("/teacher-dashboard");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
       toast({ title: "Login failed", description: message });
@@ -141,7 +140,7 @@ const InstructorLogin = () => {
 
               <div className="hidden lg:block">
                 <img
-                  src={placeholderImages.aboutAcademy}
+                  src="/assets/instructor-login.png"
                   alt="Instructor login illustration"
                   className="w-full max-w-xl mx-auto"
                 />

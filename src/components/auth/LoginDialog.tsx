@@ -17,7 +17,7 @@ interface LoginDialogProps {
 const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
   const navigate = useNavigate();
   const { login, register, forgotPassword } = useAuth();
-  const [role, setRole] = useState<"student" | "teacher">("student");
+  const [role, setRole] = useState<"student" | "tutor">("student");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,12 +51,12 @@ const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
         await register(name, email, password, role);
         toast.success("Account created successfully.");
         onOpenChange(false);
-        navigate(role === "teacher" ? "/teacher-dashboard" : "/student-dashboard");
+        navigate(role === "tutor" ? "/teacher-dashboard" : "/student-dashboard");
       } else {
         await login(email, password, role);
         toast.success("Logged in successfully.");
         onOpenChange(false);
-        navigate(role === "teacher" ? "/teacher-dashboard" : "/student-dashboard");
+        navigate(role === "tutor" ? "/teacher-dashboard" : "/student-dashboard");
       }
     } catch (error) {
       let message = error instanceof Error ? error.message : "Authentication failed";
@@ -104,8 +104,8 @@ const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
                 </button>
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm font-medium transition ${role === "teacher" ? "border-secondary bg-secondary/10 text-foreground" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}
-                  onClick={() => setRole("teacher")}
+                  className={`rounded-md border px-3 py-2 text-sm font-medium transition ${role === "tutor" ? "border-secondary bg-secondary/10 text-foreground" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}
+                  onClick={() => setRole("tutor")}
                 >
                   Teacher
                 </button>

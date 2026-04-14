@@ -18,7 +18,7 @@ const ProtectedRoute = ({ children, role }: ProtectedRouteProps) => {
     try {
       const payload = JSON.parse(atob(token.split(".")[1] || ""));
       if (payload?.role !== role) {
-        return <Navigate to={payload?.role === "tutor" ? "/tutor/dashboard" : "/student/dashboard"} replace />;
+        return <Navigate to={payload?.role === "tutor" ? "/teacher-dashboard" : "/student/dashboard"} replace />;
       }
     } catch {
       return <Navigate to="/student-login" replace />;

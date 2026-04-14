@@ -22,6 +22,7 @@ import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
 import AIChatbot from "./components/chat/AIChatbot";
 import { AuthProvider } from "./context/AuthContext";
+import { TrainingAuthProvider } from "./context/TrainingAuthContext";
 import StudentDashboard from "./pages/StudentDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentBatches from "./pages/student/StudentBatches";
@@ -44,20 +45,27 @@ import InstructorRegistration from "./pages/InstructorRegistration";
 import StudentLogin from "./pages/StudentLogin";
 import StudentRegistration from "./pages/StudentRegistration";
 import Testimonials from "./pages/Testimonials";
+import Teachers from "./pages/Teachers";
 import BreadcrumbBanner from "./components/layout/BreadcrumbBanner";
+import TrainingLogin from "./pages/training/TrainingLogin";
+import TrainingRegister from "./pages/training/TrainingRegister";
+import TrainingTeacherDashboard from "./pages/training/TeacherDashboard";
+import TrainingAdminDashboard from "./pages/training/AdminDashboard";
+import TrainingProtectedRoute from "./components/training/TrainingProtectedRoute";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <ScrollToTop />
-          <BreadcrumbBanner />
-          <Routes>
+      <TrainingAuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <ScrollToTop />
+            <BreadcrumbBanner />
+            <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
             <Route path="/programs" element={<Programs />} />
@@ -86,6 +94,7 @@ const App = () => (
             <Route path="/student-login" element={<StudentLogin />} />
             <Route path="/student-registration" element={<StudentRegistration />} />
             <Route path="/testimonials" element={<Testimonials />} />
+            <Route path="/teachers" element={<Teachers />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/book-demo" element={<BookDemo />} />
@@ -162,18 +171,37 @@ const App = () => (
               )}
             />
             <Route
-              path="/tutor/dashboard"
+              path="/teacher-dashboard"
               element={(
                 <RequireRole role="tutor">
                   <TeacherDashboard />
                 </RequireRole>
               )}
             />
+            <Route path="/training/login" element={<TrainingLogin />} />
+            <Route path="/training/register" element={<TrainingRegister />} />
+            <Route
+              path="/training/dashboard"
+              element={(
+                <TrainingProtectedRoute role="teacher">
+                  <TrainingTeacherDashboard />
+                </TrainingProtectedRoute>
+              )}
+            />
+            <Route
+              path="/training/admin"
+              element={(
+                <TrainingProtectedRoute role="admin">
+                  <TrainingAdminDashboard />
+                </TrainingProtectedRoute>
+              )}
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-        <AIChatbot />
-      </TooltipProvider>
+          </BrowserRouter>
+          <AIChatbot />
+        </TooltipProvider>
+      </TrainingAuthProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

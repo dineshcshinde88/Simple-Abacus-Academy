@@ -1,22 +1,15 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { placeholderImages } from "@/data/placeholderImages";
+import abacusCourseImage from "@/assets/courses/abacus.png";
+import vedicMathsCourseImage from "@/assets/courses/vedic-maths.png";
 
 const courses = [
   {
-    title: "Junior Abacus",
-    meta: "6 Levels | Age 6-8 Years",
-    body: "Play-based mental arithmetic that builds focus and number sense in young learners.",
-    tags: ["Better Focus", "Strong Memory", "Brain Growth", "Math Confidence"],
-    image: placeholderImages.ourCourses,
-    to: "/online-abacus-classes",
-  },
-  {
-    title: "Senior Abacus",
-    meta: "10 Levels | Age 8-12 Years",
-    body: "Structured training for speed, accuracy, and advanced mental calculation.",
-    tags: ["Fast Calculations", "High Accuracy", "Logical Thinking", "Exam Ready"],
-    image: placeholderImages.aboutAcademy,
+    title: "Abacus",
+    meta: "Junior & Senior | Age 6-12 Years",
+    body: "Play-based to advanced mental arithmetic that builds focus, speed, and number sense.",
+    tags: ["Better Focus", "Fast Calculations", "Strong Memory", "High Accuracy"],
+    image: abacusCourseImage,
     to: "/online-abacus-classes",
   },
   {
@@ -24,7 +17,7 @@ const courses = [
     meta: "4 Levels | Age 11-14 Years",
     body: "Smart techniques to simplify calculations and reduce errors.",
     tags: ["Quick Methods", "Less Errors", "Sharp Mind", "Better Results"],
-    image: placeholderImages.moduleSection,
+    image: vedicMathsCourseImage,
     to: "/vedic-maths-classes",
   },
 ];
@@ -38,17 +31,17 @@ const OurCoursesSection = () => (
         </h2>
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-3">
+      <div className="mt-10 mx-auto grid max-w-5xl gap-6 lg:grid-cols-2">
         {courses.map((course) => (
           <div
             key={course.title}
             className="rounded-2xl border border-secondary/20 bg-white shadow-card overflow-hidden flex flex-col"
           >
-            <div className="h-56 md:h-64 w-full overflow-hidden">
+            <div className="h-56 md:h-64 w-full overflow-hidden bg-slate-50">
               <img
                 src={course.image}
                 alt={course.title}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
                 loading="lazy"
               />
             </div>

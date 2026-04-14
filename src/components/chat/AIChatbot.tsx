@@ -158,8 +158,8 @@ const AIChatbot = () => {
                 <div className="space-y-2">
                   <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-[#43B754] px-4 py-3 text-sm text-white shadow-sm">
                     Welcome to our site. Please enter your name, phone number, and email-id. Our executive will reach you
-                    shortly and help you with details. Feel free to reach us on +91 7842 885 885 &amp;
-                    info@abacustrainer.com!
+                    shortly and help you with details. Feel free to reach us on +91 89991 64139 &amp;
+                    simpleabacuspune@gmail.com!
                   </div>
                   <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-[#43B754] px-4 py-3 text-sm text-white shadow-sm">
                     Hi, how may I help you?

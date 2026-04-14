@@ -5,7 +5,6 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { placeholderImages } from "@/data/placeholderImages";
 import { login } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -141,7 +140,7 @@ const StudentLogin = () => {
 
               <div className="hidden lg:block">
                 <img
-                  src={placeholderImages.aboutAcademy}
+                  src="/assets/student-login.png"
                   alt="Student login illustration"
                   className="w-full max-w-xl mx-auto"
                 />

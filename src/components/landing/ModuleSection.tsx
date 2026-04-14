@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { placeholderImages } from "@/data/placeholderImages";
+import abacusStudentsImage from "@/assets/modules/abacus-for-students.png";
+import vedicStudentsImage from "@/assets/modules/vedic-maths-for-students.png";
+import instructorsImage from "@/assets/modules/abacus-vedic-instructors.png";
 
 const modules = [
   {
@@ -8,7 +10,7 @@ const modules = [
     body: "Learn the fundamentals of abacus in a fun way!",
     cta: "Get a Free Demo",
     tone: "orange",
-    image: placeholderImages.homeHero1,
+    image: abacusStudentsImage,
     to: "/book-demo",
   },
   {
@@ -16,7 +18,7 @@ const modules = [
     body: "Master quick calculations with Vedic methods!",
     cta: "Get a Free Demo",
     tone: "purple",
-    image: placeholderImages.aboutHero,
+    image: vedicStudentsImage,
     to: "/book-demo",
   },
   {
@@ -24,16 +26,8 @@ const modules = [
     body: "Join us to teach and inspire future abacus learners!",
     cta: "Join with Us",
     tone: "orange",
-    image: placeholderImages.homeHero2,
+    image: instructorsImage,
     to: "/teacher-training",
-  },
-  {
-    title: "Abacus & Vedic Maths for Schools",
-    body: "Integrate abacus learning into your school curriculum!",
-    cta: "Enquire Here",
-    tone: "purple",
-    image: placeholderImages.homeHero3,
-    to: "/contact",
   },
 ];
 
@@ -46,17 +40,17 @@ const ModuleSection = () => (
         </h2>
       </div>
 
-      <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {modules.map((module) => (
           <div
             key={module.title}
             className="rounded-2xl border border-muted bg-white p-5 shadow-card flex flex-col"
           >
-            <div className="overflow-hidden rounded-xl">
+            <div className="overflow-hidden rounded-xl bg-slate-50">
               <img
                 src={module.image}
                 alt={module.title}
-                className="h-44 w-full object-cover"
+                className="h-56 md:h-64 w-full object-contain"
                 loading="lazy"
               />
             </div>

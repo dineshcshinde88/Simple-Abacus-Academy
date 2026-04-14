@@ -13,19 +13,31 @@ const studentRoutes = require("./routes/studentRoutes");
 const tutorRoutes = require("./routes/tutorRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const demoRoutes = require("./routes/demoRoutes");
+const franchiseRoutes = require("./routes/franchiseRoutes");
+const instructorRoutes = require("./routes/instructorRoutes");
 const { startReminderCron } = require("./services/reminderService");
 
 const app = express();
 
 app.use(express.json());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN?.split(",") || [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-  ],
-}));
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOptions = process.env.NODE_ENV === "development"
+  ? { origin: true }
+  : {
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (!allowedOrigins.length) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error(`CORS blocked for origin: ${origin}`));
+      },
+    };
+
+app.use(cors(corsOptions));
 app.use(morgan("dev"));
 app.use("/uploads", express.static(uploadDir));
 
@@ -40,6 +52,9 @@ app.use("/api/student", studentRoutes);
 app.use("/api/tutor", tutorRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/demo", demoRoutes);
+app.use("/api/franchise", franchiseRoutes);
+app.use("/api/instructor", instructorRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -34,6 +34,14 @@ const BookDemo = () => {
   const [captchaInput, setCaptchaInput] = useState("");
   const [loginOpen, setLoginOpen] = useState(false);
   const [selectedPrograms, setSelectedPrograms] = useState({ abacus: true, vedic: false });
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [gender, setGender] = useState("");
+  const [motherTongue, setMotherTongue] = useState("");
+  const [dob, setDob] = useState("");
+
+  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5002";
 
   const programSummary = useMemo(() => {
     const chosen = [] as string[];
@@ -47,7 +55,7 @@ const BookDemo = () => {
     setCaptchaInput("");
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!captchaInput.trim()) {
       toast.error("Please enter the captcha code.");
@@ -61,34 +69,50 @@ const BookDemo = () => {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const programs = [
+        selectedPrograms.abacus ? "Abacus" : null,
+        selectedPrograms.vedic ? "Vedic Maths" : null,
+      ].filter(Boolean);
+
+      const response = await fetch(`${API_BASE}/api/demo/book`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          mobile,
+          gender,
+          motherTongue,
+          dob,
+          programs,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Request failed");
+      }
+
       toast.success("Thanks! We'll reach out to confirm your free demo session.");
-      (event.target as HTMLFormElement).reset();
+      setFullName("");
+      setEmail("");
+      setMobile("");
+      setGender("");
+      setMotherTongue("");
+      setDob("");
       refreshCaptcha();
       setSelectedPrograms({ abacus: true, vedic: false });
-    }, 1000);
+    } catch {
+      toast.error("Unable to submit. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="pt-16">
-        <section className="gradient-hero py-16 md:py-24">
-          <div className="container mx-auto px-4 text-center">
-            <motion.h1 {...fadeUp} className="text-4xl md:text-5xl font-heading font-bold text-primary-foreground mb-4">
-              Book Your <span className="text-gradient">Free Demo</span>
-            </motion.h1>
-            <motion.p
-              {...fadeUp}
-              transition={{ delay: 0.1 }}
-              className="text-primary-foreground/80 max-w-2xl mx-auto text-lg"
-            >
-              Share a few details and our team will confirm a convenient demo slot for your child.
-            </motion.p>
-          </div>
-        </section>
-
         <section className="py-16">
           <div className="container mx-auto px-4">
             <motion.div {...fadeUp} className="max-w-5xl mx-auto">
@@ -117,11 +141,24 @@ const BookDemo = () => {
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="full-name">Full Name</Label>
-                      <Input id="full-name" placeholder="Full name" required />
+                      <Input
+                        id="full-name"
+                        placeholder="Full name"
+                        value={fullName}
+                        onChange={(event) => setFullName(event.target.value)}
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" placeholder="Email" required />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="mobile">Mobile Number</Label>
@@ -137,7 +174,14 @@ const BookDemo = () => {
                             <SelectItem value="+971">UAE +971</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Input id="mobile" type="tel" placeholder="Mobile Number" required />
+                        <Input
+                          id="mobile"
+                          type="tel"
+                          placeholder="Mobile Number"
+                          value={mobile}
+                          onChange={(event) => setMobile(event.target.value)}
+                          required
+                        />
                       </div>
                     </div>
                   </div>
@@ -145,7 +189,7 @@ const BookDemo = () => {
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="gender">Gender</Label>
-                      <Select>
+                      <Select value={gender} onValueChange={setGender}>
                         <SelectTrigger id="gender">
                           <SelectValue placeholder="Select Gender" />
                         </SelectTrigger>
@@ -159,11 +203,16 @@ const BookDemo = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="mother-tongue">Mother Tongue</Label>
-                      <Input id="mother-tongue" placeholder="Mother Tongue" />
+                      <Input
+                        id="mother-tongue"
+                        placeholder="Mother Tongue"
+                        value={motherTongue}
+                        onChange={(event) => setMotherTongue(event.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="dob">Date Of Birth</Label>
-                      <Input id="dob" type="date" />
+                      <Input id="dob" type="date" value={dob} onChange={(event) => setDob(event.target.value)} />
                     </div>
                   </div>
 
@@ -189,6 +238,9 @@ const BookDemo = () => {
                         placeholder="Enter Captcha Code"
                         value={captchaInput}
                         onChange={(event) => setCaptchaInput(event.target.value)}
+                        onPaste={(event) => event.preventDefault()}
+                        onDrop={(event) => event.preventDefault()}
+                        autoComplete="off"
                         required
                       />
                     </div>
@@ -196,15 +248,8 @@ const BookDemo = () => {
 
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <Button type="submit" variant="hero" size="lg" disabled={isSubmitting}>
-                      {isSubmitting ? "Submitting..." : "Registration"}
+                      {isSubmitting ? "Submitting..." : "Book Free Demo"}
                     </Button>
-                    <p className="text-sm text-muted-foreground">
-                      If you are already registered, please{" "}
-                      <button type="button" className="text-primary font-semibold hover:underline" onClick={() => setLoginOpen(true)}>
-                        click here
-                      </button>
-                      {" "}to login.
-                    </p>
                   </div>
                 </form>
               </div>

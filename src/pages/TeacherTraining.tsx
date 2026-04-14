@@ -2,6 +2,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import teacherTrainingImage from "@/assets/pages/teacher-training.png";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   Award,
@@ -15,18 +16,13 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { placeholderImages } from "@/data/placeholderImages";
-
-const hero = {
-  title: "Become a Certified Abacus Teacher\nand build a flexible career",
-  subtitle:
-    "Learn to teach with confidence, earn from home, and make a real impact on young learners.",
-  cta: "Join Now",
-};
 
 const intro = [
-  "This online teacher training program is designed for beginners and aspiring educators who want to teach abacus with confidence.",
-  "No prior experience is needed. The course is ideal for homemakers, teachers, and students seeking a professional teaching opportunity.",
+  "Build the skills and confidence needed to become a successful Online Abacus Instructor with our complete certification program—no prior teaching experience required.",
+  "This course is specially created for beginners, homemakers, working professionals, graduates, and anyone interested in teaching and working with children.",
+  "Our Online Abacus Teacher Training Course combines strong foundational knowledge with modern teaching techniques and practical training.",
+  "You will begin with the basics and gradually progress to advanced mental math methods.",
+  "Along the way, you’ll understand how abacus learning improves children’s concentration, memory, visualization, and logical thinking skills.",
 ];
 
 const whyCourse = [
@@ -47,6 +43,7 @@ const features = [
 
 const curriculum = [
   {
+    icon: GraduationCap,
     title: "Abacus Basics",
     points: [
       "Number concepts and abacus setup",
@@ -55,6 +52,7 @@ const curriculum = [
     ],
   },
   {
+    icon: Users,
     title: "Teaching Methods",
     points: [
       "Child-friendly instruction strategies",
@@ -63,6 +61,7 @@ const curriculum = [
     ],
   },
   {
+    icon: Sparkles,
     title: "Advanced Techniques",
     points: [
       "Mental abacus visualization",
@@ -71,6 +70,7 @@ const curriculum = [
     ],
   },
   {
+    icon: Laptop,
     title: "Digital Teaching Tools",
     points: [
       "Instructor dashboard basics",
@@ -192,38 +192,10 @@ const TeacherTraining = () => (
   <div className="min-h-screen bg-background">
     <Navbar />
     <main className="pt-16">
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#1f2937] via-[#4c1d95] to-[#0f172a]">
-        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.35),_transparent_60%)]" />
-        <div className="container mx-auto px-4 max-w-7xl py-20 md:py-28 relative z-10">
-          <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center">
-            <div className="text-left">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold text-white leading-tight whitespace-pre-line">
-                {hero.title}
-              </h1>
-              <p className="mt-5 text-lg md:text-xl text-white/80">{hero.subtitle}</p>
-              <div className="mt-8">
-                <Button size="lg" className="bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold" asChild>
-                  <Link to="/instructor-registration">{hero.cta}</Link>
-                </Button>
-              </div>
-            </div>
-            <div className="relative">
-              <div className="absolute inset-0 rounded-3xl bg-white/10 blur-2xl" />
-              <img
-                src={placeholderImages.teacherTrainingHero}
-                alt="Teacher training session"
-                className="relative w-full rounded-3xl shadow-2xl object-cover aspect-[4/3]"
-                loading="lazy"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Introduction */}
       <Section className="bg-white">
-        <div className="max-w-4xl">
+        <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] items-start">
+          <div>
           <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-5">
             Online Abacus Teacher Training program
           </h2>
@@ -231,6 +203,15 @@ const TeacherTraining = () => (
             {intro.map((p) => (
               <p key={p}>{p}</p>
             ))}
+          </div>
+          </div>
+          <div className="rounded-2xl border border-border bg-slate-50 p-4 shadow-card">
+            <img
+              src={teacherTrainingImage}
+              alt="Teacher training"
+              className="w-full rounded-xl object-contain"
+              loading="lazy"
+            />
           </div>
         </div>
       </Section>
@@ -275,34 +256,35 @@ const TeacherTraining = () => (
 
       {/* Curriculum */}
       <Section className="bg-white">
-        <div className="grid md:grid-cols-12 gap-10 items-start">
-          <div className="md:col-span-5">
-            <div className="flex items-center gap-3 text-[#f97316] mb-3">
-              <GraduationCap className="h-6 w-6" />
-              <span className="text-sm font-semibold uppercase tracking-widest">Curriculum</span>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-4">
-              Structured modules with clear outcomes
-            </h2>
-            <p className="text-muted-foreground text-lg">
-              Each module builds teaching confidence with practice, tools, and assessments.
-            </p>
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="flex items-center justify-center gap-3 text-[#f97316] mb-3">
+            <GraduationCap className="h-6 w-6" />
+            <span className="text-sm font-semibold uppercase tracking-widest">Curriculum</span>
           </div>
-          <div className="md:col-span-7 space-y-6">
-            {curriculum.map((m) => (
-              <div key={m.title} className="rounded-2xl border border-border bg-white p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-foreground mb-3">{m.title}</h3>
-                <ul className="space-y-2">
-                  {m.points.map((p) => (
-                    <li key={p} className="flex items-start gap-3 text-sm text-foreground">
-                      <span className="mt-2 h-2 w-2 rounded-full bg-[#4c1d95]" />
-                      <span>{p}</span>
-                    </li>
-                  ))}
-                </ul>
+          <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-4">
+            Structured modules with clear outcomes
+          </h2>
+          <p className="text-muted-foreground text-lg">
+            Each module builds teaching confidence with practice, tools, and assessments.
+          </p>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-4">
+          {curriculum.slice(0, 4).map((m) => (
+            <div key={m.title} className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#f97316]/10 text-[#f97316]">
+                <m.icon className="h-6 w-6" />
               </div>
-            ))}
-          </div>
+              <h3 className="text-lg font-semibold text-foreground mb-3">{m.title}</h3>
+              <ul className="space-y-2">
+                {m.points.map((p) => (
+                  <li key={p} className="flex items-start gap-3 text-sm text-foreground">
+                    <span className="mt-2 h-2 w-2 rounded-full bg-[#4c1d95]" />
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       </Section>
 
@@ -346,23 +328,6 @@ const TeacherTraining = () => (
           </div>
         </div>
       </section>
-
-      {/* Course Details */}
-      <Section className="bg-white">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-4">
-            Course details at a glance
-          </h2>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {courseDetails.map((d) => (
-            <div key={d.label} className="rounded-2xl border border-border bg-white p-6 shadow-sm">
-              <div className="text-sm uppercase tracking-wider text-muted-foreground">{d.label}</div>
-              <div className="text-lg font-semibold text-foreground mt-2">{d.value}</div>
-            </div>
-          ))}
-        </div>
-      </Section>
 
       {/* How it Works */}
       <Section className="bg-muted/40">
@@ -453,3 +418,4 @@ const TeacherTraining = () => (
 );
 
 export default TeacherTraining;
+

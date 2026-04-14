@@ -15,8 +15,8 @@ const slides = [
     primary: { label: "Book Free Demo", to: "/book-demo" },
     secondary: { label: "Explore Programs", to: "/programs" },
     stats: [
-      { num: "10K+", label: "Students" },
-      { num: "50+", label: "Centers" },
+      { num: "100+", label: "Students" },
+      { num: "3+", label: "Centres" },
       { num: "98%", label: "Success Rate" },
     ],
     image: placeholderImages.homeHero1,

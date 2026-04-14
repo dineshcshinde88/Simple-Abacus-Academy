@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -102,21 +103,6 @@ const inclusions = [
   "Ongoing updates and guidance",
 ];
 
-const testimonials = [
-  {
-    quote: "The training and marketing support helped me start fast. I had my first batch within weeks.",
-    name: "Neha Sharma",
-  },
-  {
-    quote: "Clear guidance and ready materials made it easy to launch classes from home.",
-    name: "Rakesh Kulkarni",
-  },
-  {
-    quote: "The business model scales well. I upgraded my plan after the first 6 months.",
-    name: "Anita Roy",
-  },
-];
-
 const faqs = [
   { q: "Do I need teaching experience?", a: "No. Complete training is provided so beginners can start confidently." },
   { q: "Can I run classes online?", a: "Yes, you can choose online, offline, or hybrid delivery." },
@@ -211,10 +197,68 @@ const buildCaptcha = () => {
 const Franchise = () => {
   const [captcha, setCaptcha] = useState(buildCaptcha());
   const [captchaInput, setCaptchaInput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
+  const [location, setLocation] = useState("");
+  const [qualification, setQualification] = useState("");
+  const [languages, setLanguages] = useState("");
+  const [plan, setPlan] = useState("");
+  const [message, setMessage] = useState("");
+  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5002";
 
   const refreshCaptcha = () => {
     setCaptcha(buildCaptcha());
     setCaptchaInput("");
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!captchaInput.trim()) {
+      toast.error("Please enter the captcha code.");
+      return;
+    }
+    if (captchaInput.trim().toUpperCase() !== captcha) {
+      toast.error("Captcha code does not match. Please try again.");
+      refreshCaptcha();
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/franchise/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          mobile,
+          location,
+          qualification,
+          languages,
+          plan,
+          message,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Request failed");
+
+      toast.success("Thanks! Your franchise application has been submitted.");
+      setFullName("");
+      setMobile("");
+      setEmail("");
+      setLocation("");
+      setQualification("");
+      setLanguages("");
+      setPlan("");
+      setMessage("");
+      refreshCaptcha();
+    } catch {
+      toast.error("Unable to submit. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -258,10 +302,16 @@ const Franchise = () => {
               Become a Franchise Partner
             </div>
             <div className="p-6 md:p-8">
-              <div className="grid gap-6 md:grid-cols-2">
+              <form onSubmit={handleSubmit} className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="franchise-name">Full Name</Label>
-                  <Input id="franchise-name" placeholder="Enter your full name" required />
+                  <Input
+                    id="franchise-name"
+                    placeholder="Enter your full name"
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Mobile Number</Label>
@@ -277,28 +327,58 @@ const Franchise = () => {
                         <SelectItem value="+971">UAE +971</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input placeholder="Mobile Number" required />
+                    <Input
+                      placeholder="Mobile Number"
+                      value={mobile}
+                      onChange={(event) => setMobile(event.target.value)}
+                      required
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="franchise-email">Email Address</Label>
-                  <Input id="franchise-email" type="email" placeholder="Enter email address" required />
+                  <Input
+                    id="franchise-email"
+                    type="email"
+                    placeholder="Enter email address"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="franchise-location">Location</Label>
-                  <Input id="franchise-location" placeholder="Enter your city or area" required />
+                  <Input
+                    id="franchise-location"
+                    placeholder="Enter your city or area"
+                    value={location}
+                    onChange={(event) => setLocation(event.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="franchise-qualification">Educational Qualification</Label>
-                  <Input id="franchise-qualification" placeholder="Enter highest qualification" required />
+                  <Input
+                    id="franchise-qualification"
+                    placeholder="Enter highest qualification"
+                    value={qualification}
+                    onChange={(event) => setQualification(event.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="franchise-languages">Spoken Languages</Label>
-                  <Input id="franchise-languages" placeholder="Languages you can teach in" required />
+                  <Input
+                    id="franchise-languages"
+                    placeholder="Languages you can teach in"
+                    value={languages}
+                    onChange={(event) => setLanguages(event.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Select Franchise Plan</Label>
-                  <Select>
+                  <Select value={plan} onValueChange={setPlan}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select Plan" />
                     </SelectTrigger>
@@ -311,7 +391,13 @@ const Franchise = () => {
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="franchise-message">Message</Label>
-                  <Textarea id="franchise-message" placeholder="Tell us about your background and goals" rows={3} />
+                  <Textarea
+                    id="franchise-message"
+                    placeholder="Tell us about your background and goals"
+                    rows={3}
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                  />
                 </div>
                 <div className="md:col-span-2 grid gap-4 md:grid-cols-[240px_1fr] items-center">
                   <div className="flex items-center gap-3">
@@ -331,15 +417,18 @@ const Franchise = () => {
                     placeholder="Enter Captcha Code"
                     value={captchaInput}
                     onChange={(event) => setCaptchaInput(event.target.value)}
+                    onPaste={(event) => event.preventDefault()}
+                    onDrop={(event) => event.preventDefault()}
+                    autoComplete="off"
                     required
                   />
                 </div>
-              </div>
-              <div className="mt-6">
-                <Button size="lg" className="bg-[#4B1E83] hover:bg-[#3c176a] text-white font-semibold">
+              <div className="mt-6 md:col-span-2">
+                <Button size="lg" type="submit" disabled={isSubmitting} className="bg-[#4B1E83] hover:bg-[#3c176a] text-white font-semibold">
                   Submit Application
                 </Button>
               </div>
+              </form>
             </div>
           </div>
         </div>
@@ -462,52 +551,6 @@ const Franchise = () => {
         </div>
       </Section>
 
-      {/* Inclusions */}
-      <Section className="bg-muted/40">
-        <div className="grid md:grid-cols-12 gap-10 items-start">
-          <div className="md:col-span-5">
-            <div className="flex items-center gap-3 text-[#f97316] mb-3">
-              <Briefcase className="h-6 w-6" />
-              <span className="text-sm font-semibold uppercase tracking-widest">What You Get</span>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-4">
-              Everything included to launch successfully
-            </h2>
-            <p className="text-muted-foreground text-lg">
-              Training, materials, and tools that simplify your operations.
-            </p>
-          </div>
-          <div className="md:col-span-7">
-            <ul className="space-y-3">
-              {inclusions.map((c) => (
-                <li key={c} className="flex items-start gap-3 text-base text-foreground">
-                  <span className="mt-2 h-2 w-2 rounded-full bg-[#4c1d95]" />
-                  <span>{c}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </Section>
-
-      {/* Testimonials */}
-      <Section className="bg-white">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-4">
-            Franchise partner stories
-          </h2>
-          <p className="text-muted-foreground text-lg">Real feedback from partners who started their journey.</p>
-        </div>
-        <div className="grid md:grid-cols-3 gap-6">
-          {testimonials.map((t) => (
-            <div key={t.name} className="rounded-2xl border border-border bg-white p-6 shadow-sm">
-              <p className="text-sm text-muted-foreground leading-relaxed mb-4">“{t.quote}”</p>
-              <div className="text-sm font-semibold text-foreground">{t.name}</div>
-            </div>
-          ))}
-        </div>
-      </Section>
-
       {/* FAQ */}
       <Section className="bg-white">
         <div className="max-w-4xl mx-auto">
@@ -534,20 +577,6 @@ const Franchise = () => {
         </div>
       </Section>
 
-      {/* Final CTA */}
-      <section className="py-16 md:py-20 bg-gradient-to-r from-[#111827] via-[#1f2937] to-[#4c1d95]">
-        <div className="container mx-auto px-4 max-w-6xl text-center text-white">
-          <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
-            Start your franchise today
-          </h2>
-          <p className="text-white/85 text-lg max-w-2xl mx-auto mb-6">
-            Partner with us and build a scalable education business.
-          </p>
-          <Button size="lg" className="bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold" asChild>
-            <Link to="/franchise#franchise-registration">Start Your Franchise Today</Link>
-          </Button>
-        </div>
-      </section>
     </main>
     <Footer />
     </div>

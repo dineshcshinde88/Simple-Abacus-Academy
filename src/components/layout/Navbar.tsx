@@ -16,11 +16,11 @@ const navLinks = [
       { label: "Vedic Maths Classes", to: "/vedic-maths-classes" },
     ],
   },
+  { label: "Teachers", to: "/teachers" },
   { label: "Franchise", to: "/franchise" },
   {
     label: "Worksheets",
     children: [
-      { label: "Worksheets Subscription", to: "/worksheets-subscription" },
       { label: "Abacus Worksheet Subscription", to: "/abacus-worksheet-subscription" },
       { label: "Vedic Maths Worksheet Subscription", to: "/vedic-maths-worksheet-subscription" },
       { label: "Worksheet Generator", to: "/worksheet-generator" },
@@ -105,11 +105,11 @@ const Navbar = () => {
           <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6 text-xs md:text-sm">
             <span className="flex items-center gap-2">
               <Phone className="w-4 h-4" />
-              Free Call +91 7842 885 885
+              Free Call +91 89991 64139
             </span>
             <span className="flex items-center gap-2">
               <Mail className="w-4 h-4" />
-              info@abacustrainer.com
+              simpleabacuspune@gmail.com
             </span>
           </div>
           <div className="hidden md:flex items-center gap-2">
@@ -256,7 +256,7 @@ const Navbar = () => {
             })}
             {user ? (
               <Button variant="ghost" size="sm" asChild>
-                <Link to={user.role === "teacher" ? "/teacher-dashboard" : "/student-dashboard"}>Dashboard</Link>
+                <Link to={user.role === "tutor" ? "/teacher-dashboard" : "/student-dashboard"}>Dashboard</Link>
               </Button>
             ) : null}
           </div>
@@ -360,7 +360,7 @@ const Navbar = () => {
                       asChild
                       onClick={() => setIsOpen(false)}
                     >
-                      <Link to={user.role === "teacher" ? "/teacher-dashboard" : "/student-dashboard"}>
+                      <Link to={user.role === "tutor" ? "/teacher-dashboard" : "/student-dashboard"}>
                         Dashboard
                       </Link>
                     </Button>

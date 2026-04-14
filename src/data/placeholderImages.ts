@@ -6,7 +6,7 @@ import aboutFounder from "@/assets/photos/IMG_20260111_100809.jpg";
 import aboutAcademy from "@/assets/photos/IMG20260222120051.jpg";
 import moduleSection from "@/assets/photos/IMG20260101120514.jpg";
 import ourCourses from "@/assets/photos/IMG20250427114736.jpg";
-import worksheetPractice from "@/assets/photos/worksheet-subscription.png";
+import worksheetPractice from "@/assets/photos/device_image.png";
 import onlineAbacusHero from "@/assets/photos/IMG-20260109-WA0015.jpg";
 import teacherTrainingHero from "@/assets/photos/hero-children-CKHyOYk5.jpg";
 import vedicMathsHero from "@/assets/photos/IMG20250427114736.jpg";

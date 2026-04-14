@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Brain, Clock, Globe, GraduationCap, Layers, ShieldCheck, Sparkles, Target } from "lucide-react";
 import { placeholderImages } from "@/data/placeholderImages";
+import abacusClassesImage from "@/assets/pages/abacus-classes.png";
 
 const heroContent = {
   title: "Online Abacus Classes\nthat build speed, focus,\nand real math confidence",
@@ -25,7 +26,7 @@ const benefits = [
 ];
 
 const helpHighlights = [
-  { title: "10 levels program", desc: "A complete, step-by-step pathway from basics to advanced mental math." },
+  { title: "7 levels program", desc: "A complete, step-by-step pathway from basics to advanced mental math." },
   { title: "3 months per level", desc: "Balanced pace with enough practice time to master each stage." },
   { title: "Certification", desc: "Level-wise exams and achievement certificates for every milestone." },
   { title: "Personal mentorship", desc: "Dedicated guidance with feedback and progress tracking." },
@@ -113,7 +114,8 @@ const OnlineAbacusClasses = () => (
     <main className="pt-16">
       {/* Introduction */}
       <Section className="bg-white">
-        <div className="max-w-4xl">
+        <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] items-start">
+          <div>
           <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground mb-5">
             Online Abacus Classes designed for young achievers
           </h2>
@@ -130,6 +132,15 @@ const OnlineAbacusClasses = () => (
               </li>
             ))}
           </ul>
+          </div>
+          <div className="rounded-2xl border border-border bg-slate-50 p-4 shadow-card">
+            <img
+              src={abacusClassesImage}
+              alt="Abacus classes"
+              className="w-full rounded-xl object-contain"
+              loading="lazy"
+            />
+          </div>
         </div>
       </Section>
 

@@ -9,6 +9,7 @@ const titleMap: Record<string, string> = {
   "/online-abacus-classes": "Online Abacus Classes",
   "/teacher-training": "Teacher Training",
   "/vedic-maths-classes": "Vedic Maths Classes",
+  "/teachers": "Teachers",
   "/franchise": "Franchise",
   "/worksheets-subscription": "Worksheets Subscription",
   "/abacus-worksheet-subscription": "Abacus Worksheet Subscription",
@@ -46,8 +47,12 @@ const BreadcrumbBanner = () => {
     return null;
   }
 
+  const offsetClass = pathname === "/teacher-dashboard" ? "mt-0 md:mt-0" : "mt-24 md:mt-32";
+
   return (
-    <section className="relative overflow-hidden min-h-[220px] md:min-h-[260px] mt-24 md:mt-32 bg-white -mb-16">
+    <section
+      className={`relative overflow-hidden min-h-[220px] md:min-h-[260px] ${offsetClass} bg-white -mb-16`}
+    >
       <div className="absolute inset-0">
         <img
           src={breadcrumbImage}
