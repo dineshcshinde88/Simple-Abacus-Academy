@@ -1,0 +1,21 @@
+{
+    "name": "abacus/spark-learn-api",
+    "type": "project",
+    "description": "Laravel API backend for Abacus Spark Learn",
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^11.0",
+        "firebase/php-jwt": "^6.10"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "scripts": {
+        "post-root-package-install": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ]
+    }
+}
+

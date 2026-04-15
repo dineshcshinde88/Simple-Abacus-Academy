@@ -1,5 +1,1 @@
-const { PrismaClient } = require("@prisma/client");
-
-const prisma = new PrismaClient();
-
-module.exports = prisma;
+// Removed: backend migrated to Laravel PHP.
