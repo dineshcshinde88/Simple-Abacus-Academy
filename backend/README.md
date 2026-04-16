@@ -1,37 +1,36 @@
-# Laravel Backend Migration
+# Plain PHP Backend
 
-This backend has been rewritten from Node/Express to Laravel-style PHP API code to support shared hosting environments without Node.js support.
+This backend now runs as plain PHP (no Laravel runtime boot required).
 
-## What Changed
+## Entry Points
 
-- API endpoints moved to Laravel route file: `routes/api.php`
-- JWT auth implemented via `firebase/php-jwt`
-- Role/subscription middleware ported to Laravel
-- Eloquent models created for all previous Prisma entities
-- Single migration file added for schema creation
-- Old Node/Express source files were neutralized
+- Primary: `index.php` (project root)
+- Public fallback: `public/index.php` (loads root `index.php`)
 
 ## API Base
 
-- Routes are defined in `routes/api.php` and use Laravel's `/api` prefix.
-- Example health URL: `/api/health`
+- All APIs are under `/api/...`
+- Health endpoint: `/api/health`
 
-## Setup Steps
+## Required Server Setup
 
-1. Ensure server has PHP 8.2+ and Composer.
-2. In `backend/`, run:
-   - `composer install`
-3. Copy env file:
-   - `cp .env.example .env`
-4. Configure DB/JWT/mail variables in `.env`.
-5. Generate app key:
-   - `php artisan key:generate`
-6. Run migrations:
-   - `php artisan migrate --force`
-7. Point your domain/subfolder document root to Laravel `public/`.
+1. PHP 8.2+
+2. Apache rewrite enabled (`.htaccess` in backend root)
+3. `vendor/` available (for `firebase/php-jwt`)
+4. Writable upload directory:
+   - `uploads/`
 
-## Important
+## Minimal Deploy Steps
 
-- This machine does not have PHP/Composer CLI, so runtime commands were not executed here.
-- If your hosting is cPanel shared hosting, deploy this as a PHP app (not Passenger Node app).
-
+1. Upload backend files to your domain document root.
+2. Ensure these files exist at the root:
+   - `index.php`
+   - `.htaccess`
+   - `.env`
+   - `vendor/`
+3. Update `.env` with:
+   - `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
+   - `JWT_SECRET`
+   - optional: `CORS_ORIGIN`, `BASE_URL`, mail notification addresses
+4. Test:
+   - `/api/health`
