@@ -1,3 +1,5 @@
+import { getApiBase } from "@/lib/apiBase";
+
 export type StudentDashboardData = {
   name: string;
   level: string | null;
@@ -8,7 +10,7 @@ export type StudentDashboardData = {
   expiryDate: string | null;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5002";
+const API_BASE = getApiBase();
 
 export async function fetchStudentDashboard(token: string): Promise<StudentDashboardData> {
   const response = await fetch(`${API_BASE}/api/student/dashboard`, {

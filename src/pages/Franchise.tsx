@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getApiBase } from "@/lib/apiBase";
 
 const hero = {
   title: "Start Your Own Education Franchise",
@@ -206,7 +207,7 @@ const Franchise = () => {
   const [languages, setLanguages] = useState("");
   const [plan, setPlan] = useState("");
   const [message, setMessage] = useState("");
-  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5002";
+  const API_BASE = getApiBase();
 
   const refreshCaptcha = () => {
     setCaptcha(buildCaptcha());

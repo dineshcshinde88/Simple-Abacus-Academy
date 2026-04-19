@@ -66,12 +66,71 @@ function request_header(string $name): ?string
     return null;
 }
 
+function host_matches_pattern(string $host, string $pattern): bool
+{
+    $host = strtolower($host);
+    $pattern = strtolower($pattern);
+
+    if ($pattern === '') {
+        return false;
+    }
+
+    if (str_starts_with($pattern, '*.')) {
+        $suffix = substr($pattern, 1); // keep leading dot
+        return str_ends_with($host, $suffix) && strlen($host) > strlen($suffix);
+    }
+
+    return $host === $pattern;
+}
+
+function is_origin_allowed(string $origin, array $allowed): bool
+{
+    if (in_array('*', $allowed, true)) {
+        return true;
+    }
+
+    $parts = parse_url($origin);
+    if (!is_array($parts)) {
+        return false;
+    }
+
+    $originHost = strtolower((string) ($parts['host'] ?? ''));
+    $originScheme = strtolower((string) ($parts['scheme'] ?? ''));
+    $originPort = isset($parts['port']) ? (string) $parts['port'] : '';
+    if ($originHost === '' || $originScheme === '') {
+        return false;
+    }
+
+    foreach ($allowed as $entryRaw) {
+        $entry = trim($entryRaw);
+        if ($entry === '') {
+            continue;
+        }
+
+        if ($entry === $origin) {
+            return true;
+        }
+
+        // Support wildcard host patterns like https://*.simpleabacus.com
+        if (preg_match('#^(https?)://(\*\.[^/:]+)(?::([0-9]+))?$#i', $entry, $m) === 1) {
+            $scheme = strtolower($m[1]);
+            $hostPattern = strtolower($m[2]);
+            $port = isset($m[3]) ? (string) $m[3] : '';
+            if ($scheme === $originScheme && $port === $originPort && host_matches_pattern($originHost, $hostPattern)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 function apply_cors_headers(): void
 {
     $origin = request_header('Origin');
     $allowed = array_values(array_filter(array_map('trim', explode(',', (string) envv('CORS_ORIGIN', '')))));
 
-    if (!empty($allowed) && $origin !== null && in_array($origin, $allowed, true)) {
+    if (!empty($allowed) && $origin !== null && is_origin_allowed($origin, $allowed)) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Vary: Origin');
     } elseif (empty($allowed)) {
@@ -253,4 +312,3 @@ function handle_upload_file(string $field): string
     $baseUrl = rtrim((string) envv('BASE_URL', get_base_url()), '/');
     return $baseUrl . '/uploads/' . rawurlencode($finalName);
 }
-

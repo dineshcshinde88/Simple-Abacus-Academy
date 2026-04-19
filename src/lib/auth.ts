@@ -1,3 +1,5 @@
+import { getApiBase } from "@/lib/apiBase";
+
 export type AuthUser = {
   id: string;
   name: string;
@@ -20,7 +22,7 @@ type AuthResponse = {
   user: AuthUser;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5002";
+const API_BASE = getApiBase();
 
 async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   try {

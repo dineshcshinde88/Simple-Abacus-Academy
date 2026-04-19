@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5002";
+import { getApiBase } from "@/lib/apiBase";
+
+const API_BASE = getApiBase();
 
 const request = async <T>(path: string, options: RequestInit = {}, token?: string): Promise<T> => {
   const headers: HeadersInit = {

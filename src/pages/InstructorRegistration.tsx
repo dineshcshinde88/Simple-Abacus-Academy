@@ -11,6 +11,7 @@ import { RefreshCcw } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { register } from "@/lib/auth";
+import { getApiBase } from "@/lib/apiBase";
 
 const buildCaptcha = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -35,7 +36,7 @@ const InstructorRegistration = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5002";
+  const API_BASE = getApiBase();
   const navigate = useNavigate();
 
   const refreshCaptcha = () => {

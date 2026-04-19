@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import LoginDialog from "@/components/auth/LoginDialog";
+import { getApiBase } from "@/lib/apiBase";
 
 const fadeUp = { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true } };
 
@@ -41,7 +42,7 @@ const BookDemo = () => {
   const [motherTongue, setMotherTongue] = useState("");
   const [dob, setDob] = useState("");
 
-  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5002";
+  const API_BASE = getApiBase();
 
   const programSummary = useMemo(() => {
     const chosen = [] as string[];
