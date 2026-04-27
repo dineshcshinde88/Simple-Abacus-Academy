@@ -34,3 +34,22 @@ This backend now runs as plain PHP (no Laravel runtime boot required).
    - optional: `CORS_ORIGIN`, `BASE_URL`, mail notification addresses
 4. Test:
    - `/api/health`
+
+## Subscription + Razorpay Endpoints
+
+- Student (auth role: `student`)
+  - `GET /api/student/subscriptions/plans`
+  - `GET /api/student/subscriptions/summary`
+  - `POST /api/student/subscriptions/create-order`
+  - `POST /api/student/subscriptions/verify`
+
+- Admin (auth role: `admin`)
+  - `GET /api/admin/payment-config?provider=razorpay`
+  - `PUT /api/admin/payment-config`
+  - `GET /api/admin/subscriptions`
+  - `PUT /api/admin/subscriptions/{subscriptionId}`
+  - `POST /api/admin/plans` (now expects `levelId` for level-wise plans)
+
+- Reminder Runner (cron token required)
+  - `POST /api/internal/subscriptions/run-reminders`
+  - Header: `X-Cron-Token: <SUBSCRIPTION_REMINDER_CRON_TOKEN>`

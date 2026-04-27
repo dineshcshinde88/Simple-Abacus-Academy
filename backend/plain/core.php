@@ -216,34 +216,65 @@ function db_conn(): PDO
         return $pdo;
     }
 
-    $host = (string) envv('DB_HOST', '127.0.0.1');
-    $port = (string) envv('DB_PORT', '3306');
-    $db = (string) envv('DB_DATABASE', '');
-    $user = (string) envv('DB_USERNAME', '');
+    $host = trim((string) envv('DB_HOST', '127.0.0.1'));
+    $port = trim((string) envv('DB_PORT', '3306'));
+    $db = trim((string) envv('DB_DATABASE', ''));
+    $user = trim((string) envv('DB_USERNAME', ''));
     $pass = (string) envv('DB_PASSWORD', '');
 
-    if ($db === '' && envv('DATABASE_URL', '') !== '') {
-        $parts = parse_url((string) envv('DATABASE_URL', ''));
+    $databaseUrl = trim((string) envv('DATABASE_URL', ''));
+    if (($db === '' || $user === '' || $host === '') && $databaseUrl !== '') {
+        $parts = parse_url($databaseUrl);
         if (is_array($parts)) {
             $host = (string) ($parts['host'] ?? $host);
             $port = isset($parts['port']) ? (string) $parts['port'] : $port;
             $db = isset($parts['path']) ? ltrim((string) $parts['path'], '/') : $db;
             $user = (string) ($parts['user'] ?? $user);
             $pass = (string) ($parts['pass'] ?? $pass);
+        } elseif (preg_match('#^mysql://([^:]+):([^@]*)@([^:/?#]+)(?::([0-9]+))?/([^?]+)#i', $databaseUrl, $m) === 1) {
+            // Fallback parser for non-standard DATABASE_URL values.
+            $user = $user !== '' ? $user : urldecode($m[1]);
+            $pass = $pass !== '' ? $pass : urldecode($m[2]);
+            $host = $host !== '' ? $host : $m[3];
+            $port = $port !== '' ? $port : ($m[4] !== '' ? $m[4] : '3306');
+            $db = $db !== '' ? $db : urldecode($m[5]);
         }
     }
+
+    $host = trim((string) $host);
+    $port = trim((string) $port);
+    $db = trim((string) $db, "/ \t\n\r\0\x0B");
+    $user = trim((string) $user);
 
     if ($db === '' || $user === '') {
         json_response(['message' => 'Database configuration is missing in .env'], 500);
     }
 
-    $dsn = "mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4";
-    try {
-        $pdo = new PDO($dsn, $user, $pass, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-    } catch (Throwable $e) {
+    $hosts = [$host];
+    if (strcasecmp($host, 'localhost') === 0) {
+        $hosts[] = '127.0.0.1';
+    } elseif ($host === '127.0.0.1') {
+        $hosts[] = 'localhost';
+    }
+
+    $lastError = null;
+    foreach (array_values(array_unique($hosts)) as $candidateHost) {
+        $dsn = "mysql:host={$candidateHost};port={$port};dbname={$db};charset=utf8mb4";
+        try {
+            $pdo = new PDO($dsn, $user, $pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            break;
+        } catch (Throwable $e) {
+            $lastError = $e;
+        }
+    }
+
+    if (!($pdo instanceof PDO)) {
+        if ($lastError instanceof Throwable) {
+            error_log('DB connection failed: ' . $lastError->getMessage());
+        }
         json_response(['message' => 'Database connection failed'], 500);
     }
 

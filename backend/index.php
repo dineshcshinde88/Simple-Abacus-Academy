@@ -11,6 +11,7 @@ require_once __DIR__ . '/plain/controllers_student.php';
 require_once __DIR__ . '/plain/controllers_tutor.php';
 require_once __DIR__ . '/plain/controllers_admin.php';
 require_once __DIR__ . '/plain/controllers_misc.php';
+require_once __DIR__ . '/plain/controllers_subscriptions.php';
 
 load_env_file(__DIR__ . '/.env');
 apply_cors_headers();
@@ -40,6 +41,18 @@ if ($method === 'GET' && $path === '/api/auth/me') {
 
 if ($method === 'GET' && $path === '/api/student/dashboard') {
     controller_student_dashboard(require_role(['student']));
+}
+if ($method === 'GET' && $path === '/api/student/subscriptions/plans') {
+    controller_student_subscription_plans(require_role(['student']));
+}
+if ($method === 'GET' && $path === '/api/student/subscriptions/summary') {
+    controller_student_subscription_summary(require_role(['student']));
+}
+if ($method === 'POST' && $path === '/api/student/subscriptions/create-order') {
+    controller_student_create_razorpay_order(require_role(['student']), $data);
+}
+if ($method === 'POST' && $path === '/api/student/subscriptions/verify') {
+    controller_student_verify_razorpay_payment(require_role(['student']), $data);
 }
 if ($method === 'GET' && $path === '/api/student/videos') {
     $ctx = require_role(['student']);
@@ -105,6 +118,16 @@ if ($method === 'POST' && $path === '/api/admin/plans') {
     require_role(['admin']);
     controller_admin_create_plan($data);
 }
+if ($method === 'GET' && $path === '/api/admin/subscriptions') {
+    require_role(['admin']);
+    controller_admin_subscriptions_list();
+}
+if ($method === 'GET' && $path === '/api/admin/payment-config') {
+    controller_admin_get_payment_config(require_role(['admin']));
+}
+if ($method === 'PUT' && $path === '/api/admin/payment-config') {
+    controller_admin_set_payment_config(require_role(['admin']), $data);
+}
 if ($method === 'PUT' && preg_match('#^/api/admin/assign-tutor/([a-f0-9-]+)$#i', $path, $m)) {
     require_role(['admin']);
     controller_admin_assign_tutor($m[1], $data);
@@ -112,6 +135,10 @@ if ($method === 'PUT' && preg_match('#^/api/admin/assign-tutor/([a-f0-9-]+)$#i',
 if ($method === 'PUT' && preg_match('#^/api/admin/assign-subscription/([a-f0-9-]+)$#i', $path, $m)) {
     require_role(['admin']);
     controller_admin_assign_subscription($m[1], $data);
+}
+if ($method === 'PUT' && preg_match('#^/api/admin/subscriptions/([a-f0-9-]+)$#i', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_update_subscription($m[1], $data);
 }
 if ($method === 'POST' && $path === '/api/admin/levels') {
     require_role(['admin']);
@@ -130,6 +157,8 @@ if ($method === 'POST' && $path === '/api/instructor/apply') {
 if ($method === 'POST' && $path === '/api/payments/webhook') {
     controller_payments_webhook($data);
 }
+if (($method === 'POST' || $method === 'GET') && $path === '/api/internal/subscriptions/run-reminders') {
+    controller_run_subscription_reminders();
+}
 
 json_response(['message' => 'Not Found'], 404);
-

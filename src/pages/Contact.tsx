@@ -13,7 +13,7 @@ const contactInfo = [
   { icon: Mail, title: "Email", value: "simpleabacuspune@gmail.com", href: "mailto:simpleabacuspune@gmail.com" },
   { icon: Phone, title: "Phone", value: "+91 89991 64139", href: "tel:+918999164139" },
   { icon: MessageCircle, title: "WhatsApp", value: "+91 89991 64139", href: "https://wa.me/918999164139" },
-  { icon: MapPin, title: "Address", value: "2nd Floor, Maple Plaza, Kothrud, Pune, Maharashtra 411038" },
+  { icon: MapPin, title: "Address", value: "Near Kunjir Public School, Manjri, Manjari Budruk, Pune, Maharashtra 412307" },
   { icon: Clock, title: "Working Hours", value: "Mon-Sat: 9:00 AM - 7:00 PM" },
 ];
 

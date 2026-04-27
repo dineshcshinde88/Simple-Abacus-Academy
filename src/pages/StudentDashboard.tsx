@@ -120,8 +120,11 @@ const StudentDashboard = () => {
         </div>
 
         {isExpired && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 font-medium">
-            Your subscription has expired.
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 font-medium flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>Your subscription has expired.</span>
+            <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={() => navigate("/student/orders")}>
+              Renew Subscription
+            </Button>
           </div>
         )}
 

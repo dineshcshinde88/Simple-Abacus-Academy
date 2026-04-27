@@ -7,6 +7,11 @@ function controller_student_dashboard(array $ctx): void
         json_response(['message' => 'Student not found'], 404);
     }
 
+    if (function_exists('sync_student_subscription_state')) {
+        sync_student_subscription_state((string) $student['id']);
+        $student = current_student($ctx['user']['id']);
+    }
+
     $status = (string) ($student['subscription_status'] ?? 'expired');
     if (!empty($student['subscription_end']) && strtotime((string) $student['subscription_end']) < time()) {
         $status = 'expired';
@@ -231,4 +236,3 @@ function controller_student_worksheet_completions_list(array $ctx): void
     $rows = db_all('SELECT * FROM worksheet_completions WHERE student_id = :student_id', ['student_id' => $student['id']]);
     json_response(['completions' => $rows]);
 }
-

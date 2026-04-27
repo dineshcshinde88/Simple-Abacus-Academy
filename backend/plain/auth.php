@@ -93,6 +93,11 @@ function require_active_subscription(string $userId): void
         json_response(['message' => 'Subscription expired. Please renew.'], 403);
     }
 
+    if (function_exists('sync_student_subscription_state') && !empty($student['id'])) {
+        sync_student_subscription_state((string) $student['id']);
+        $student = current_student($userId);
+    }
+
     $isFuture = strtotime((string) $student['subscription_end']) > time();
     $isActive = ($student['subscription_status'] ?? '') === 'active' && $isFuture;
     if (!$isActive) {
@@ -104,4 +109,3 @@ function require_active_subscription(string $userId): void
         json_response(['message' => 'Subscription expired. Please renew.'], 403);
     }
 }
-

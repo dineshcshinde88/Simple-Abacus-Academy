@@ -47,6 +47,9 @@ import StudentRegistration from "./pages/StudentRegistration";
 import Testimonials from "./pages/Testimonials";
 import Teachers from "./pages/Teachers";
 import BreadcrumbBanner from "./components/layout/BreadcrumbBanner";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsAndConditions from "./pages/TermsAndConditions";
+import RefundCancellationPolicy from "./pages/RefundCancellationPolicy";
 import TrainingLogin from "./pages/training/TrainingLogin";
 import TrainingRegister from "./pages/training/TrainingRegister";
 import TrainingTeacherDashboard from "./pages/training/TeacherDashboard";
@@ -93,6 +96,9 @@ const App = () => (
             <Route path="/instructor-registration" element={<InstructorRegistration />} />
             <Route path="/student-login" element={<StudentLogin />} />
             <Route path="/student-registration" element={<StudentRegistration />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+            <Route path="/refund-cancellation-policy" element={<RefundCancellationPolicy />} />
             <Route path="/testimonials" element={<Testimonials />} />
             <Route path="/teachers" element={<Teachers />} />
             <Route path="/shop" element={<Shop />} />

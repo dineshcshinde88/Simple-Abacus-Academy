@@ -25,7 +25,7 @@ const buildCaptcha = () => {
 const InstructorRegistration = () => {
   const [captcha, setCaptcha] = useState(buildCaptcha());
   const [captchaInput, setCaptchaInput] = useState("");
-  const [address, setAddress] = useState("Gachibowli, Hyderabad");
+  const [address, setAddress] = useState("Near Kunjir Public School, Manjri, Manjari Budruk, Pune, Maharashtra 412307");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
@@ -250,7 +250,7 @@ const InstructorRegistration = () => {
                     <div className="mt-3 overflow-hidden rounded-xl border border-border">
                       <iframe
                         title="Location Map"
-                        src={`https://www.google.com/maps?q=${encodeURIComponent(address || "Gachibowli, Hyderabad")}&output=embed`}
+                        src={`https://www.google.com/maps?q=${encodeURIComponent(address || "Near Kunjir Public School, Manjri, Manjari Budruk, Pune, Maharashtra 412307")}&output=embed`}
                         className="h-64 w-full"
                         loading="lazy"
                         referrerPolicy="no-referrer-when-downgrade"

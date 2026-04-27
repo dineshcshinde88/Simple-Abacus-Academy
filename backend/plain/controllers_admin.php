@@ -131,12 +131,25 @@ function controller_admin_stats(): void
 
 function controller_admin_create_plan(array $data): void
 {
+    ensure_billing_schema();
+
     $name = trim((string) ($data['name'] ?? ''));
     $durationDays = (int) ($data['durationDays'] ?? 0);
     $price = (float) ($data['price'] ?? 0);
+    $levelId = trim((string) ($data['levelId'] ?? ''));
+    $currency = strtoupper(trim((string) ($data['currency'] ?? 'INR')));
+    $isActive = array_key_exists('isActive', $data) ? ((bool) $data['isActive']) : true;
 
-    if ($name === '' || $durationDays <= 0 || $price < 0) {
+    if ($name === '' || $durationDays <= 0 || $price < 0 || $levelId === '') {
         json_response(['message' => 'Invalid request data'], 422);
+    }
+    if ($currency === '') {
+        $currency = 'INR';
+    }
+
+    $level = db_one('SELECT id FROM levels WHERE id = :id LIMIT 1', ['id' => $levelId]);
+    if (!$level) {
+        json_response(['message' => 'Level not found'], 404);
     }
 
     $exists = db_one('SELECT id FROM subscription_plans WHERE name = :name LIMIT 1', ['name' => $name]);
@@ -147,13 +160,16 @@ function controller_admin_create_plan(array $data): void
     $id = uuid_v4();
     $now = now_sql();
     db_exec_sql(
-        'INSERT INTO subscription_plans (id, name, duration_days, price, created_at, updated_at)
-         VALUES (:id, :name, :duration_days, :price, :created_at, :updated_at)',
+        'INSERT INTO subscription_plans (id, name, level_id, duration_days, price, currency, is_active, created_at, updated_at)
+         VALUES (:id, :name, :level_id, :duration_days, :price, :currency, :is_active, :created_at, :updated_at)',
         [
             'id' => $id,
             'name' => $name,
+            'level_id' => $levelId,
             'duration_days' => $durationDays,
             'price' => $price,
+            'currency' => $currency,
+            'is_active' => $isActive ? 1 : 0,
             'created_at' => $now,
             'updated_at' => $now,
         ]
@@ -189,6 +205,8 @@ function controller_admin_assign_tutor(string $studentId, array $data): void
 
 function controller_admin_assign_subscription(string $studentId, array $data): void
 {
+    ensure_billing_schema();
+
     $student = db_one('SELECT * FROM students WHERE id = :id', ['id' => $studentId]);
     if (!$student) {
         json_response(['message' => 'Student not found'], 404);
@@ -216,20 +234,62 @@ function controller_admin_assign_subscription(string $studentId, array $data): v
     $endTs = $startTs + ($days * 86400);
 
     $planName = $plan ? (string) $plan['name'] : 'Custom Plan';
-    db_exec_sql(
-        'UPDATE students
-         SET subscription_plan = :plan, subscription_start = :start_date, subscription_end = :end_date,
-             subscription_status = :status, updated_at = :updated_at
-         WHERE id = :id',
-        [
-            'plan' => $planName,
-            'start_date' => gmdate('Y-m-d H:i:s', $startTs),
-            'end_date' => gmdate('Y-m-d H:i:s', $endTs),
-            'status' => 'active',
-            'updated_at' => now_sql(),
-            'id' => $studentId,
-        ]
-    );
+    $startDate = gmdate('Y-m-d H:i:s', $startTs);
+    $endDate = gmdate('Y-m-d H:i:s', $endTs);
+    $now = now_sql();
+
+    $pdo = db_conn();
+    $pdo->beginTransaction();
+    try {
+        db_exec_sql(
+            'UPDATE student_subscriptions SET status = :status, updated_at = :updated_at WHERE student_id = :student_id AND status = "active"',
+            ['status' => 'expired', 'updated_at' => $now, 'student_id' => $studentId]
+        );
+
+        db_exec_sql(
+            'INSERT INTO student_subscriptions
+             (id, student_id, plan_id, level_id, plan_name, amount, currency, start_date, expiry_date, status, payment_status, notes, created_at, updated_at)
+             VALUES
+             (:id, :student_id, :plan_id, :level_id, :plan_name, :amount, :currency, :start_date, :expiry_date, :status, :payment_status, :notes, :created_at, :updated_at)',
+            [
+                'id' => uuid_v4(),
+                'student_id' => $studentId,
+                'plan_id' => $plan['id'] ?? null,
+                'level_id' => $plan['level_id'] ?? ($student['level_id'] ?? null),
+                'plan_name' => $planName,
+                'amount' => $plan ? (float) ($plan['price'] ?? 0) : 0,
+                'currency' => $plan['currency'] ?? 'INR',
+                'start_date' => $startDate,
+                'expiry_date' => $endDate,
+                'status' => 'active',
+                'payment_status' => 'paid',
+                'notes' => 'Assigned manually by admin',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]
+        );
+
+        db_exec_sql(
+            'UPDATE students
+             SET level_id = :level_id, subscription_plan = :plan, subscription_start = :start_date, subscription_end = :end_date,
+                 subscription_status = :status, updated_at = :updated_at
+             WHERE id = :id',
+            [
+                'level_id' => $plan['level_id'] ?? ($student['level_id'] ?? null),
+                'plan' => $planName,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'status' => 'active',
+                'updated_at' => $now,
+                'id' => $studentId,
+            ]
+        );
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_response(['message' => 'Failed to assign subscription'], 500);
+    }
 
     $updated = db_one('SELECT subscription_plan, subscription_start, subscription_end, subscription_status FROM students WHERE id = :id', ['id' => $studentId]);
     json_response([
@@ -269,4 +329,3 @@ function controller_admin_create_level(array $data): void
 
     json_response(['level' => db_one('SELECT * FROM levels WHERE id = :id', ['id' => $id])], 201);
 }
-

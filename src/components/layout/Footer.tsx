@@ -21,14 +21,14 @@ const quickLinks = [
   { label: "FAQ", to: "/contact" },
   { label: "Testimonial", to: "/testimonials" },
   { label: "Meet Our Instructors", to: "/teacher-training" },
-  { label: "Abacus Training In Hyd", to: "/online-abacus-classes" },
-  { label: "Vedic Maths Training In Hyd", to: "/vedic-maths-classes" },
+  { label: "Abacus Training In Pune", to: "/online-abacus-classes" },
+  { label: "Vedic Maths Training In Pune", to: "/vedic-maths-classes" },
 ];
 
 const policyLinks = [
-  { label: "Privacy Policy", to: "/" },
-  { label: "Terms and Conditions", to: "/" },
-  { label: "Refund Policy", to: "/" },
+  { label: "Privacy Policy", to: "/privacy-policy" },
+  { label: "Terms and Conditions", to: "/terms-and-conditions" },
+  { label: "Refund Policy", to: "/refund-cancellation-policy" },
 ];
 
 const loginLinks = [
@@ -153,8 +153,7 @@ const Footer = () => (
               <div className="flex items-start gap-2">
                 <MapPin className="mt-1 h-4 w-4" />
                 <span>
-                  2-77/6, Narsingi, Gandipet Mandal, Ranga Reddy Dist, Behind Of Canara Bank, Hyderabad, Telangana,
-                  INDIA - 500 089.
+                  Near Kunjir Public School, Manjri, Manjari Budruk, Pune, Maharashtra 412307
                 </span>
               </div>
             </div>
