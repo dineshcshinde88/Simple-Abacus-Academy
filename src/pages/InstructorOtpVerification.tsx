@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { resendInstructorOtp, setInstructorPassword, verifyInstructorOtp } from "@/services/instructorAuthApi";
+import { ApiError, resendInstructorOtp, setInstructorPassword, verifyInstructorOtp } from "@/services/instructorAuthApi";
 
 type LocationState = {
   email?: string;
@@ -45,6 +45,16 @@ const InstructorOtpVerification = () => {
       toast.success(response.message || "Email verified.");
       setIsVerified(true);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        try {
+          await resendInstructorOtp({ email });
+          setOtp("");
+          toast.info("OTP was not found, so a fresh OTP has been sent to your email.");
+        } catch (resendError) {
+          toast.error(resendError instanceof Error ? resendError.message : "Please register again to request a new OTP.");
+        }
+        return;
+      }
       toast.error(error instanceof Error ? error.message : "OTP verification failed.");
     } finally {
       setIsSubmitting(false);

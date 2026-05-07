@@ -209,7 +209,11 @@ function controller_instructor_verify_otp(array $data): void
 
     $row = db_one('SELECT * FROM otp_verifications WHERE email = :email LIMIT 1', ['email' => $email]);
     if (!$row) {
-        json_response(['message' => 'OTP not found. Please request a new OTP.'], 404);
+        $instructor = db_one('SELECT id FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
+        if ($instructor) {
+            json_response(['message' => 'OTP not found. A new OTP is required.', 'resendRequired' => true], 404);
+        }
+        json_response(['message' => 'Instructor registration not found. Please register again.'], 404);
     }
     if ((int) ($row['attempts'] ?? 0) >= 3) {
         json_response(['message' => 'Maximum OTP attempts reached. Please resend OTP.'], 429);
