@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Bot, MessageCircle, SendHorizontal, X, Menu, ThumbsUp, Paperclip, Smile } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +57,7 @@ function getBotReply(input: string): string {
 }
 
 const AIChatbot = () => {
+  const { pathname } = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -106,6 +108,15 @@ const AIChatbot = () => {
     event.preventDefault();
     sendMessage(input);
   };
+
+  const isDashboardRoute =
+    pathname === "/teacher-dashboard" ||
+    pathname === "/student-dashboard" ||
+    pathname.startsWith("/student/");
+
+  if (isDashboardRoute) {
+    return null;
+  }
 
   return (
     <>

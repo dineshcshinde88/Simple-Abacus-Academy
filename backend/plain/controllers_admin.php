@@ -129,6 +129,187 @@ function controller_admin_stats(): void
     ]);
 }
 
+function controller_admin_courses_list(): void
+{
+    $rows = db_all('SELECT * FROM courses ORDER BY name ASC');
+    json_response(['courses' => $rows]);
+}
+
+function controller_admin_create_course(array $data): void
+{
+    $name = trim((string) ($data['name'] ?? ''));
+    $slug = trim((string) ($data['slug'] ?? ''));
+    $description = isset($data['description']) ? trim((string) $data['description']) : null;
+
+    if ($name === '' || $slug === '') {
+        json_response(['message' => 'name and slug are required'], 422);
+    }
+
+    $existing = db_one('SELECT id FROM courses WHERE slug = :slug LIMIT 1', ['slug' => $slug]);
+    if ($existing) {
+        json_response(['message' => 'Course slug already exists'], 409);
+    }
+
+    $id = uuid_v4();
+    $now = now_sql();
+    db_exec_sql(
+        'INSERT INTO courses (id, name, slug, description, created_at, updated_at)
+         VALUES (:id, :name, :slug, :description, :created_at, :updated_at)',
+        [
+            'id' => $id,
+            'name' => $name,
+            'slug' => $slug,
+            'description' => $description !== '' ? $description : null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]
+    );
+
+    json_response(['course' => db_one('SELECT * FROM courses WHERE id = :id', ['id' => $id])], 201);
+}
+
+function controller_admin_update_course(string $courseId, array $data): void
+{
+    $course = db_one('SELECT * FROM courses WHERE id = :id LIMIT 1', ['id' => $courseId]);
+    if (!$course) {
+        json_response(['message' => 'Course not found'], 404);
+    }
+
+    $name = trim((string) ($data['name'] ?? $course['name']));
+    $slug = trim((string) ($data['slug'] ?? $course['slug']));
+    $description = isset($data['description']) ? trim((string) $data['description']) : $course['description'];
+
+    if ($name === '' || $slug === '') {
+        json_response(['message' => 'name and slug are required'], 422);
+    }
+
+    $duplicate = db_one('SELECT id FROM courses WHERE slug = :slug AND id <> :id LIMIT 1', ['slug' => $slug, 'id' => $courseId]);
+    if ($duplicate) {
+        json_response(['message' => 'Course slug already exists'], 409);
+    }
+
+    db_exec_sql(
+        'UPDATE courses SET name = :name, slug = :slug, description = :description, updated_at = :updated_at WHERE id = :id',
+        ['name' => $name, 'slug' => $slug, 'description' => $description !== '' ? $description : null, 'updated_at' => now_sql(), 'id' => $courseId]
+    );
+
+    json_response(['course' => db_one('SELECT * FROM courses WHERE id = :id', ['id' => $courseId])]);
+}
+
+function controller_admin_delete_course(string $courseId): void
+{
+    $course = db_one('SELECT * FROM courses WHERE id = :id LIMIT 1', ['id' => $courseId]);
+    if (!$course) {
+        json_response(['message' => 'Course not found'], 404);
+    }
+
+    db_exec_sql('DELETE FROM levels WHERE course_id = :course_id', ['course_id' => $courseId]);
+    db_exec_sql('DELETE FROM courses WHERE id = :id', ['id' => $courseId]);
+
+    json_response(['message' => 'Course deleted']);
+}
+
+function controller_admin_update_level(string $levelId, array $data): void
+{
+    $level = db_one('SELECT * FROM levels WHERE id = :id LIMIT 1', ['id' => $levelId]);
+    if (!$level) {
+        json_response(['message' => 'Level not found'], 404);
+    }
+
+    $levelName = trim((string) ($data['levelName'] ?? $level['level_name']));
+    $duration = (int) ($data['duration'] ?? $level['duration']);
+    $description = isset($data['description']) ? trim((string) $data['description']) : $level['description'];
+    $courseId = trim((string) ($data['courseId'] ?? $level['course_id']));
+
+    if ($levelName === '' || $duration <= 0 || $courseId === '') {
+        json_response(['message' => 'Invalid request data'], 422);
+    }
+
+    $course = db_one('SELECT id FROM courses WHERE id = :id LIMIT 1', ['id' => $courseId]);
+    if (!$course) {
+        json_response(['message' => 'Course not found'], 404);
+    }
+
+    db_exec_sql(
+        'UPDATE levels SET level_name = :level_name, course_id = :course_id, duration = :duration, description = :description, updated_at = :updated_at WHERE id = :id',
+        [
+            'level_name' => $levelName,
+            'course_id' => $courseId,
+            'duration' => $duration,
+            'description' => $description !== '' ? $description : null,
+            'updated_at' => now_sql(),
+            'id' => $levelId,
+        ]
+    );
+
+    json_response(['level' => db_one('SELECT * FROM levels WHERE id = :id', ['id' => $levelId])]);
+}
+
+function controller_admin_delete_level(string $levelId): void
+{
+    $level = db_one('SELECT * FROM levels WHERE id = :id LIMIT 1', ['id' => $levelId]);
+    if (!$level) {
+        json_response(['message' => 'Level not found'], 404);
+    }
+
+    db_exec_sql('DELETE FROM worksheets WHERE level_id = :level_id', ['level_id' => $levelId]);
+    db_exec_sql('DELETE FROM subscription_plans WHERE level_id = :level_id', ['level_id' => $levelId]);
+    db_exec_sql('DELETE FROM levels WHERE id = :id', ['id' => $levelId]);
+
+    json_response(['message' => 'Level deleted']);
+}
+
+function controller_admin_worksheets_list(): void
+{
+    $rows = db_all(
+        'SELECT w.*, l.level_name, c.name AS course_name
+         FROM worksheets w
+         LEFT JOIN levels l ON l.id = w.level_id
+         LEFT JOIN courses c ON c.id = l.course_id
+         ORDER BY w.created_at DESC'
+    );
+    json_response(['worksheets' => $rows]);
+}
+
+function controller_admin_update_worksheet(string $worksheetId, array $data): void
+{
+    $worksheet = db_one('SELECT * FROM worksheets WHERE id = :id LIMIT 1', ['id' => $worksheetId]);
+    if (!$worksheet) {
+        json_response(['message' => 'Worksheet not found'], 404);
+    }
+
+    $title = trim((string) ($data['title'] ?? $worksheet['title']));
+    $pdfUrl = trim((string) ($data['pdfUrl'] ?? $worksheet['pdf_url']));
+    $levelId = trim((string) ($data['levelId'] ?? $worksheet['level_id']));
+
+    if ($title === '' || $levelId === '') {
+        json_response(['message' => 'title and levelId are required'], 422);
+    }
+
+    $level = db_one('SELECT * FROM levels WHERE id = :id LIMIT 1', ['id' => $levelId]);
+    if (!$level) {
+        json_response(['message' => 'Level not found'], 404);
+    }
+
+    db_exec_sql(
+        'UPDATE worksheets SET title = :title, pdf_url = :pdf_url, level_id = :level_id, updated_at = :updated_at WHERE id = :id',
+        ['title' => $title, 'pdf_url' => $pdfUrl, 'level_id' => $levelId, 'updated_at' => now_sql(), 'id' => $worksheetId]
+    );
+
+    json_response(['worksheet' => db_one('SELECT * FROM worksheets WHERE id = :id', ['id' => $worksheetId])]);
+}
+
+function controller_admin_delete_worksheet(string $worksheetId): void
+{
+    $worksheet = db_one('SELECT * FROM worksheets WHERE id = :id LIMIT 1', ['id' => $worksheetId]);
+    if (!$worksheet) {
+        json_response(['message' => 'Worksheet not found'], 404);
+    }
+
+    db_exec_sql('DELETE FROM worksheets WHERE id = :id', ['id' => $worksheetId]);
+    json_response(['message' => 'Worksheet deleted']);
+}
+
 function controller_admin_create_plan(array $data): void
 {
     ensure_billing_schema();
@@ -307,19 +488,26 @@ function controller_admin_create_level(array $data): void
     $levelName = trim((string) ($data['levelName'] ?? ''));
     $duration = (int) ($data['duration'] ?? 0);
     $description = isset($data['description']) ? trim((string) $data['description']) : null;
+    $courseId = trim((string) ($data['courseId'] ?? ''));
 
-    if ($levelName === '' || $duration <= 0) {
+    if ($levelName === '' || $duration <= 0 || $courseId === '') {
         json_response(['message' => 'Invalid request data'], 422);
+    }
+
+    $course = db_one('SELECT id FROM courses WHERE id = :id LIMIT 1', ['id' => $courseId]);
+    if (!$course) {
+        json_response(['message' => 'Course not found'], 404);
     }
 
     $id = uuid_v4();
     $now = now_sql();
     db_exec_sql(
-        'INSERT INTO levels (id, level_name, duration, description, created_at, updated_at)
-         VALUES (:id, :level_name, :duration, :description, :created_at, :updated_at)',
+        'INSERT INTO levels (id, level_name, course_id, duration, description, created_at, updated_at)
+         VALUES (:id, :level_name, :course_id, :duration, :description, :created_at, :updated_at)',
         [
             'id' => $id,
             'level_name' => $levelName,
+            'course_id' => $courseId,
             'duration' => $duration,
             'description' => $description !== '' ? $description : null,
             'created_at' => $now,

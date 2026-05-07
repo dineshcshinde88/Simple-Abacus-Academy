@@ -96,6 +96,23 @@ function ensure_billing_schema(): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
 
+    if (!billing_table_has_column('courses', 'id')) {
+        db_exec_sql(
+            'CREATE TABLE IF NOT EXISTS courses (
+                id CHAR(36) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) NOT NULL UNIQUE,
+                description TEXT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+    }
+
+    if (!billing_table_has_column('levels', 'course_id')) {
+        db_exec_sql('ALTER TABLE levels ADD COLUMN course_id CHAR(36) NULL AFTER level_name');
+    }
+
     if (!billing_table_has_column('subscription_plans', 'level_id')) {
         db_exec_sql('ALTER TABLE subscription_plans ADD COLUMN level_id CHAR(36) NULL AFTER name');
     }
@@ -106,7 +123,116 @@ function ensure_billing_schema(): void
         db_exec_sql('ALTER TABLE subscription_plans ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER currency');
     }
 
+    ensure_worksheet_subscription_plans();
+
     $done = true;
+}
+
+function ensure_worksheet_subscription_plans(): void
+{
+    $now = now_sql();
+    $courses = [
+        [
+            'name' => 'Abacus Worksheet',
+            'slug' => 'abacus-worksheet',
+            'description' => 'Abacus worksheet subscription for students',
+            'levels' => [1, 2, 3, 4, 5, 6, 7],
+        ],
+        [
+            'name' => 'Vedic Maths Worksheet',
+            'slug' => 'vedic-maths-worksheet',
+            'description' => 'Vedic Maths worksheet subscription for students',
+            'levels' => [1, 2, 3, 4],
+        ],
+    ];
+    $durations = [
+        ['label' => '3 Months', 'days' => 90, 'price' => 99],
+        ['label' => '1 Year', 'days' => 365, 'price' => 199],
+    ];
+
+    foreach ($courses as $courseData) {
+        $course = db_one('SELECT * FROM courses WHERE slug = :slug LIMIT 1', ['slug' => $courseData['slug']]);
+        if (!$course) {
+            $courseId = uuid_v4();
+            db_exec_sql(
+                'INSERT INTO courses (id, name, slug, description, created_at, updated_at)
+                 VALUES (:id, :name, :slug, :description, :created_at, :updated_at)',
+                [
+                    'id' => $courseId,
+                    'name' => $courseData['name'],
+                    'slug' => $courseData['slug'],
+                    'description' => $courseData['description'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+            $course = ['id' => $courseId];
+        }
+
+        foreach ($courseData['levels'] as $levelNumber) {
+            $levelName = $courseData['name'] . ' Level ' . $levelNumber;
+            $level = db_one(
+                'SELECT * FROM levels WHERE course_id = :course_id AND level_name = :level_name LIMIT 1',
+                ['course_id' => $course['id'], 'level_name' => $levelName]
+            );
+            if (!$level) {
+                $levelId = uuid_v4();
+                db_exec_sql(
+                    'INSERT INTO levels (id, level_name, course_id, duration, description, created_at, updated_at)
+                     VALUES (:id, :level_name, :course_id, :duration, :description, :created_at, :updated_at)',
+                    [
+                        'id' => $levelId,
+                        'level_name' => $levelName,
+                        'course_id' => $course['id'],
+                        'duration' => 0,
+                        'description' => $courseData['name'] . ' Level ' . $levelNumber,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]
+                );
+                $level = ['id' => $levelId];
+            }
+
+            foreach ($durations as $duration) {
+                $planName = $courseData['name'] . ' Level ' . $levelNumber . ' - ' . $duration['label'];
+                $plan = db_one('SELECT id FROM subscription_plans WHERE name = :name LIMIT 1', ['name' => $planName]);
+                if ($plan) {
+                    db_exec_sql(
+                        'UPDATE subscription_plans
+                         SET level_id = :level_id, duration_days = :duration_days, price = :price, currency = :currency,
+                             is_active = :is_active, updated_at = :updated_at
+                         WHERE id = :id',
+                        [
+                            'level_id' => $level['id'],
+                            'duration_days' => $duration['days'],
+                            'price' => $duration['price'],
+                            'currency' => 'INR',
+                            'is_active' => 1,
+                            'updated_at' => $now,
+                            'id' => $plan['id'],
+                        ]
+                    );
+                } else {
+                    db_exec_sql(
+                        'INSERT INTO subscription_plans
+                         (id, name, level_id, duration_days, price, currency, is_active, created_at, updated_at)
+                         VALUES (:id, :name, :level_id, :duration_days, :price, :currency, :is_active, :created_at, :updated_at)',
+                        [
+                            'id' => uuid_v4(),
+                            'name' => $planName,
+                            'level_id' => $level['id'],
+                            'duration_days' => $duration['days'],
+                            'price' => $duration['price'],
+                            'currency' => 'INR',
+                            'is_active' => 1,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]
+                    );
+                }
+            }
+        }
+    }
 }
 
 function billing_secret_key(): string
@@ -338,11 +464,12 @@ function controller_student_subscription_plans(array $ctx): void
     }
 
     $rows = db_all(
-        'SELECT p.*, l.level_name
+        'SELECT p.*, l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug
          FROM subscription_plans p
          LEFT JOIN levels l ON l.id = p.level_id
+         LEFT JOIN courses c ON c.id = l.course_id
          WHERE p.is_active = 1
-         ORDER BY COALESCE(l.level_name, p.name), p.price ASC'
+         ORDER BY COALESCE(c.name, p.name), COALESCE(l.level_name, p.name), p.price ASC'
     );
 
     $plans = array_map(static function (array $row): array {
@@ -351,6 +478,9 @@ function controller_student_subscription_plans(array $ctx): void
             'name' => $row['name'],
             'levelId' => $row['level_id'] ?? null,
             'levelName' => $row['level_name'] ?? null,
+            'courseId' => $row['course_id'] ?? null,
+            'courseName' => $row['course_name'] ?? null,
+            'courseSlug' => $row['course_slug'] ?? null,
             'durationDays' => (int) ($row['duration_days'] ?? 0),
             'price' => (float) ($row['price'] ?? 0),
             'currency' => $row['currency'] ?? 'INR',
@@ -380,10 +510,53 @@ function controller_student_subscription_summary(array $ctx): void
             'email' => $student['user_email'] ?? '',
             'levelId' => $student['level_id'] ?? null,
             'levelName' => $student['level_name'] ?? null,
+            'courseId' => $student['course_id'] ?? null,
+            'courseName' => $student['course_name'] ?? null,
         ],
         'subscription' => $overview,
         'canPay' => $gateway['configured'],
     ]);
+}
+
+function controller_student_subscriptions_me(array $ctx): void
+{
+    controller_student_subscription_summary($ctx);
+}
+
+function controller_student_worksheets_list(array $ctx): void
+{
+    controller_student_worksheets($ctx);
+}
+
+function controller_student_worksheet_download(array $ctx, string $worksheetId): void
+{
+    $student = current_student($ctx['user']['id']);
+    if (!$student || empty($student['level_id'])) {
+        json_response(['message' => 'Level not assigned'], 404);
+    }
+    require_active_subscription($ctx['user']['id']);
+
+    $worksheet = db_one('SELECT * FROM worksheets WHERE id = :id LIMIT 1', ['id' => $worksheetId]);
+    if (!$worksheet) {
+        json_response(['message' => 'Worksheet not found'], 404);
+    }
+    if ($worksheet['level_id'] !== $student['level_id']) {
+        json_response(['message' => 'Access denied for this worksheet'], 403);
+    }
+
+    $pdfUrl = trim((string) ($worksheet['pdf_url'] ?? ''));
+    if ($pdfUrl === '') {
+        json_response(['message' => 'Worksheet file not available'], 404);
+    }
+
+    if (str_starts_with($pdfUrl, 'http://') || str_starts_with($pdfUrl, 'https://')) {
+        $url = $pdfUrl;
+    } else {
+        $base = get_base_url();
+        $url = rtrim($base, '/') . '/' . ltrim($pdfUrl, '/');
+    }
+
+    json_response(['url' => $url]);
 }
 
 function controller_student_create_razorpay_order(array $ctx, array $data): void

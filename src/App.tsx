@@ -42,6 +42,7 @@ import BlogDetail from "./pages/BlogDetail";
 import DigitalFrame from "./pages/DigitalFrame";
 import InstructorLogin from "./pages/InstructorLogin";
 import InstructorRegistration from "./pages/InstructorRegistration";
+import InstructorOtpVerification from "./pages/InstructorOtpVerification";
 import StudentLogin from "./pages/StudentLogin";
 import StudentRegistration from "./pages/StudentRegistration";
 import Testimonials from "./pages/Testimonials";
@@ -94,6 +95,7 @@ const App = () => (
             <Route path="/digital-frame" element={<DigitalFrame />} />
             <Route path="/instructor-login" element={<InstructorLogin />} />
             <Route path="/instructor-registration" element={<InstructorRegistration />} />
+            <Route path="/instructor-verify-otp" element={<InstructorOtpVerification />} />
             <Route path="/student-login" element={<StudentLogin />} />
             <Route path="/student-registration" element={<StudentRegistration />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -204,8 +206,8 @@ const App = () => (
             />
             <Route path="*" element={<NotFound />} />
           </Routes>
-          </BrowserRouter>
           <AIChatbot />
+          </BrowserRouter>
         </TooltipProvider>
       </TrainingAuthProvider>
     </AuthProvider>

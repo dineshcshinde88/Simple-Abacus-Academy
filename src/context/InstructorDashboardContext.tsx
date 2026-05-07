@@ -7,6 +7,12 @@ export type Student = {
   id: string;
   name: string;
   email: string;
+  parentEmail?: string;
+  parentMobile?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  motherTongue?: string;
+  avatarUrl?: string | null;
   level: string;
   batchId: string | null;
   feesStatus: FeesStatus;
@@ -91,7 +97,7 @@ type InstructorDashboardContextType = {
   payments: Payment[];
   announcements: Announcement[];
   activities: Activity[];
-  addStudent: (student: Omit<Student, "id" | "joinedAt" | "progress"> & { progress?: Student["progress"] }) => void;
+  addStudent: (student: Omit<Student, "id" | "progress"> & { progress?: Student["progress"] }) => void;
   updateStudent: (id: string, updates: Partial<Student>) => void;
   deleteStudent: (id: string) => void;
   addBatch: (batch: Omit<Batch, "id" | "studentIds">) => void;

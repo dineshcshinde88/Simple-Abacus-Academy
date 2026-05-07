@@ -84,6 +84,13 @@ function controller_auth_login(array $data): void
     if ($role !== '' && $user['role'] !== $role) {
         json_response(['message' => 'Invalid role'], 401);
     }
+    if ($user['role'] === 'tutor' && function_exists('ensure_instructor_auth_schema')) {
+        ensure_instructor_auth_schema();
+        $instructor = db_one('SELECT is_verified, password FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
+        if (!$instructor || (int) ($instructor['is_verified'] ?? 0) !== 1 || empty($instructor['password'])) {
+            json_response(['message' => 'Please verify your instructor email before login'], 403);
+        }
+    }
 
     $safe = [
         'id' => $user['id'],
@@ -113,4 +120,3 @@ function controller_auth_me(array $ctx): void
         ],
     ]);
 }
-

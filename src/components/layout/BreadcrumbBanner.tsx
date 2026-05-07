@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import breadcrumbImage from "@/assets/breadcrubimage.png";
+import teacherDashboardImage from "@/assets/teacher dashboard page.png";
 import { blogPosts } from "@/data/blogPosts";
 
 const titleMap: Record<string, string> = {
@@ -51,6 +52,8 @@ const BreadcrumbBanner = () => {
   }
 
   const offsetClass = pathname === "/teacher-dashboard" ? "mt-0 md:mt-0" : "mt-24 md:mt-32";
+  const isTeacherDashboard = pathname === "/teacher-dashboard";
+  const bannerImage = pathname === "/teacher-dashboard" ? teacherDashboardImage : breadcrumbImage;
 
   return (
     <section
@@ -58,15 +61,15 @@ const BreadcrumbBanner = () => {
     >
       <div className="absolute inset-0">
         <img
-          src={breadcrumbImage}
+          src={bannerImage}
           alt="Breadcrumb"
           className="h-full w-full object-cover object-center"
           loading="lazy"
         />
       </div>
       <div className="relative container mx-auto px-4 text-primary-foreground text-center min-h-[220px] md:min-h-[260px] flex flex-col items-center justify-center">
-        <h1 className="text-2xl md:text-3xl font-heading font-bold">{title}</h1>
-        <p className="mt-1 text-sm text-primary-foreground/80">Home / {title}</p>
+        <h1 className={`${isTeacherDashboard ? "text-xl md:text-2xl" : "text-2xl md:text-3xl"} font-heading font-bold`}>{title}</h1>
+        <p className={`${isTeacherDashboard ? "text-xs md:text-sm" : "text-sm"} mt-1 text-primary-foreground/80`}>Home / {title}</p>
       </div>
     </section>
   );

@@ -12,6 +12,7 @@ require_once __DIR__ . '/plain/controllers_tutor.php';
 require_once __DIR__ . '/plain/controllers_admin.php';
 require_once __DIR__ . '/plain/controllers_misc.php';
 require_once __DIR__ . '/plain/controllers_subscriptions.php';
+require_once __DIR__ . '/plain/controllers_instructor_auth.php';
 
 load_env_file(__DIR__ . '/.env');
 apply_cors_headers();
@@ -64,6 +65,15 @@ if ($method === 'GET' && $path === '/api/student/worksheets') {
     require_active_subscription($ctx['user']['id']);
     controller_student_worksheets($ctx);
 }
+if ($method === 'GET' && $path === '/api/subscriptions/me') {
+    controller_student_subscriptions_me(require_role(['student']));
+}
+if ($method === 'GET' && $path === '/api/worksheets') {
+    controller_student_worksheets_list(require_role(['student']));
+}
+if ($method === 'GET' && preg_match('#^/api/worksheets/([a-f0-9-]+)/download$#i', $path, $m)) {
+    controller_student_worksheet_download(require_role(['student']), $m[1]);
+}
 if ($method === 'GET' && $path === '/api/student/progress') {
     controller_student_progress_list(require_role(['student']));
 }
@@ -114,6 +124,22 @@ if ($method === 'GET' && $path === '/api/admin/stats') {
     require_role(['admin']);
     controller_admin_stats();
 }
+if ($method === 'GET' && $path === '/api/admin/courses') {
+    require_role(['admin']);
+    controller_admin_courses_list();
+}
+if ($method === 'POST' && $path === '/api/admin/courses') {
+    require_role(['admin']);
+    controller_admin_create_course($data);
+}
+if ($method === 'PUT' && preg_match('#^/api/admin/courses/([a-f0-9-]+)$#i', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_update_course($m[1], $data);
+}
+if ($method === 'DELETE' && preg_match('#^/api/admin/courses/([a-f0-9-]+)$#i', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_delete_course($m[1]);
+}
 if ($method === 'POST' && $path === '/api/admin/plans') {
     require_role(['admin']);
     controller_admin_create_plan($data);
@@ -121,6 +147,30 @@ if ($method === 'POST' && $path === '/api/admin/plans') {
 if ($method === 'GET' && $path === '/api/admin/subscriptions') {
     require_role(['admin']);
     controller_admin_subscriptions_list();
+}
+if ($method === 'POST' && $path === '/api/admin/levels') {
+    require_role(['admin']);
+    controller_admin_create_level($data);
+}
+if ($method === 'PUT' && preg_match('#^/api/admin/levels/([a-f0-9-]+)$#i', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_update_level($m[1], $data);
+}
+if ($method === 'DELETE' && preg_match('#^/api/admin/levels/([a-f0-9-]+)$#i', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_delete_level($m[1]);
+}
+if ($method === 'GET' && $path === '/api/admin/worksheets') {
+    require_role(['admin']);
+    controller_admin_worksheets_list();
+}
+if ($method === 'PUT' && preg_match('#^/api/admin/worksheets/([a-f0-9-]+)$#i', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_update_worksheet($m[1], $data);
+}
+if ($method === 'DELETE' && preg_match('#^/api/admin/worksheets/([a-f0-9-]+)$#i', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_delete_worksheet($m[1]);
 }
 if ($method === 'GET' && $path === '/api/admin/payment-config') {
     controller_admin_get_payment_config(require_role(['admin']));
@@ -153,6 +203,18 @@ if ($method === 'POST' && $path === '/api/franchise/apply') {
 }
 if ($method === 'POST' && $path === '/api/instructor/apply') {
     controller_instructor_apply($data);
+}
+if ($method === 'POST' && $path === '/api/instructor/register/start') {
+    controller_instructor_register_start($data);
+}
+if ($method === 'POST' && $path === '/api/instructor/register/verify-otp') {
+    controller_instructor_verify_otp($data);
+}
+if ($method === 'POST' && $path === '/api/instructor/register/resend-otp') {
+    controller_instructor_resend_otp($data);
+}
+if ($method === 'POST' && $path === '/api/instructor/register/set-password') {
+    controller_instructor_set_password($data);
 }
 if ($method === 'POST' && $path === '/api/payments/webhook') {
     controller_payments_webhook($data);

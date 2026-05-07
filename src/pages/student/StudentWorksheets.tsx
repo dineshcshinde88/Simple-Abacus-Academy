@@ -6,30 +6,57 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import StudentLayout from "@/layouts/StudentLayout";
+import {
+  createRazorpayOrder,
+  getSubscriptionPlans,
+  getSubscriptionSummary,
+  LevelPlan,
+  verifyRazorpayPayment,
+} from "@/services/subscriptionApi";
 
 type CourseId = "abacus" | "vedic";
 type DurationOption = "3_months" | "1_year";
 type LevelStatus = "new" | "active" | "expired";
+type RazorpayCheckoutResponse = {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+};
 
-const durationOptions: Array<{ id: DurationOption; label: string; multiplier: number }> = [
-  { id: "3_months", label: "3 Months", multiplier: 1 },
-  { id: "1_year", label: "1 Year", multiplier: 4 },
+const TOKEN_KEY = "abacus_auth_token";
+
+const loadRazorpayScript = async (): Promise<boolean> => {
+  if (window.Razorpay) return true;
+
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
+const durationOptions: Array<{ id: DurationOption; label: string; price: number; durationDays: number }> = [
+  { id: "3_months", label: "3 Months", price: 99, durationDays: 90 },
+  { id: "1_year", label: "1 Year", price: 199, durationDays: 365 },
 ];
 
 const courses = [
   {
     id: "abacus" as const,
-    name: "Abacus Junior",
-    description: "Structured abacus practice to build confidence and speed.",
-    levelPrice: 499,
-    levels: [0, 1, 2, 3, 4, 5, 6, 7],
+    name: "Abacus Worksheet Subscription",
+    description: "Access level-wise abacus worksheets for focused practice.",
+    planPrefix: "Abacus Worksheet",
+    levels: [1, 2, 3, 4, 5, 6, 7],
   },
   {
     id: "vedic" as const,
-    name: "Vedic Maths",
-    description: "Fast calculation techniques and mental math practice.",
-    levelPrice: 599,
-    levels: [1, 2, 3, 4, 5, 6, 7, 8],
+    name: "Vedic Maths Worksheet Subscription",
+    description: "Access level-wise Vedic Maths worksheets for speed calculation practice.",
+    planPrefix: "Vedic Maths Worksheet",
+    levels: [1, 2, 3, 4],
   },
 ];
 
@@ -61,6 +88,7 @@ const StudentWorksheets = () => {
     vedic: [],
   });
   const [isRenewOpen, setIsRenewOpen] = useState(false);
+  const [processingCourse, setProcessingCourse] = useState<CourseId | null>(null);
 
   const handleToggleLevel = (courseId: CourseId, level: number, status: LevelStatus) => {
     if (status === "active") return;
@@ -75,24 +103,126 @@ const StudentWorksheets = () => {
   const prices = useMemo(() => {
     return courses.reduce<Record<CourseId, number>>((acc, course) => {
       const duration = durationOptions.find((option) => option.id === durationByCourse[course.id]);
-      const multiplier = duration?.multiplier ?? 1;
       const count = selectedLevels[course.id].length;
-      acc[course.id] = count * course.levelPrice * multiplier;
+      acc[course.id] = count * (duration?.price ?? 0);
       return acc;
     }, { abacus: 0, vedic: 0 });
   }, [durationByCourse, selectedLevels]);
 
-  const handleProceed = (courseId: CourseId) => {
+  const findPlanForLevel = (plans: LevelPlan[], courseId: CourseId, level: number, duration: DurationOption) => {
+    const course = courses.find((item) => item.id === courseId);
+    const durationOption = durationOptions.find((option) => option.id === duration);
+    const expectedName = `${course?.planPrefix} Level ${level} - ${durationOption?.label}`.toLowerCase();
+    return plans.find((plan) => {
+      const planName = (plan.name || "").trim().toLowerCase();
+      return (
+        plan.isActive &&
+        plan.durationDays === durationOption?.durationDays &&
+        Number(plan.price) === durationOption.price &&
+        planName === expectedName
+      );
+    });
+  };
+
+  const handleProceed = async (courseId: CourseId, levelOverride?: number) => {
+    const token = localStorage.getItem(TOKEN_KEY) || "";
     const duration = durationByCourse[courseId];
-    const levels = selectedLevels[courseId];
+    const levels = typeof levelOverride === "number" ? [levelOverride] : selectedLevels[courseId];
+    if (!token) {
+      toast({ title: "Login required", description: "Please login again to continue payment." });
+      return;
+    }
     if (!levels.length) {
       toast({ title: "Select levels", description: "Please choose at least one level to continue." });
       return;
     }
-    toast({
-      title: "Proceeding to payment",
-      description: `Course: ${courseId.toUpperCase()} | Levels: ${levels.join(", ")} | Duration: ${duration}`,
-    });
+    if (levels.length > 1) {
+      toast({ title: "Choose one level", description: "Online checkout currently supports one level at a time." });
+      return;
+    }
+
+    setProcessingCourse(courseId);
+    try {
+      const scriptReady = await loadRazorpayScript();
+      if (!scriptReady || !window.Razorpay) {
+        throw new Error("Unable to load Razorpay checkout. Please check your internet connection.");
+      }
+
+      const [plansResp, summaryResp] = await Promise.all([
+        getSubscriptionPlans(token),
+        getSubscriptionSummary(token),
+      ]);
+      if (!summaryResp.canPay) {
+        throw new Error("Online payment is not configured. Please contact admin.");
+      }
+
+      const level = levels[0];
+      const plan = findPlanForLevel(plansResp.plans || [], courseId, level, duration);
+      if (!plan) {
+        const courseName = courses.find((item) => item.id === courseId)?.name || "Worksheet";
+        throw new Error(`No active payment plan found for ${courseName} Level ${level}. Please contact admin.`);
+      }
+
+      const orderResp = await createRazorpayOrder(token, plan.id);
+      const razorpay = new window.Razorpay({
+        key: orderResp.keyId,
+        amount: orderResp.order.amount,
+        currency: orderResp.order.currency,
+        name: "Simple Abacus Academy",
+        description: `${orderResp.plan.name} subscription`,
+        order_id: orderResp.order.id,
+        prefill: {
+          name: summaryResp.student?.name || "",
+          email: summaryResp.student?.email || "",
+        },
+        notes: {
+          course: courseId,
+          selectedDuration: duration,
+          planId: orderResp.plan.id,
+          levelName: orderResp.plan.levelName || "",
+        },
+        handler: async (response: RazorpayCheckoutResponse) => {
+          try {
+            await verifyRazorpayPayment(token, {
+              attemptId: orderResp.attemptId,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+            setSelectedLevels((prev) => ({ ...prev, [courseId]: [] }));
+            toast({
+              title: "Subscription activated",
+              description: `${orderResp.plan.name} is now active.`,
+            });
+          } catch (error) {
+            toast({
+              title: "Payment verification failed",
+              description: error instanceof Error ? error.message : "Please contact support with payment reference.",
+            });
+          } finally {
+            setProcessingCourse(null);
+          }
+        },
+      });
+
+      if (typeof razorpay.on === "function") {
+        razorpay.on("payment.failed", (response) => {
+          toast({
+            title: "Payment failed",
+            description: response?.error?.description || "The payment could not be completed.",
+          });
+          setProcessingCourse(null);
+        });
+      }
+
+      razorpay.open();
+    } catch (error) {
+      toast({
+        title: "Unable to start payment",
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+      setProcessingCourse(null);
+    }
   };
 
   return (
@@ -156,6 +286,29 @@ const StudentWorksheets = () => {
                                 {status.toUpperCase()}
                               </span>
                             </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className={`mt-3 h-8 w-full ${
+                                status === "expired"
+                                  ? "bg-orange-500 hover:bg-orange-600"
+                                  : "bg-slate-900 hover:bg-slate-800"
+                              }`}
+                              disabled={status === "active" || processingCourse === course.id}
+                              onClick={() => {
+                                setSelectedLevels((prev) => ({ ...prev, [course.id]: [level] }));
+                                setIsRenewOpen(false);
+                                void handleProceed(course.id, level);
+                              }}
+                            >
+                              {status === "active"
+                                ? "Active"
+                                : processingCourse === course.id
+                                  ? "Starting..."
+                                  : status === "expired"
+                                    ? "Renew"
+                                    : "Subscribe"}
+                            </Button>
                           </div>
                         );
                       })}
@@ -189,7 +342,7 @@ const StudentWorksheets = () => {
                           setDurationByCourse((prev) => ({ ...prev, [course.id]: option.id }))
                         }
                       >
-                        {option.label}
+                        {option.label} - Rs {option.price}
                       </Button>
                     ))}
                   </div>
@@ -249,10 +402,15 @@ const StudentWorksheets = () => {
                   <div>
                     <p className="text-xs text-muted-foreground">Estimated Price</p>
                     <p className="text-xl font-semibold text-slate-900">
-                      ₹{prices[course.id].toLocaleString("en-IN")}
+                      Rs {prices[course.id].toLocaleString("en-IN")}
                     </p>
                   </div>
-                  <Button onClick={() => handleProceed(course.id)}>Proceed to Payment</Button>
+                  <Button
+                    onClick={() => void handleProceed(course.id)}
+                    disabled={processingCourse === course.id}
+                  >
+                    {processingCourse === course.id ? "Starting Payment..." : "Proceed to Payment"}
+                  </Button>
                 </div>
               </Card>
             );
@@ -264,3 +422,4 @@ const StudentWorksheets = () => {
 };
 
 export default StudentWorksheets;
+
