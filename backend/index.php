@@ -13,6 +13,7 @@ require_once __DIR__ . '/plain/controllers_admin.php';
 require_once __DIR__ . '/plain/controllers_misc.php';
 require_once __DIR__ . '/plain/controllers_subscriptions.php';
 require_once __DIR__ . '/plain/controllers_instructor_auth.php';
+require_once __DIR__ . '/plain/controllers_worksheet_sub.php';
 
 load_env_file(__DIR__ . '/.env');
 apply_cors_headers();
@@ -64,6 +65,26 @@ if ($method === 'GET' && $path === '/api/student/worksheets') {
     $ctx = require_role(['student']);
     require_active_subscription($ctx['user']['id']);
     controller_student_worksheets($ctx);
+}
+if ($method === 'GET' && $path === '/api/student/worksheet-sub') {
+    $ctx = require_role(['student']);
+    require_active_subscription($ctx['user']['id']);
+    controller_student_worksheet_sub_dashboard($ctx);
+}
+if ($method === 'GET' && preg_match('#^/api/student/worksheet-sub/topics/([^/]+)/questions$#', $path, $m)) {
+    $ctx = require_role(['student']);
+    require_active_subscription($ctx['user']['id']);
+    controller_student_worksheet_sub_questions($ctx, $m[1]);
+}
+if ($method === 'GET' && preg_match('#^/api/student/worksheet-sub/topics/([^/]+)/practices$#', $path, $m)) {
+    $ctx = require_role(['student']);
+    require_active_subscription($ctx['user']['id']);
+    controller_student_worksheet_sub_practices($ctx, $m[1]);
+}
+if ($method === 'POST' && $path === '/api/student/worksheet-sub/practices') {
+    $ctx = require_role(['student']);
+    require_active_subscription($ctx['user']['id']);
+    controller_student_worksheet_sub_save_practice($ctx, $data);
 }
 if ($method === 'GET' && $path === '/api/subscriptions/me') {
     controller_student_subscriptions_me(require_role(['student']));
@@ -151,6 +172,63 @@ if ($method === 'GET' && $path === '/api/admin/subscriptions') {
 if ($method === 'POST' && $path === '/api/admin/levels') {
     require_role(['admin']);
     controller_admin_create_level($data);
+}
+
+if ($method === 'GET' && $path === '/api/admin/worksheet-sub/levels') {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_levels();
+}
+if ($method === 'POST' && $path === '/api/admin/worksheet-sub/levels') {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_create_level($data);
+}
+if ($method === 'PUT' && preg_match('#^/api/admin/worksheet-sub/levels/([^/]+)$#', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_update_level($m[1], $data);
+}
+if ($method === 'DELETE' && preg_match('#^/api/admin/worksheet-sub/levels/([^/]+)$#', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_delete_level($m[1]);
+}
+if ($method === 'GET' && $path === '/api/admin/worksheet-sub/topics') {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_topics();
+}
+if ($method === 'POST' && $path === '/api/admin/worksheet-sub/topics') {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_create_topic($data);
+}
+if ($method === 'PUT' && preg_match('#^/api/admin/worksheet-sub/topics/([^/]+)$#', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_update_topic($m[1], $data);
+}
+if ($method === 'DELETE' && preg_match('#^/api/admin/worksheet-sub/topics/([^/]+)$#', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_delete_topic($m[1]);
+}
+if ($method === 'GET' && preg_match('#^/api/admin/worksheet-sub/topics/([^/]+)/questions$#', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_questions($m[1]);
+}
+if ($method === 'POST' && $path === '/api/admin/worksheet-sub/questions') {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_create_question($data);
+}
+if ($method === 'POST' && $path === '/api/admin/worksheet-sub/questions/upload-csv') {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_upload_csv();
+}
+if ($method === 'PUT' && preg_match('#^/api/admin/worksheet-sub/questions/([^/]+)$#', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_update_question($m[1], $data);
+}
+if ($method === 'DELETE' && preg_match('#^/api/admin/worksheet-sub/questions/([^/]+)$#', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_delete_question($m[1]);
+}
+if ($method === 'GET' && $path === '/api/admin/worksheet-sub/reports') {
+    require_role(['admin']);
+    controller_admin_worksheet_sub_reports();
 }
 if ($method === 'PUT' && preg_match('#^/api/admin/levels/([a-f0-9-]+)$#i', $path, $m)) {
     require_role(['admin']);

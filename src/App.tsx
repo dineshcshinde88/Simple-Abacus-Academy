@@ -131,6 +131,14 @@ const App = () => (
               )}
             />
             <Route
+              path="/student/worksheets/:topicId/:view"
+              element={(
+                <ProtectedRoute role="student">
+                  <StudentWorksheets />
+                </ProtectedRoute>
+              )}
+            />
+            <Route
               path="/student/videos"
               element={(
                 <ProtectedRoute role="student">
