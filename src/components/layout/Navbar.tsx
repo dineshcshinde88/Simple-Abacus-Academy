@@ -11,13 +11,12 @@ const navLinks = [
   {
     label: "Courses",
     children: [
-      { label: "Online Abacus Classes", to: "/online-abacus-classes" },
+      { label: "Abacus Classes", to: "/online-abacus-classes" },
       { label: "Teacher Training", to: "/teacher-training" },
       { label: "Vedic Maths Classes", to: "/vedic-maths-classes" },
     ],
   },
   { label: "Teachers", to: "/teachers" },
-  { label: "Franchise", to: "/franchise" },
   {
     label: "Worksheets",
     children: [
@@ -31,7 +30,6 @@ const navLinks = [
   {
     label: "Login",
     children: [
-      { label: "Franchise Registration", to: "/franchise" },
       { label: "Instructor Login", to: "/instructor-login" },
       { label: "Instructor Registration", to: "/instructor-registration" },
       { label: "Student Login", to: "/student-login" },
@@ -150,7 +148,7 @@ const Navbar = () => {
           <Link to="/" className="flex items-center">
             <img
               src="/abacus_logo.svg"
-              alt="Simple Abacus Academy logo"
+              alt="Simple Abacus logo"
               className={`w-auto object-contain transition-all duration-300 ${
                 isScrolled ? "h-10" : "h-12 md:h-14"
               }`}

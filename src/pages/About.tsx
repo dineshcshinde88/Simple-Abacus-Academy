@@ -5,8 +5,8 @@ import { Target, Eye, Heart, Users, Award, BookOpen } from "lucide-react";
 import { placeholderImages } from "@/data/placeholderImages";
 
 const stats = [
-  { label: "Students Trained", value: "100+" },
-  { label: "Certified Trainers", value: "180+" },
+  { label: "Students Trained", value: "1000+" },
+  { label: "Certified Trainers", value: "5+" },
   { label: "Active Learning Centres", value: "3+" },
   { label: "Years of Excellence", value: "14+" },
 ];
@@ -19,7 +19,7 @@ const values = [
 
 const team = [
   { name: "Varsha Shinde", role: "Founder & Master Trainer", desc: "14+ years in abacus training and child learning" },
-  { name: "Anita Desai", role: "Senior Trainer", desc: "Certified Level 10 instructor, 1,500+ students mentored" },
+  { name: "Anita Desai", role: "Senior Trainer", desc: "Certified Level 10 instructor, 1,000+ students mentored" },
   { name: "Rajesh Mehta", role: "Program Coordinator", desc: "Handles batches, exams, and parent communication" },
 ];
 
@@ -38,13 +38,16 @@ const About = () => (
                 About <span className="text-gradient">Simple Abacus</span>
               </h1>
               <p className="text-muted-foreground leading-relaxed mb-4">
-                Simple Abacus Academy is a child-focused learning institute that helps students master mental maths with
+                Simple Abacus is a child-focused learning institute that helps students master mental maths with
                 clarity, confidence, and consistency.
               </p>
               <p className="text-muted-foreground leading-relaxed mb-4">
                 Our programs are designed for ages 6 to 14 and follow a structured level system that turns practice into
                 a habit and calculations into a skill.
               </p>
+              <div className="mb-6 inline-flex items-center rounded-full bg-secondary/10 text-secondary px-4 py-2 text-sm font-semibold shadow-sm">
+                4+ years of experience teaching abacus and building confident learners
+              </div>
               <p className="text-muted-foreground leading-relaxed mb-3">
                 With the right guidance, every child can develop:
               </p>
@@ -79,7 +82,7 @@ const About = () => (
               <div className="absolute inset-0 gradient-accent rounded-3xl -rotate-2 opacity-15" />
               <img
                 src={placeholderImages.aboutHero}
-                alt="Students learning at Simple Abacus Academy"
+                alt="Students learning at Simple Abacus"
                 className="relative w-full rounded-3xl shadow-2xl object-cover aspect-[4/3]"
                 loading="lazy"
               />

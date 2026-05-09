@@ -120,7 +120,7 @@ const StudentOrders = () => {
         key: orderResp.keyId,
         amount: orderResp.order.amount,
         currency: orderResp.order.currency,
-        name: "Simple Abacus Academy",
+        name: "Simple Abacus",
         description: `${orderResp.plan.name} subscription`,
         order_id: orderResp.order.id,
         prefill: {

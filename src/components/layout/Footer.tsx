@@ -12,13 +12,9 @@ import {
 const quickLinks = [
   { label: "Home", to: "/" },
   { label: "About Us", to: "/about" },
-  { label: "Pricing", to: "/shop" },
-  { label: "Courses", to: "/programs" },
-  { label: "Abacus Academy", to: "/about" },
-  { label: "Syllabus", to: "/programs" },
+  { label: "Simple Abacus", to: "/about" },
   { label: "Blogs", to: "/blogs" },
   { label: "Contact Us", to: "/contact" },
-  { label: "FAQ", to: "/contact" },
   { label: "Testimonial", to: "/testimonials" },
   { label: "Meet Our Instructors", to: "/teacher-training" },
   { label: "Abacus Training In Pune", to: "/online-abacus-classes" },
@@ -36,13 +32,9 @@ const loginLinks = [
   { label: "Instructor Registration", to: "/instructor-registration" },
   { label: "Student Login", to: "/student-login" },
   { label: "Student Registration", to: "/student-registration" },
-  { label: "Franchise Registration", to: "/franchise" },
 ];
 
-const affiliators = [
-  { label: "Affiliator Registration", to: "/" },
-  { label: "Affiliator Login", to: "/" },
-];
+
 
 const digitalTools = [
   { label: "Abacus Digital Frame", to: "/digital-frame" },
@@ -58,9 +50,12 @@ const Footer = () => (
             <img src="/abacus_logo.svg" alt="Abacus Trainer" className="h-10 w-auto" />
           </div>
           <p className="mt-4 text-sm text-white/85 leading-relaxed">
-            Simple Abacus Academy brings 4+ years of expertise in Abacus and Vedic Maths, trusted by 5,000+ students and
+            Simple Abacus brings 4+ years of expertise in Abacus and Vedic Maths, trusted by 1,000+ students and
             teachers. We offer online courses for children, school programs, competition conductor, teacher training,
             franchise support, and worksheet subscriptions, providing end-to-end solutions for both learning and teaching.
+          </p>
+          <p className="mt-3 text-sm font-semibold text-white bg-gradient-to-r from-white/10 via-white/5 to-white/10 border border-white/20 px-4 py-3 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+            Simple Abacus is a Division of Mangalvarsha Education Pvt. Ltd.
           </p>
           <div className="mt-6 flex items-center gap-3">
             <a
@@ -122,16 +117,7 @@ const Footer = () => (
               ))}
             </div>
           </div>
-          <div>
-            <h3 className="text-xl font-heading font-bold">Affiliators</h3>
-            <div className="mt-4 grid gap-2">
-              {affiliators.map((link) => (
-                <Link key={link.label} to={link.to} className="flex items-center gap-2 text-sm text-white/85 hover:text-white">
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0" /><span>{link.label}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
+
         </div>
 
         <div className="space-y-8">
@@ -143,17 +129,13 @@ const Footer = () => (
                 <span>+91 89991 64139</span>
               </div>
               <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4" />
-                <span>+91 89991 64139</span>
-              </div>
-              <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
                 <span>simpleabacuspune@gmail.com</span>
               </div>
-              <div className="flex items-start gap-2">
-                <MapPin className="mt-1 h-4 w-4" />
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
                 <span>
-                  Near Kunjir Public School, Manjri, Manjari Budruk, Pune, Maharashtra 412307
+                  Kunjir Public School, Manjri, Manjari Budruk, Pune, Maharashtra 412307
                 </span>
               </div>
             </div>
@@ -172,7 +154,7 @@ const Footer = () => (
       </div>
 
       <div className="mt-12 border-t border-white/10 pt-6 text-center text-sm text-white/70">
-        Copyrights {new Date().getFullYear()}. All Rights Reserved By Simple Abacus Academy And Developed By{" "}
+        Copyrights {new Date().getFullYear()}. All Rights Reserved By Simple Abacus And Developed By{" "}
         <a
           href="https://webakoof.com"
           className="text-white/90 hover:text-white underline-offset-4 hover:underline"

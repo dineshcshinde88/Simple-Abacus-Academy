@@ -34,6 +34,7 @@ import {
 const operations = ["Addition", "Subtraction", "Multiplication"] as const;
 const rowsOptions = ["2", "3", "4", "5", "6", "7", "8", "9", "10"] as const;
 const questionsOptions = ["10", "20", "30", "50", "100"] as const;
+const digitOptions = ["1", "2", "3", "4", "5"] as const;
 
 const features = [
   {
@@ -103,23 +104,23 @@ const WorksheetGenerator = () => {
   const [operation, setOperation] = useState<typeof operations[number]>("Addition");
   const [rows, setRows] = useState<typeof rowsOptions[number]>("10");
   const [questions, setQuestions] = useState<typeof questionsOptions[number]>("20");
-  const [digits1, setDigits1] = useState("3");
-  const [digits2, setDigits2] = useState("2");
-  const [digits3, setDigits3] = useState("2");
+  const [digitsByRow, setDigitsByRow] = useState<string[]>(() =>
+    Array.from({ length: Number(rowsOptions[rowsOptions.length - 1]) }, (_, index) => (index === 0 ? "3" : "2")),
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [worksheetQuestions, setWorksheetQuestions] = useState<
     { numbers: number[]; operator: string; answer: number }[]
   >([]);
 
-  const [name, setName] = useState("");
-  const [mobile, setMobile] = useState("");
-  const [email, setEmail] = useState("");
-  const [errors, setErrors] = useState<{ name?: string; mobile?: string }>({});
-
   const previewSummary = useMemo(
-    () => `${operation} � ${rows} Rows � ${questions} Questions`,
+    () => `${operation} • ${rows} Rows • ${questions} Questions`,
     [operation, rows, questions],
+  );
+
+  const previewColumns = useMemo(
+    () => Math.min(Math.ceil(Number(questions) / Number(rows)), 4),
+    [questions, rows],
   );
 
   const randomNumber = (digits: number) => {
@@ -129,37 +130,42 @@ const WorksheetGenerator = () => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   };
 
+  const getActiveDigitLengths = () =>
+    digitsByRow.slice(0, Number(rows)).map((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    });
+
+  const updateDigitLength = (index: number, value: string) => {
+    setDigitsByRow((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)));
+  };
+
   const generateQuestions = () => {
     const total = Number(questions);
     const result: { numbers: number[]; operator: string; answer: number }[] = [];
-    const d1 = Number(digits1);
-    const d2 = Number(digits2);
-    const d3 = Number(digits3);
+    const digitLengths = getActiveDigitLengths();
 
     for (let i = 0; i < total; i += 1) {
       if (operation === "Addition") {
-        const nums = [randomNumber(d1), randomNumber(d2), randomNumber(d3)];
+        const nums = digitLengths.map((digits) => randomNumber(digits));
         const sum = nums.reduce((acc, val) => acc + val, 0);
         result.push({ numbers: nums, operator: "+", answer: sum });
       } else if (operation === "Subtraction") {
-        let a = randomNumber(d1);
-        let b = randomNumber(d2);
-        if (a < b) [a, b] = [b, a];
-        result.push({ numbers: [a, b], operator: "-", answer: a - b });
+        const nums = digitLengths.map((digits) => randomNumber(digits));
+        const subtractors = nums.slice(1);
+        const subtractorTotal = subtractors.reduce((acc, val) => acc + val, 0);
+        const first = Math.max(nums[0], subtractorTotal + randomNumber(digitLengths[0]));
+        result.push({ numbers: [first, ...subtractors], operator: "-", answer: first - subtractorTotal });
       } else if (operation === "Multiplication") {
-        const a = randomNumber(d1);
-        const b = randomNumber(d2);
-        result.push({ numbers: [a, b], operator: "×", answer: a * b });
+        const nums = digitLengths.map((digits) => randomNumber(Math.min(digits, 2)));
+        const product = nums.reduce((acc, val) => acc * val, 1);
+        result.push({ numbers: nums, operator: "×", answer: product });
       } else {
-        let b = randomNumber(d2);
-        let quotient = randomNumber(d1);
-        let a = b * quotient;
-        if (a === 0) {
-          b = 2;
-          quotient = 3;
-          a = 6;
-        }
-        result.push({ numbers: [a, b], operator: "÷", answer: a / b });
+        const divisorDigits = digitLengths.slice(1);
+        const divisors = divisorDigits.map((digits) => Math.max(1, randomNumber(Math.min(digits, 2))));
+        const divisorProduct = divisors.reduce((acc, val) => acc * val, 1);
+        const quotient = randomNumber(Math.min(digitLengths[0], 3));
+        result.push({ numbers: [divisorProduct * quotient, ...divisors], operator: "÷", answer: quotient });
       }
     }
 
@@ -180,7 +186,7 @@ const WorksheetGenerator = () => {
   const buildPrintHtml = (items: { numbers: number[]; operator: string; answer: number }[]) => {
     const rowsPerPage = Math.max(1, Number(rows));
     const pages = Math.ceil(items.length / rowsPerPage);
-    const title = `Worksheet Generator - ${previewSummary.replace(/�/g, "•")}`;
+    const title = `Worksheet Generator - ${previewSummary}`;
     const renderQuestion = (item: { numbers: number[]; operator: string; answer: number }, idx: number) => `
       <div class="question">
         <div class="q-title">Q${idx + 1}.</div>
@@ -200,13 +206,14 @@ const WorksheetGenerator = () => {
     const renderPage = (pageIndex: number) => {
       const start = pageIndex * rowsPerPage;
       const slice = items.slice(start, start + rowsPerPage);
+      const pageColumns = Math.min(Math.ceil(slice.length / rowsPerPage), 4);
       return `
         <div class="page">
           <div class="page-header">
             <h1>${title}</h1>
             <div class="meta">Generated: ${new Date().toLocaleDateString()}</div>
           </div>
-          <div class="grid">
+          <div class="grid" style="grid-template-columns: repeat(${pageColumns}, minmax(0, 1fr)); gap: 16px;">
             ${slice.map(renderQuestion).join("")}
           </div>
         </div>
@@ -261,18 +268,6 @@ const WorksheetGenerator = () => {
     };
   };
 
-  const handleUserSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const nextErrors: { name?: string; mobile?: string } = {};
-    if (!name.trim()) {
-      nextErrors.name = "Name is required";
-    }
-    if (!mobile.trim()) {
-      nextErrors.mobile = "Mobile number is required";
-    }
-    setErrors(nextErrors);
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -305,7 +300,7 @@ const WorksheetGenerator = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Total Rows</Label>
+                  <Label>Total Number of Rows</Label>
                   <Select value={rows} onValueChange={(value) => setRows(value as typeof rows)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Rows" />
@@ -337,51 +332,23 @@ const WorksheetGenerator = () => {
               </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Number1 (Length Upto)</Label>
-                <Select value={digits1} onValueChange={setDigits1}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Upto No of Digits" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["1", "2", "3", "4", "5"].map((opt) => (
-                      <SelectItem key={opt} value={opt}>
-                        {opt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Number2 (Length Upto)</Label>
-                <Select value={digits2} onValueChange={setDigits2}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Upto No of Digits" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["1", "2", "3", "4", "5"].map((opt) => (
-                      <SelectItem key={opt} value={opt}>
-                        {opt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Number3 (Length Upto)</Label>
-                <Select value={digits3} onValueChange={setDigits3}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Upto No of Digits" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["1", "2", "3", "4", "5"].map((opt) => (
-                      <SelectItem key={opt} value={opt}>
-                        {opt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {digitsByRow.slice(0, Number(rows)).map((digitLength, index) => (
+                <div key={`number-${index + 1}`} className="space-y-2">
+                  <Label>Number{index + 1} (Length Upto)</Label>
+                  <Select value={digitLength} onValueChange={(value) => updateDigitLength(index, value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Upto No of Digits" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {digitOptions.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
             </div>
 
             <div className="mt-6 grid gap-3 md:grid-cols-2">
@@ -412,7 +379,7 @@ const WorksheetGenerator = () => {
                   </div>
                   <div
                     className="mt-4 grid gap-4"
-                    style={{ gridTemplateColumns: `repeat(${Math.min(Number(rows), 4)}, minmax(0, 1fr))` }}
+                    style={{ gridTemplateColumns: `repeat(${previewColumns}, minmax(0, 1fr))` }}
                   >
                     {worksheetQuestions.map((item, index) => (
                       <div key={index} className="rounded-xl border border-border bg-white p-4 shadow-sm">
@@ -437,33 +404,6 @@ const WorksheetGenerator = () => {
               ) : null}
             </div>
 
-            <div className="max-w-4xl mx-auto mt-8 rounded-2xl border border-border bg-white p-6 md:p-8 shadow-card">
-              <h2 className="text-2xl font-heading font-bold text-foreground">User Details</h2>
-              <p className="text-sm text-muted-foreground mt-2">
-                Share your details to receive updates and access saved worksheets.
-              </p>
-              <form onSubmit={handleUserSubmit} className="mt-6 grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name *</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-                  {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="mobile">Mobile *</Label>
-                  <Input id="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} required />
-                  {errors.mobile && <p className="text-xs text-red-500">{errors.mobile}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email (optional)</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-                </div>
-                <div className="md:col-span-3">
-                  <Button type="submit" className="w-full md:w-auto bg-[#4B1E83] hover:bg-[#3c176a]">
-                    Continue
-                  </Button>
-                </div>
-              </form>
-            </div>
           </div>
         </section>
 
@@ -584,5 +524,3 @@ const WorksheetGenerator = () => {
 };
 
 export default WorksheetGenerator;
-
-

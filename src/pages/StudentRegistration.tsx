@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Eye, EyeOff, RefreshCcw } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { register } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 const buildCaptcha = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -22,6 +22,10 @@ const buildCaptcha = () => {
 
 const StudentRegistration = () => {
   const { toast } = useToast();
+  const { register } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/student/dashboard";
   const [captcha, setCaptcha] = useState(buildCaptcha());
   const [captchaInput, setCaptchaInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,7 +67,7 @@ const StudentRegistration = () => {
     try {
       setIsSubmitting(true);
       await register(form.fullName.trim(), form.email.trim(), form.password.trim(), "student");
-      toast({ title: "Registration successful", description: "You can now log in using your credentials." });
+      toast({ title: "Registration successful", description: "You can continue with your subscription." });
       setForm({
         fullName: "",
         email: "",
@@ -75,6 +79,7 @@ const StudentRegistration = () => {
         password: "",
       });
       refreshCaptcha();
+      navigate(redirectTo);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Registration failed";
       toast({ title: "Registration failed", description: message });
@@ -233,7 +238,7 @@ const StudentRegistration = () => {
                 </Button>
                 <p className="text-sm text-muted-foreground">
                   If you are already registered, please {" "}
-                  <Link to="/student-login" className="text-red-600 font-semibold hover:underline">click here</Link>
+                  <Link to={`/student-login?redirect=${encodeURIComponent(redirectTo)}`} className="text-red-600 font-semibold hover:underline">click here</Link>
                   {" "}to login
                 </p>
               </div>

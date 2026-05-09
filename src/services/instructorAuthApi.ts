@@ -20,6 +20,12 @@ async function request<T>(path: string, body: unknown): Promise<T> {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 404) {
+      throw new ApiError(
+        "Instructor registration API was not found on the live server. Please deploy the latest backend to api.simpleabacus.com.",
+        response.status,
+      );
+    }
     throw new ApiError((data as { message?: string }).message || "Request failed", response.status);
   }
   return data as T;

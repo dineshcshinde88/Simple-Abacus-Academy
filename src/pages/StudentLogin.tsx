@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Eye, EyeOff, RefreshCcw } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { login } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 const buildCaptcha = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -19,7 +19,10 @@ const buildCaptcha = () => {
 
 const StudentLogin = () => {
   const { toast } = useToast();
+  const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/student/dashboard";
   const [showPassword, setShowPassword] = useState(false);
   const [captcha, setCaptcha] = useState(buildCaptcha());
   const [captchaInput, setCaptchaInput] = useState("");
@@ -49,10 +52,9 @@ const StudentLogin = () => {
 
     try {
       setIsSubmitting(true);
-      const response = await login(form.email.trim(), form.password, "student");
-      localStorage.setItem("abacus_auth_token", response.token);
+      await login(form.email.trim(), form.password, "student");
       toast({ title: "Login successful", description: "Welcome back!" });
-      navigate("/student/dashboard");
+      navigate(redirectTo);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
       toast({ title: "Login failed", description: message });
@@ -127,7 +129,7 @@ const StudentLogin = () => {
                     </button>
                     <div className="text-muted-foreground">
                       New to ABACUS {" "}
-                      <Link to="/programs" className="text-red-600 font-semibold hover:underline">
+                      <Link to={`/student-registration?redirect=${encodeURIComponent(redirectTo)}`} className="text-red-600 font-semibold hover:underline">
                         Sign Up
                       </Link>
                     </div>

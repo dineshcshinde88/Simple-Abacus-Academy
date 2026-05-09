@@ -11,11 +11,11 @@ const slides = [
     tag: "🧮 For Children Aged 6–14",
     title: "Abacus & Mental Math",
     highlight: "Brain Power",
-    body: "Build concentration, speed, memory, and confidence through our proven abacus training program. Join 10,000+ students excelling in math.",
+    body: "Build concentration, speed, memory, and confidence through our proven abacus training program. Join 1,000+ students excelling in math.",
     primary: { label: "Book Free Demo", to: "/book-demo" },
     secondary: { label: "Explore Programs", to: "/programs" },
     stats: [
-      { num: "100+", label: "Students" },
+      { num: "1000+", label: "Students" },
       { num: "3+", label: "Centres" },
       { num: "98%", label: "Success Rate" },
     ],
@@ -31,7 +31,7 @@ const slides = [
     primary: { label: "Apply to Teach", to: "/contact" },
     secondary: { label: "View Programs", to: "/programs" },
     stats: [
-      { num: "120+", label: "Certified Trainers" },
+      { num: "5+", label: "Certified Trainers" },
       { num: "7 Days", label: "Starter Training" },
       { num: "24/7", label: "Mentor Support" },
     ],

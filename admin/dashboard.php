@@ -3,15 +3,32 @@ $pageTitle = 'Dashboard';
 $activeMenu = 'dashboard';
 require_once __DIR__ . '/includes/header.php';
 
+function admin_dashboard_table_exists(PDO $pdo, string $table): bool
+{
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+    );
+    $stmt->execute([$table]);
+    return (int) $stmt->fetchColumn() > 0;
+}
+
+$hasNewSubscriptions = admin_dashboard_table_exists($pdo, 'student_subscriptions');
+
 $totalStudents = (int) $pdo->query('SELECT COUNT(*) FROM students')->fetchColumn();
-$totalSubscriptions = (int) $pdo->query("SELECT COUNT(*) FROM subscriptions WHERE payment_status = 'paid'")->fetchColumn();
+$totalSubscriptions = $hasNewSubscriptions
+  ? (int) $pdo->query("SELECT COUNT(*) FROM student_subscriptions WHERE payment_status = 'paid'")->fetchColumn()
+  : (int) $pdo->query("SELECT COUNT(*) FROM subscriptions WHERE payment_status = 'paid'")->fetchColumn();
 $totalDemos = (int) $pdo->query('SELECT COUNT(*) FROM demo_bookings')->fetchColumn();
 $totalTeachers = (int) $pdo->query('SELECT COUNT(*) FROM teachers')->fetchColumn();
+
+$subscriptionActivitySql = $hasNewSubscriptions
+  ? "(SELECT 'Subscription' AS type, plan_name AS title, created_at AS created_at FROM student_subscriptions)"
+  : "(SELECT 'Subscription' AS type, plan_name AS title, start_date AS created_at FROM subscriptions)";
 
 $activitySql = "
   (SELECT 'Student' AS type, name AS title, created_at AS created_at FROM students)
   UNION ALL
-  (SELECT 'Subscription' AS type, plan_name AS title, start_date AS created_at FROM subscriptions)
+  {$subscriptionActivitySql}
   UNION ALL
   (SELECT 'Demo Booking' AS type, name AS title, preferred_date AS created_at FROM demo_bookings)
   UNION ALL

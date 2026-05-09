@@ -17,7 +17,7 @@ const VideoIntroSection = () => (
             <div className="relative aspect-video w-full">
               <iframe
                 className="absolute inset-0 h-full w-full"
-                src="https://www.youtube.com/embed/o6yUx027P8M?si=kfYuTZx-jfVBSnHm"
+                src="https://www.youtube.com/embed/-e95fmNBsw0?si=EQ_uQe2Jvvr7gVUV"
                 title="YouTube video player"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 referrerPolicy="strict-origin-when-cross-origin"

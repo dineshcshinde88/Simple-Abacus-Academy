@@ -77,7 +77,7 @@ const Teachers = () => (
         <div className="relative container mx-auto px-4 py-20 md:py-24 text-center">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-1 text-sm font-semibold text-[#0f5132] shadow-sm">
             <Sparkles className="h-4 w-4 text-[#f97316]" />
-            Simple Abacus Academy
+            Simple Abacus
           </span>
           <h1 className="mt-5 text-4xl md:text-5xl font-heading font-bold text-[#0f172a]">
             Meet Our Expert Teachers
@@ -156,7 +156,7 @@ const Teachers = () => (
               <div>
                 <h2 className="text-3xl md:text-4xl font-heading font-bold">Ready to Learn with the Best?</h2>
                 <p className="mt-3 text-white/90 max-w-xl">
-                  Join Simple Abacus Academy and experience expert-led learning that builds speed, focus, and confidence.
+                  Join Simple Abacus and experience expert-led learning that builds speed, focus, and confidence.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">

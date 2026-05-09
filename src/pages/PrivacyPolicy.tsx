@@ -10,12 +10,12 @@ const PrivacyPolicy = () => {
           <div className="container mx-auto px-4">
             <div className="mx-auto max-w-4xl rounded-2xl border border-border bg-white p-6 shadow-card md:p-10">
               <h1 className="text-3xl font-heading font-bold text-foreground">Privacy Policy</h1>
-              <p className="mt-2 text-sm text-muted-foreground">Simple Abacus Academy</p>
+              <p className="mt-2 text-sm text-muted-foreground">Simple Abacus</p>
               <p className="mt-1 text-sm text-muted-foreground">Effective Date: April 23, 2026</p>
 
               <div className="mt-8 space-y-6 text-sm leading-7 text-muted-foreground">
                 <p>
-                  Simple Abacus Academy ("we", "our", "us") respects your privacy. This Privacy Policy explains how we
+                  Simple Abacus ("we", "our", "us") respects your privacy. This Privacy Policy explains how we
                   collect, use, store, and protect personal information when parents and students use our online and
                   offline abacus training services.
                 </p>
@@ -100,7 +100,7 @@ const PrivacyPolicy = () => {
                   <h2 className="text-lg font-semibold text-foreground">9. Contact Us</h2>
                   <p className="mt-2">For privacy-related requests, contact us:</p>
                   <p className="mt-2">
-                    <span className="font-medium text-foreground">Simple Abacus Academy</span>
+                    <span className="font-medium text-foreground">Simple Abacus</span>
                     <br />
                     Phone: +91 89991 64139
                     <br />

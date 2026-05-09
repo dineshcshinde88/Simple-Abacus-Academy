@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { placeholderImages } from "@/data/placeholderImages";
 
-const AboutAcademySection = () => (
+const AboutSimpleAbacusSection = () => (
   <section className="py-20 bg-card border-b border-border">
     <div className="container mx-auto px-4">
       <div className="grid lg:grid-cols-2 gap-10 items-center">
@@ -11,7 +11,7 @@ const AboutAcademySection = () => (
           viewport={{ once: true }}
         >
           <span className="inline-block px-4 py-1.5 rounded-full bg-accent-soft text-secondary text-sm font-semibold mb-4">
-            About Simple Abacus Academy
+            About Simple Abacus
           </span>
           <p className="text-muted-foreground leading-relaxed mb-4">
             SIMPLE ABACUS is dedicated to building strong mathematical foundations and confident young minds through structured Abacus and Vedic Maths training.
@@ -36,8 +36,8 @@ const AboutAcademySection = () => (
         >
           <div className="absolute inset-0 gradient-accent rounded-3xl -rotate-2 opacity-15" />
           <img
-            src={placeholderImages.aboutAcademy}
-            alt="Students learning at Simple Abacus Academy"
+            src={placeholderImages.aboutSimpleAbacus}
+            alt="Students learning at Simple Abacus"
             className="relative w-full rounded-3xl shadow-2xl object-cover aspect-[4/3]"
             loading="lazy"
           />
@@ -47,4 +47,4 @@ const AboutAcademySection = () => (
   </section>
 );
 
-export default AboutAcademySection;
+export default AboutSimpleAbacusSection;

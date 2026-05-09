@@ -3,7 +3,7 @@ import homeHero2 from "@/assets/photos/IMG20260221144800.jpg";
 import homeHero3 from "@/assets/photos/IMG20260221144855.jpg";
 import aboutHero from "@/assets/photos/IMG20260222115937.jpg";
 import aboutFounder from "@/assets/photos/IMG_20260111_100809.jpg";
-import aboutAcademy from "@/assets/photos/IMG20260222120051.jpg";
+import aboutSimpleAbacus from "@/assets/photos/IMG20260222120051.jpg";
 import moduleSection from "@/assets/photos/IMG20260101120514.jpg";
 import ourCourses from "@/assets/photos/IMG20250427114736.jpg";
 import worksheetPractice from "@/assets/photos/device_image.png";
@@ -18,7 +18,7 @@ export const placeholderImages = {
   homeHero3,
   aboutHero,
   aboutFounder,
-  aboutAcademy,
+  aboutSimpleAbacus,
   moduleSection,
   ourCourses,
   worksheetPractice,

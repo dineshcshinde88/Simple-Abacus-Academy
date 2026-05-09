@@ -30,6 +30,8 @@ export type LevelPlan = {
   name: string;
   levelId: string | null;
   levelName: string | null;
+  courseName?: string | null;
+  courseSlug?: string | null;
   durationDays: number;
   price: number;
   currency: string;
@@ -90,6 +92,15 @@ export type RazorpayOrderResponse = {
 
 export const getSubscriptionPlans = (token: string) =>
   apiRequest<{ plans: LevelPlan[] }>("/api/student/subscriptions/plans", { token });
+
+export const getPublicSubscriptionPlans = async () => {
+  const response = await fetch(`${API_BASE}/api/subscriptions/plans/public`);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error((data as { message?: string }).message || "Unable to load subscription plans");
+  }
+  return data as { plans: LevelPlan[] };
+};
 
 export const getSubscriptionSummary = (token: string) =>
   apiRequest<SubscriptionSummaryResponse>("/api/student/subscriptions/summary", { token });

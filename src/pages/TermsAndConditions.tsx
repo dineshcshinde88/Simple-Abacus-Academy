@@ -10,12 +10,12 @@ const TermsAndConditions = () => {
           <div className="container mx-auto px-4">
             <div className="mx-auto max-w-4xl rounded-2xl border border-border bg-white p-6 shadow-card md:p-10">
               <h1 className="text-3xl font-heading font-bold text-foreground">Terms &amp; Conditions</h1>
-              <p className="mt-2 text-sm text-muted-foreground">Simple Abacus Academy</p>
+              <p className="mt-2 text-sm text-muted-foreground">Simple Abacus</p>
               <p className="mt-1 text-sm text-muted-foreground">Effective Date: April 23, 2026</p>
 
               <div className="mt-8 space-y-6 text-sm leading-7 text-muted-foreground">
                 <p>
-                  These Terms &amp; Conditions govern the use of services provided by Simple Abacus Academy, including
+                  These Terms &amp; Conditions govern the use of services provided by Simple Abacus, including
                   online and offline abacus training classes for students.
                 </p>
 
@@ -44,7 +44,7 @@ const TermsAndConditions = () => {
                   <h2 className="text-lg font-semibold text-foreground">3. Payment Terms</h2>
                   <ul className="mt-2 list-disc space-y-1 pl-6">
                     <li>Fees are charged as per selected course plan or monthly subscription model.</li>
-                    <li>Fees must be paid on or before due dates communicated by the academy.</li>
+                    <li>Fees must be paid on or before due dates communicated by Simple Abacus.</li>
                     <li>Delayed or unpaid fees may result in temporary class access restrictions.</li>
                   </ul>
                 </div>
@@ -53,7 +53,7 @@ const TermsAndConditions = () => {
                   <h2 className="text-lg font-semibold text-foreground">4. Intellectual Property</h2>
                   <p className="mt-2">
                     All course materials including worksheets, videos, lesson plans, classroom content, and digital tools
-                    are the intellectual property of Simple Abacus Academy. Unauthorized copying, distribution, recording,
+                    are the intellectual property of Simple Abacus. Unauthorized copying, distribution, recording,
                     resale, or public sharing is prohibited.
                   </p>
                 </div>
@@ -69,7 +69,7 @@ const TermsAndConditions = () => {
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">6. Modification of Terms</h2>
                   <p className="mt-2">
-                    Simple Abacus Academy may update these Terms &amp; Conditions from time to time. Continued use of services
+                    Simple Abacus may update these Terms &amp; Conditions from time to time. Continued use of services
                     after updates implies acceptance of revised terms.
                   </p>
                 </div>
@@ -77,7 +77,7 @@ const TermsAndConditions = () => {
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">7. Contact Us</h2>
                   <p className="mt-2">
-                    <span className="font-medium text-foreground">Simple Abacus Academy</span>
+                    <span className="font-medium text-foreground">Simple Abacus</span>
                     <br />
                     Phone: +91 89991 64139
                     <br />

@@ -31,6 +31,10 @@ if ($method === 'GET' && ($path === '/api/health' || $path === '/up')) {
     json_response(['ok' => true]);
 }
 
+if ($method === 'GET' && $path === '/api/subscriptions/plans/public') {
+    controller_public_subscription_plans();
+}
+
 if ($method === 'POST' && $path === '/api/auth/register') {
     controller_auth_register($data);
 }

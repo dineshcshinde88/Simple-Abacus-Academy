@@ -119,12 +119,44 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
-downloadBtn.addEventListener('click', () => {
+downloadBtn.addEventListener('click', async () => {
   if (!lastWorksheetId) {
     showMessage('Generate a worksheet first.', 'warning');
     return;
   }
-  window.location.href = `download-pdf.php?id=${lastWorksheetId}`;
+
+  downloadBtn.disabled = true;
+  const originalText = downloadBtn.textContent;
+  downloadBtn.textContent = 'Preparing...';
+
+  try {
+    const response = await fetch(`download-pdf.php?id=${lastWorksheetId}`);
+    const contentType = response.headers.get('content-type') || '';
+
+    if (!response.ok || !contentType.includes('application/pdf')) {
+      const text = await response.text();
+      console.error('Download PDF error:', text);
+      showMessage('Could not download PDF. Check worksheet data or server logs.', 'danger');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `abacus-worksheet-${lastWorksheetId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showMessage('PDF downloaded successfully.', 'success');
+  } catch (error) {
+    console.error(error);
+    showMessage('Download failed. Please try again.', 'danger');
+  } finally {
+    downloadBtn.disabled = false;
+    downloadBtn.textContent = originalText;
+  }
 });
 
 printBtn.addEventListener('click', () => {

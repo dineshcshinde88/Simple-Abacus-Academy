@@ -170,7 +170,8 @@ function ensure_worksheet_subscription_plans(): void
         }
 
         foreach ($courseData['levels'] as $levelNumber) {
-            $levelName = $courseData['name'] . ' Level ' . $levelNumber;
+            $levelLabel = is_numeric($levelNumber) ? 'Level ' . $levelNumber : (string) $levelNumber;
+            $levelName = $courseData['name'] . ' ' . $levelLabel;
             $level = db_one(
                 'SELECT * FROM levels WHERE course_id = :course_id AND level_name = :level_name LIMIT 1',
                 ['course_id' => $course['id'], 'level_name' => $levelName]
@@ -185,7 +186,7 @@ function ensure_worksheet_subscription_plans(): void
                         'level_name' => $levelName,
                         'course_id' => $course['id'],
                         'duration' => 0,
-                        'description' => $courseData['name'] . ' Level ' . $levelNumber,
+                        'description' => $courseData['name'] . ' ' . $levelLabel,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ]
@@ -194,7 +195,7 @@ function ensure_worksheet_subscription_plans(): void
             }
 
             foreach ($durations as $duration) {
-                $planName = $courseData['name'] . ' Level ' . $levelNumber . ' - ' . $duration['label'];
+                $planName = $courseData['name'] . ' ' . $levelLabel . ' - ' . $duration['label'];
                 $plan = db_one('SELECT id FROM subscription_plans WHERE name = :name LIMIT 1', ['name' => $planName]);
                 if ($plan) {
                     db_exec_sql(
@@ -462,6 +463,38 @@ function controller_student_subscription_plans(array $ctx): void
     if (!$student) {
         json_response(['message' => 'Student not found'], 404);
     }
+
+    $rows = db_all(
+        'SELECT p.*, l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug
+         FROM subscription_plans p
+         LEFT JOIN levels l ON l.id = p.level_id
+         LEFT JOIN courses c ON c.id = l.course_id
+         WHERE p.is_active = 1
+         ORDER BY COALESCE(c.name, p.name), COALESCE(l.level_name, p.name), p.price ASC'
+    );
+
+    $plans = array_map(static function (array $row): array {
+        return [
+            'id' => $row['id'],
+            'name' => $row['name'],
+            'levelId' => $row['level_id'] ?? null,
+            'levelName' => $row['level_name'] ?? null,
+            'courseId' => $row['course_id'] ?? null,
+            'courseName' => $row['course_name'] ?? null,
+            'courseSlug' => $row['course_slug'] ?? null,
+            'durationDays' => (int) ($row['duration_days'] ?? 0),
+            'price' => (float) ($row['price'] ?? 0),
+            'currency' => $row['currency'] ?? 'INR',
+            'isActive' => ((int) ($row['is_active'] ?? 1)) === 1,
+        ];
+    }, $rows);
+
+    json_response(['plans' => $plans]);
+}
+
+function controller_public_subscription_plans(): void
+{
+    ensure_billing_schema();
 
     $rows = db_all(
         'SELECT p.*, l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug
@@ -899,11 +932,16 @@ function controller_admin_subscriptions_list(): void
             u.name AS student_name,
             u.email AS student_email,
             l.level_name,
+            c.name AS course_name,
+            c.slug AS course_slug,
+            p.duration_days,
             pa.status AS payment_attempt_status
          FROM student_subscriptions ss
          INNER JOIN students s ON s.id = ss.student_id
          INNER JOIN users u ON u.id = s.user_id
          LEFT JOIN levels l ON l.id = ss.level_id
+         LEFT JOIN courses c ON c.id = l.course_id
+         LEFT JOIN subscription_plans p ON p.id = ss.plan_id
          LEFT JOIN payment_attempts pa ON pa.id = ss.payment_attempt_id
          ORDER BY ss.created_at DESC'
     );
@@ -915,6 +953,9 @@ function controller_admin_subscriptions_list(): void
             'name' => $row['student_name'] ?? '',
             'email' => $row['student_email'] ?? '',
         ];
+        $payload['courseName'] = $row['course_name'] ?? '';
+        $payload['courseSlug'] = $row['course_slug'] ?? '';
+        $payload['durationDays'] = isset($row['duration_days']) ? (int) $row['duration_days'] : null;
         $payload['paymentAttemptStatus'] = $row['payment_attempt_status'] ?? null;
         return $payload;
     }, $rows);

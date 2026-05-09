@@ -10,7 +10,7 @@ const RefundCancellationPolicy = () => {
           <div className="container mx-auto px-4">
             <div className="mx-auto max-w-4xl rounded-2xl border border-border bg-white p-6 shadow-card md:p-10">
               <h1 className="text-3xl font-heading font-bold text-foreground">Refund &amp; Cancellation Policy</h1>
-              <p className="mt-2 text-sm text-muted-foreground">Simple Abacus Academy</p>
+              <p className="mt-2 text-sm text-muted-foreground">Simple Abacus</p>
               <p className="mt-1 text-sm text-muted-foreground">Effective Date: April 23, 2026</p>
 
               <div className="mt-8 space-y-6 text-sm leading-7 text-muted-foreground">
@@ -29,7 +29,7 @@ const RefundCancellationPolicy = () => {
                   <h2 className="text-lg font-semibold text-foreground">2. Cancellation by Parent/Student</h2>
                   <ul className="mt-2 list-disc space-y-1 pl-6">
                     <li>If a student discontinues classes, paid fees are not refundable.</li>
-                    <li>Enrollment seats are non-transferable unless explicitly approved by the academy.</li>
+                    <li>Enrollment seats are non-transferable unless explicitly approved by Simple Abacus.</li>
                   </ul>
                 </div>
 
@@ -39,15 +39,15 @@ const RefundCancellationPolicy = () => {
                     <li>Rescheduling requests should be made in advance.</li>
                     <li>Rescheduling depends on trainer and batch availability.</li>
                     <li>
-                      For missed classes, makeup sessions or alternatives (if available) may be provided as per academy policy.
+                      For missed classes, makeup sessions or alternatives (if available) may be provided as per Simple Abacus policy.
                     </li>
                   </ul>
                 </div>
 
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">4. Cancellation by Academy</h2>
+                  <h2 className="text-lg font-semibold text-foreground">4. Cancellation by Simple Abacus</h2>
                   <p className="mt-2">
-                    If a session is cancelled by the academy due to unavoidable reasons, a rescheduled class or appropriate
+                    If a session is cancelled by Simple Abacus due to unavoidable reasons, a rescheduled class or appropriate
                     fee credit may be provided.
                   </p>
                 </div>
@@ -63,7 +63,7 @@ const RefundCancellationPolicy = () => {
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">6. Contact for Refund/Cancellation Requests</h2>
                   <p className="mt-2">
-                    <span className="font-medium text-foreground">Simple Abacus Academy</span>
+                    <span className="font-medium text-foreground">Simple Abacus</span>
                     <br />
                     Phone: +91 89991 64139
                     <br />
