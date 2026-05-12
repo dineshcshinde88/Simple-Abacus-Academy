@@ -91,7 +91,8 @@ const BookDemo = () => {
       });
 
       if (!response.ok) {
-        throw new Error("Request failed");
+        const data = await response.json().catch(() => ({}));
+        throw new Error((data as { message?: string }).message || "Request failed");
       }
 
       toast.success("Thanks! We'll reach out to confirm your free demo session.");
@@ -103,8 +104,9 @@ const BookDemo = () => {
       setDob("");
       refreshCaptcha();
       setSelectedPrograms({ abacus: true, vedic: false });
-    } catch {
-      toast.error("Unable to submit. Please try again.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to submit. Please try again.";
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

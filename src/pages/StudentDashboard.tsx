@@ -9,6 +9,20 @@ import { Download, Trophy } from "lucide-react";
 
 const TOKEN_KEY = "abacus_auth_token";
 
+const formatDate = (value?: string | null) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString();
+};
+
+const daysUntil = (value?: string | null) => {
+  if (!value) return null;
+  const expiry = new Date(value).getTime();
+  if (Number.isNaN(expiry)) return null;
+  return Math.ceil((expiry - Date.now()) / 86400000);
+};
+
 const StudentDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -39,6 +53,7 @@ const StudentDashboard = () => {
 
   const isExpired = data?.subscriptionStatus === "expired";
   const currentLevelNumber = Number((data?.level || "").match(/\d+/)?.[0] || 0);
+  const remainingDays = daysUntil(data?.expiryDate);
 
   const handleCertificateDownload = (level: number) => {
     toast({ title: "Download started", description: `Level ${level} certificate downloading...` });
@@ -127,6 +142,34 @@ const StudentDashboard = () => {
             </Button>
           </div>
         )}
+
+        {!isExpired && remainingDays !== null && remainingDays <= 7 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 font-medium flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Your level subscription ends on {formatDate(data?.expiryDate)}. Renew or upgrade your level to continue learning.
+            </span>
+            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => navigate("/student/orders")}>
+              Renew / Upgrade
+            </Button>
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="bg-white rounded-2xl shadow-card p-5">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">Subscription Start</p>
+            <div className="mt-2 text-lg font-heading font-bold text-slate-900">{formatDate(data?.startDate)}</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-card p-5">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">Subscription End</p>
+            <div className="mt-2 text-lg font-heading font-bold text-slate-900">{formatDate(data?.expiryDate)}</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-card p-5">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">Renewal Status</p>
+            <div className={`mt-2 text-lg font-heading font-bold ${isExpired ? "text-red-600" : "text-emerald-600"}`}>
+              {isExpired ? "Renew now" : remainingDays !== null ? `${Math.max(0, remainingDays)} days left` : "Active"}
+            </div>
+          </div>
+        </div>
 
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card) => (

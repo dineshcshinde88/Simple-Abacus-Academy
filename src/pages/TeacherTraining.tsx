@@ -128,20 +128,16 @@ const eligibility = [
 
 const faqs = [
   {
-    q: "What is the teacher training fee structure?",
-    a: "The training fee is charged per level. On the reference program, it is listed as ₹2000 per level.",
-  },
-  {
     q: "What is the course validity?",
-    a: "The course validity is one year from the date of purchase.",
+    a: "The course validity is 3 months from the date of purchase.",
   },
   {
     q: "How many levels do I get access to?",
-    a: "You get access to all 10 levels, designed to build skills step by step.",
+    a: "You get access to 8 levels, designed to build skills step by step.",
   },
   {
     q: "Do I need to pay extra to join as a teacher?",
-    a: "Yes, there is a separate, affordable plan to be listed as a teacher.",
+    a: "No extra payment is required to join as a teacher after training.",
   },
   {
     q: "Is an assessment test required?",
@@ -153,7 +149,7 @@ const faqs = [
   },
   {
     q: "Can I start earning after training?",
-    a: "Yes. After completion, you can receive student leads and begin earning.",
+    a: "Yes. After training, you can start teaching and begin earning.",
   },
   {
     q: "What learning materials are included?",

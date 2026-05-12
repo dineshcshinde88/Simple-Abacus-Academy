@@ -56,7 +56,7 @@ const faqs = [
   },
   {
     q: "How long is the course?",
-    a: "The program has 10 levels, with each level taking about three months depending on student progress.",
+    a: "The program has 7 levels, with each level taking about three months depending on student progress.",
   },
   {
     q: "What age group is suitable?",
@@ -72,7 +72,7 @@ const faqs = [
   },
   {
     q: "How many classes per week?",
-    a: "Typically 2 to 3 sessions per week, with short daily practice for best results.",
+    a: "Typically 2 sessions per week, with short daily practice for best results.",
   },
   {
     q: "Is parental support required?",

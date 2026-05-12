@@ -86,6 +86,7 @@ class AdminController extends Controller
             'planId' => ['nullable', 'uuid'],
             'durationDays' => ['nullable', 'integer'],
             'startDate' => ['nullable', 'date'],
+            'endDate' => ['nullable', 'date'],
         ]);
 
         $student = Student::find($studentId);
@@ -107,12 +108,16 @@ class AdminController extends Controller
             return response()->json(['message' => 'Duration days is required'], 400);
         }
 
-        $end = (clone $start)->addDays($days);
+        $end = !empty($data['endDate']) ? Carbon::parse($data['endDate']) : (clone $start)->addDays($days);
+
+        if ($end->lessThan($start)) {
+            return response()->json(['message' => 'End date must be after start date'], 400);
+        }
 
         $student->subscription_plan = $plan ? $plan->name : 'Custom Plan';
         $student->subscription_start = $start;
         $student->subscription_end = $end;
-        $student->subscription_status = 'active';
+        $student->subscription_status = $end->isPast() ? 'expired' : 'active';
         $student->save();
 
         return response()->json([

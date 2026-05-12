@@ -35,6 +35,33 @@ function admin_duration_label(?int $days): string
     return $days ? $days . ' days' : '-';
 }
 
+function admin_payment_status_value(?string $status): string
+{
+    return $status === 'paid' ? 'paid' : 'unpaid';
+}
+
+function admin_payment_status_label(?string $status): string
+{
+    return admin_payment_status_value($status) === 'paid' ? 'Paid' : 'Unpaid';
+}
+
+function admin_payment_status_badge(?string $status): string
+{
+    return admin_payment_status_value($status) === 'paid' ? 'success' : 'warning';
+}
+
+function admin_level_status(?string $endDate): string
+{
+    if (!$endDate) {
+        return '-';
+    }
+    $ts = strtotime($endDate);
+    if (!$ts) {
+        return '-';
+    }
+    return $ts >= time() ? 'Active' : 'Completed';
+}
+
 $hasNewSubscriptions = admin_table_exists($pdo, 'student_subscriptions')
     && admin_table_exists($pdo, 'users')
     && admin_table_exists($pdo, 'students');
@@ -43,7 +70,7 @@ if (!$hasNewSubscriptions && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $studentId = (int) ($_POST['student_id'] ?? 0);
     $planName = trim($_POST['plan_name'] ?? '');
     $amount = (float) ($_POST['amount'] ?? 0);
-    $paymentStatus = $_POST['payment_status'] ?? 'pending';
+    $paymentStatus = admin_payment_status_value($_POST['payment_status'] ?? 'unpaid');
     $startDate = $_POST['start_date'] ?? '';
     $endDate = $_POST['end_date'] ?? '';
 
@@ -65,9 +92,13 @@ $students = [];
 if ($hasNewSubscriptions) {
     $where = '';
     $params = [];
-    if (in_array($statusFilter, ['paid', 'pending', 'failed', 'refunded'], true)) {
-        $where = 'WHERE ss.payment_status = ?';
-        $params[] = $statusFilter;
+    if (in_array($statusFilter, ['paid', 'unpaid'], true)) {
+        if ($statusFilter === 'unpaid') {
+            $where = "WHERE ss.payment_status IN ('unpaid', 'pending')";
+        } else {
+            $where = 'WHERE ss.payment_status = ?';
+            $params[] = $statusFilter;
+        }
     }
 
     $sql = "
@@ -105,9 +136,13 @@ if ($hasNewSubscriptions) {
 
     $where = '';
     $params = [];
-    if (in_array($statusFilter, ['paid', 'pending'], true)) {
-        $where = 'WHERE s.payment_status = ?';
-        $params[] = $statusFilter;
+    if (in_array($statusFilter, ['paid', 'unpaid'], true)) {
+        if ($statusFilter === 'unpaid') {
+            $where = "WHERE s.payment_status IN ('unpaid', 'pending')";
+        } else {
+            $where = 'WHERE s.payment_status = ?';
+            $params[] = $statusFilter;
+        }
     }
 
     $listStmt = $pdo->prepare("SELECT s.*, st.name AS student_name, st.email AS student_email FROM subscriptions s JOIN students st ON s.student_id = st.id {$where} ORDER BY s.id DESC");
@@ -139,9 +174,9 @@ if ($hasNewSubscriptions) {
         <form method="get" class="d-flex gap-2">
           <select name="status" class="form-select">
             <option value="">All Status</option>
-            <?php foreach (['paid', 'pending', 'failed', 'refunded'] as $status): ?>
+            <?php foreach (['paid', 'unpaid'] as $status): ?>
               <option value="<?php echo htmlspecialchars($status); ?>" <?php echo $statusFilter === $status ? 'selected' : ''; ?>>
-                <?php echo ucfirst($status); ?>
+                <?php echo htmlspecialchars(admin_payment_status_label($status)); ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -162,6 +197,7 @@ if ($hasNewSubscriptions) {
               <th>Payment</th>
               <th>Start</th>
               <th>Expiry</th>
+              <th>Status</th>
               <th>Razorpay ID</th>
             </tr>
           </thead>
@@ -175,12 +211,13 @@ if ($hasNewSubscriptions) {
                 <td><?php echo htmlspecialchars(admin_duration_label(isset($sub['duration_days']) ? (int) $sub['duration_days'] : null)); ?></td>
                 <td><?php echo htmlspecialchars(($sub['currency'] ?? 'INR') . ' ' . number_format((float) ($sub['amount'] ?? 0), 2)); ?></td>
                 <td>
-                  <span class="badge bg-<?php echo ($sub['payment_status'] ?? '') === 'paid' ? 'success' : 'warning'; ?>">
-                    <?php echo htmlspecialchars($sub['payment_status'] ?? '-'); ?>
+                  <span class="badge bg-<?php echo admin_payment_status_badge($sub['payment_status'] ?? null); ?>">
+                    <?php echo htmlspecialchars(admin_payment_status_label($sub['payment_status'] ?? null)); ?>
                   </span>
                 </td>
                 <td><?php echo htmlspecialchars(admin_format_date($sub['start_date'] ?? null)); ?></td>
                 <td><?php echo htmlspecialchars(admin_format_date($sub['expiry_date'] ?? null)); ?></td>
+                <td><?php echo htmlspecialchars(admin_level_status($sub['expiry_date'] ?? null)); ?></td>
                 <td class="small">
                   <?php echo htmlspecialchars($sub['razorpay_payment_id'] ?: ($sub['provider_payment_id'] ?? '-')); ?>
                 </td>
@@ -222,7 +259,7 @@ if ($hasNewSubscriptions) {
               <label class="form-label">Payment Status</label>
               <select name="payment_status" class="form-select">
                 <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
+                <option value="unpaid">Unpaid</option>
               </select>
             </div>
             <div class="mb-3">
@@ -247,7 +284,7 @@ if ($hasNewSubscriptions) {
               <select name="status" class="form-select">
                 <option value="">All Status</option>
                 <option value="paid" <?php echo $statusFilter === 'paid' ? 'selected' : ''; ?>>Paid</option>
-                <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                <option value="unpaid" <?php echo $statusFilter === 'unpaid' ? 'selected' : ''; ?>>Unpaid</option>
               </select>
               <button class="btn btn-outline-primary" type="submit">Filter</button>
             </form>
@@ -261,6 +298,7 @@ if ($hasNewSubscriptions) {
                   <th>Amount</th>
                   <th>Status</th>
                   <th>Duration</th>
+                  <th>Level Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -270,8 +308,9 @@ if ($hasNewSubscriptions) {
                     <td><?php echo htmlspecialchars($sub['student_name']); ?></td>
                     <td><?php echo htmlspecialchars($sub['plan_name']); ?></td>
                     <td><?php echo htmlspecialchars(number_format((float) $sub['amount'], 2)); ?></td>
-                    <td><span class="badge bg-<?php echo $sub['payment_status'] === 'paid' ? 'success' : 'warning'; ?>"><?php echo htmlspecialchars($sub['payment_status']); ?></span></td>
+                    <td><span class="badge bg-<?php echo admin_payment_status_badge($sub['payment_status'] ?? null); ?>"><?php echo htmlspecialchars(admin_payment_status_label($sub['payment_status'] ?? null)); ?></span></td>
                     <td><?php echo htmlspecialchars($sub['start_date']); ?> - <?php echo htmlspecialchars($sub['end_date']); ?></td>
+                    <td><?php echo htmlspecialchars(admin_level_status($sub['end_date'] ?? null)); ?></td>
                     <td>
                       <a class="btn btn-sm btn-outline-danger" href="subscriptions.php?delete=<?php echo (int) $sub['id']; ?>" onclick="return confirm('Delete this subscription?');">Delete</a>
                     </td>

@@ -42,6 +42,7 @@ function controller_student_dashboard(array $ctx): void
         'worksheetsCount' => $worksheetsCount,
         'videosCount' => $videosCount,
         'subscriptionStatus' => $status,
+        'startDate' => $student['subscription_start'] ?? null,
         'expiryDate' => $student['subscription_end'] ?? null,
     ]);
 }

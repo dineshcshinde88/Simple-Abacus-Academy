@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useTrainingAuth } from "@/context/TrainingAuthContext";
 import { teacherAddStudent, teacherDashboard } from "@/services/trainingApi";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import TeacherShopSection from "@/components/training/TeacherShopSection";
 
 const TeacherDashboard = () => {
   const { token, user, logout } = useTrainingAuth();
@@ -126,6 +127,8 @@ const TeacherDashboard = () => {
                 {(!data?.materials || data.materials.length === 0) && <li>No materials uploaded yet.</li>}
               </ul>
             </div>
+
+            <TeacherShopSection token={token} />
           </div>
         </section>
       </main>

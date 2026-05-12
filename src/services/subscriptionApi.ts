@@ -49,7 +49,7 @@ export type StudentSubscription = {
   startDate: string | null;
   expiryDate: string | null;
   status: "active" | "expired" | "cancelled";
-  paymentStatus: "paid" | "pending" | "failed" | "refunded";
+  paymentStatus: "paid" | "unpaid";
   razorpayOrderId: string | null;
   razorpayPaymentId: string | null;
   createdAt: string | null;

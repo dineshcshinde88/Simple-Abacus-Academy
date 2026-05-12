@@ -19,7 +19,7 @@ const buildCaptcha = () => {
 
 const StudentLogin = () => {
   const { toast } = useToast();
-  const { login } = useAuth();
+  const { forgotPassword, login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/student/dashboard";
@@ -28,6 +28,7 @@ const StudentLogin = () => {
   const [captchaInput, setCaptchaInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
+  const [mode, setMode] = useState<"login" | "forgot">("login");
 
   const refreshCaptcha = () => {
     setCaptcha(buildCaptcha());
@@ -41,7 +42,27 @@ const StudentLogin = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!form.email.trim() || !form.password.trim()) {
+    if (!form.email.trim()) {
+      toast({ title: "Missing email", description: "Email is required." });
+      return;
+    }
+
+    if (mode === "forgot") {
+      try {
+        setIsSubmitting(true);
+        await forgotPassword(form.email.trim());
+        toast({ title: "Reset link sent", description: "Please check your email for the password reset link." });
+        setMode("login");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to send reset link";
+        toast({ title: "Reset failed", description: message });
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    if (!form.password.trim()) {
       toast({ title: "Missing details", description: "Email and password are required." });
       return;
     }
@@ -75,6 +96,9 @@ const StudentLogin = () => {
                 className="rounded-2xl border border-border bg-white p-8 shadow-card"
               >
                 <h1 className="text-2xl md:text-3xl font-heading font-bold text-[#4B1E83]">Student Login</h1>
+                {mode === "forgot" ? (
+                  <p className="mt-2 text-sm text-muted-foreground">Enter your student email and we will send a password reset link.</p>
+                ) : null}
                 <div className="mt-6 space-y-5">
                   <div>
                     <Input
@@ -85,47 +109,55 @@ const StudentLogin = () => {
                       className="h-12 rounded-full border-[#c7d2fe] focus-visible:ring-[#4B1E83]"
                     />
                   </div>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Password"
-                      value={form.password}
-                      onChange={(event) => updateField("password", event.target.value)}
-                      className="h-12 rounded-full border-[#c7d2fe] pr-12 focus-visible:ring-[#4B1E83]"
-                    />
+                  {mode === "login" ? (
+                    <>
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Password"
+                          value={form.password}
+                          onChange={(event) => updateField("password", event.target.value)}
+                          className="h-12 rounded-full border-[#c7d2fe] pr-12 focus-visible:ring-[#4B1E83]"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-[1fr_1fr] items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 rounded-full border border-border bg-muted px-4 py-2 text-center text-sm font-semibold text-foreground">
+                            {captcha}
+                          </div>
+                          <button
+                            type="button"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
+                            onClick={refreshCaptcha}
+                            aria-label="Refresh captcha"
+                          >
+                            <RefreshCcw className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <Input
+                          placeholder="Enter Captcha Code"
+                          value={captchaInput}
+                          onChange={(event) => setCaptchaInput(event.target.value)}
+                          className="h-12 rounded-full border-[#c7d2fe] focus-visible:ring-[#4B1E83]"
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
                     <button
                       type="button"
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="text-[#4B1E83] hover:underline"
+                      onClick={() => setMode((current) => (current === "login" ? "forgot" : "login"))}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-[1fr_1fr] items-center">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 rounded-full border border-border bg-muted px-4 py-2 text-center text-sm font-semibold text-foreground">
-                        {captcha}
-                      </div>
-                      <button
-                        type="button"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
-                        onClick={refreshCaptcha}
-                        aria-label="Refresh captcha"
-                      >
-                        <RefreshCcw className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <Input
-                      placeholder="Enter Captcha Code"
-                      value={captchaInput}
-                      onChange={(event) => setCaptchaInput(event.target.value)}
-                      className="h-12 rounded-full border-[#c7d2fe] focus-visible:ring-[#4B1E83]"
-                    />
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                    <button type="button" className="text-[#4B1E83] hover:underline">
-                      Forgot Password
+                      {mode === "login" ? "Forgot Password" : "Back to Login"}
                     </button>
                     <div className="text-muted-foreground">
                       New to ABACUS {" "}
@@ -134,8 +166,8 @@ const StudentLogin = () => {
                       </Link>
                     </div>
                   </div>
-                  <Button className="rounded-md bg-[#4B1E83] hover:bg-[#3c176a] px-8">
-                    {isSubmitting ? "Signing In..." : "Sign In"}
+                  <Button type="submit" className="rounded-md bg-[#4B1E83] hover:bg-[#3c176a] px-8">
+                    {isSubmitting ? (mode === "forgot" ? "Sending..." : "Signing In...") : (mode === "forgot" ? "Send Reset Link" : "Sign In")}
                   </Button>
                 </div>
               </form>

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\InstructorController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\TutorController;
+use App\Http\Controllers\LeaderboardController;
 use App\Http\Middleware\AuthenticateJwt;
 use App\Http\Middleware\CheckSubscription;
 use App\Http\Middleware\EnsureRole;
@@ -38,6 +39,7 @@ Route::prefix('tutor')->middleware([AuthenticateJwt::class, EnsureRole::class . 
     Route::get('/students', [TutorController::class, 'students']);
     Route::post('/add-student', [TutorController::class, 'addStudent']);
     Route::put('/assign-level/{studentId}', [TutorController::class, 'assignLevel']);
+    Route::put('/students/{studentId}/subscription', [TutorController::class, 'updateSubscriptionDates']);
     Route::post('/upload-video', [TutorController::class, 'uploadVideo']);
     Route::post('/upload-worksheet', [TutorController::class, 'uploadWorksheet']);
 });
@@ -56,4 +58,13 @@ Route::post('/demo/book', [DemoController::class, 'book']);
 Route::post('/franchise/apply', [FranchiseController::class, 'apply']);
 Route::post('/instructor/apply', [InstructorController::class, 'apply']);
 Route::post('/payments/webhook', [PaymentController::class, 'webhook']);
+
+// Leaderboard routes
+Route::prefix('leaderboard')->group(function (): void {
+    Route::get('/', [LeaderboardController::class, 'index']);
+    Route::get('/top-performers', [LeaderboardController::class, 'topPerformers']);
+    Route::get('/student/{studentId}/badges', [LeaderboardController::class, 'studentBadges']);
+    Route::get('/student/{studentId}/history', [LeaderboardController::class, 'performanceHistory']);
+    Route::middleware([AuthenticateJwt::class, EnsureRole::class . ':admin'])->post('/override', [LeaderboardController::class, 'overrideRanking']);
+});
 

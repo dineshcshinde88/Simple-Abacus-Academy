@@ -31,7 +31,7 @@ import {
   HeartHandshake,
 } from "lucide-react";
 
-const operations = ["Addition", "Subtraction", "Multiplication"] as const;
+const operations = ["Addition", "Subtraction", "Multiplication", "Division"] as const;
 const rowsOptions = ["2", "3", "4", "5", "6", "7", "8", "9", "10"] as const;
 const questionsOptions = ["10", "20", "30", "50", "100"] as const;
 const digitOptions = ["1", "2", "3", "4", "5"] as const;

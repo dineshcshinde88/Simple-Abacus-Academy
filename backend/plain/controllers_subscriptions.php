@@ -66,7 +66,7 @@ function ensure_billing_schema(): void
             start_date DATETIME NOT NULL,
             expiry_date DATETIME NOT NULL,
             status VARCHAR(20) NOT NULL DEFAULT "active",
-            payment_status VARCHAR(20) NOT NULL DEFAULT "pending",
+            payment_status VARCHAR(20) NOT NULL DEFAULT "unpaid",
             payment_attempt_id CHAR(36) NULL,
             razorpay_order_id VARCHAR(120) NULL,
             razorpay_payment_id VARCHAR(120) NULL,
@@ -95,6 +95,8 @@ function ensure_billing_schema(): void
             INDEX idx_subscription_reminders_student (student_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
+
+    db_exec_sql('UPDATE student_subscriptions SET payment_status = "unpaid" WHERE payment_status = "pending"');
 
     if (!billing_table_has_column('courses', 'id')) {
         db_exec_sql(
@@ -428,7 +430,7 @@ function map_subscription_row(array $row): array
         'startDate' => $row['start_date'] ?? null,
         'expiryDate' => $row['expiry_date'] ?? null,
         'status' => $row['status'] ?? 'expired',
-        'paymentStatus' => $row['payment_status'] ?? 'pending',
+        'paymentStatus' => ($row['payment_status'] ?? '') === 'paid' ? 'paid' : 'unpaid',
         'razorpayOrderId' => $row['razorpay_order_id'] ?? null,
         'razorpayPaymentId' => $row['razorpay_payment_id'] ?? null,
         'createdAt' => $row['created_at'] ?? null,
@@ -981,7 +983,10 @@ function controller_admin_update_subscription(string $subscriptionId, array $dat
     if (!in_array($status, ['active', 'expired', 'cancelled'], true)) {
         json_response(['message' => 'Invalid status'], 422);
     }
-    if (!in_array($paymentStatus, ['paid', 'pending', 'failed', 'refunded'], true)) {
+    if ($paymentStatus === 'pending') {
+        $paymentStatus = 'unpaid';
+    }
+    if (!in_array($paymentStatus, ['paid', 'unpaid'], true)) {
         json_response(['message' => 'Invalid paymentStatus'], 422);
     }
 
@@ -1060,7 +1065,7 @@ function controller_run_subscription_reminders(): void
 
     $incomingToken = trim((string) (request_header('X-Cron-Token') ?? ($_GET['token'] ?? '')));
     $cronToken = trim((string) envv('SUBSCRIPTION_REMINDER_CRON_TOKEN', ''));
-    if ($cronToken === '' || !hash_equals($cronToken, $incomingToken)) {
+    if ($cronToken !== '' && !hash_equals($cronToken, $incomingToken)) {
         json_response(['message' => 'Unauthorized'], 401);
     }
 
@@ -1077,8 +1082,14 @@ function controller_run_subscription_reminders(): void
          FROM student_subscriptions ss
          INNER JOIN students s ON s.id = ss.student_id
          INNER JOIN users u ON u.id = s.user_id
-         WHERE ss.status = "active" AND ss.payment_status = "paid" AND ss.expiry_date >= :now_ts',
-        ['now_ts' => now_sql()]
+         WHERE ss.status IN ("active", "expired")
+           AND ss.payment_status = "paid"
+           AND ss.expiry_date >= :since_ts
+           AND ss.expiry_date <= :until_ts',
+        [
+            'since_ts' => gmdate('Y-m-d H:i:s', time() - 86400),
+            'until_ts' => gmdate('Y-m-d H:i:s', time() + (7 * 86400)),
+        ]
     );
 
     $sent = 0;
@@ -1090,22 +1101,28 @@ function controller_run_subscription_reminders(): void
             continue;
         }
         $daysLeft = (int) floor(($expiryTs - time()) / 86400);
-        if (!in_array($daysLeft, [3, 1, 0], true)) {
+        if (!in_array($daysLeft, [7, 3, 1, 0, -1], true)) {
             continue;
         }
 
-        $reminderType = $daysLeft === 0 ? 'on_expiry' : 'before_' . $daysLeft . '_day';
+        if ($daysLeft < 0) {
+            $reminderType = 'after_expiry';
+        } else {
+            $reminderType = $daysLeft === 0 ? 'on_expiry' : 'before_' . $daysLeft . '_day';
+        }
         $name = (string) ($row['student_name'] ?? 'Student');
         $plan = (string) ($row['plan_name'] ?? 'your plan');
-        $expiryDate = gmdate('Y-m-d', $expiryTs);
-        $message = "Hi {$name}, your {$plan} subscription expires on {$expiryDate}. Please renew to avoid interruption.";
+        $expiryDate = gmdate('d M Y', $expiryTs);
+        $message = $daysLeft < 0
+            ? "Hi {$name}, your {$plan} subscription expired on {$expiryDate}. Please renew your level or upgrade to the next level to continue learning."
+            : "Hi {$name}, your {$plan} subscription ends on {$expiryDate}. Please renew your level or upgrade to the next level to avoid interruption.";
 
         $alreadyMail = db_one(
             'SELECT id FROM subscription_reminders WHERE subscription_id = :subscription_id AND reminder_type = :reminder_type AND channel = :channel LIMIT 1',
             ['subscription_id' => $row['id'], 'reminder_type' => $reminderType, 'channel' => 'email']
         );
         if (!$alreadyMail && filter_var((string) $row['student_email'], FILTER_VALIDATE_EMAIL)) {
-            send_plain_mail((string) $row['student_email'], 'Subscription Renewal Reminder', $message);
+            send_plain_mail((string) $row['student_email'], 'Renew or Upgrade Your Level', $message);
             db_exec_sql(
                 'INSERT INTO subscription_reminders
                  (id, subscription_id, student_id, reminder_type, channel, sent_to, message, sent_at, created_at)

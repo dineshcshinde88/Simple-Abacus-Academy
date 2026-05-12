@@ -21,7 +21,6 @@ import {
   Plus,
   Search,
   Settings,
-  Star,
   Trash2,
   Trophy,
   Upload,
@@ -51,18 +50,15 @@ import {
   useInstructorDashboard,
 } from "@/context/InstructorDashboardContext";
 import { useAuth } from "@/context/AuthContext";
+import TeacherShopSection from "@/components/training/TeacherShopSection";
 
 const navItems = [
   { key: "overview", label: "Dashboard", icon: LayoutDashboard },
   { key: "courses", label: "Courses", icon: BookOpen },
   { key: "students", label: "Students", icon: Users },
+  { key: "shop", label: "Shop", icon: Wallet },
   { key: "batches", label: "Batches", icon: Calendar },
   { key: "enquiries", label: "Enquiries", icon: MessageCircle },
-  { key: "promote", label: "Promote Yourself", icon: Star },
-  { key: "certificates", label: "Upload Certificate", icon: Award },
-  { key: "feedback", label: "FeedBack", icon: Mail },
-  { key: "slots", label: "Available Slots", icon: ClipboardList },
-  { key: "papers", label: "Prepare Papers", icon: Pencil },
   { key: "settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -79,8 +75,12 @@ type StudentFormState = {
   avatarUrl: string | null;
   level: string;
   batchId: string | "none";
+  levelStartDate: string;
+  levelEndDate: string;
   feesStatus: FeesStatus;
 };
+
+type FeeFilterValue = "all" | FeesStatus | "pending";
 
 type BatchFormState = {
   name: string;
@@ -108,7 +108,7 @@ type PaymentFormState = {
   studentId: string;
   amount: string;
   method: string;
-  status: "paid" | "pending";
+  status: FeesStatus;
 };
 
 type MaterialFormState = {
@@ -131,6 +131,8 @@ const statusBadge = (status: PerformanceStatus) => {
 
 const feeBadge = (status: FeesStatus) =>
   status === "paid" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
+
+const feeStatusLabel = (status: FeesStatus) => (status === "paid" ? "Paid" : "Unpaid");
 
 const formatDate = (value: string) => {
   if (!value) return "-";
@@ -170,7 +172,7 @@ const SectionTitle = ({ title, subtitle }: { title: string; subtitle?: string })
 );
 
 const OverviewSection = ({ onNavigate }: { onNavigate: (tab: NavKey) => void }) => {
-  const { students, batches, classes, assignments, materials } = useInstructorDashboard();
+  const { students, batches, classes } = useInstructorDashboard();
   const today = new Date();
   const todayIso = today.toISOString().slice(0, 10);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -181,12 +183,10 @@ const OverviewSection = ({ onNavigate }: { onNavigate: (tab: NavKey) => void }) 
   });
   const todayClasses = classes.filter((session) => session.date === todayIso);
   const levels = new Set([...students.map((student) => student.level), ...batches.map((batch) => batch.level)]);
-  const topics = assignments.reduce((total, assignment) => total + assignment.questions.length, 0) + materials.length;
 
   const cards = [
     { title: "Total Course Types", value: 3, caption: "All Course Types", icon: BookOpen, color: "bg-cyan-500", tab: "courses" as const },
     { title: "Total Course Levels", value: levels.size, caption: "All Levels", icon: ClipboardList, color: "bg-emerald-500", tab: "courses" as const },
-    { title: "Total Topics", value: topics, caption: "All Topics", icon: BookOpen, color: "bg-orange-600", tab: "papers" as const },
     { title: "Total Students", value: students.length, caption: "All Students", icon: Users, color: "bg-indigo-600", tab: "students" as const },
     { title: "Total Batches", value: batches.length, caption: "All Batches", icon: Calendar, color: "bg-emerald-500", tab: "batches" as const },
   ];
@@ -285,7 +285,7 @@ const OverviewSection = ({ onNavigate }: { onNavigate: (tab: NavKey) => void }) 
 const StudentsSection = () => {
   const { students, batches, addStudent, updateStudent, deleteStudent } = useInstructorDashboard();
   const [search, setSearch] = useState("");
-  const [feeFilter, setFeeFilter] = useState<"all" | FeesStatus>("all");
+  const [feeFilter, setFeeFilter] = useState<FeeFilterValue>("all");
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
   const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
@@ -301,12 +301,16 @@ const StudentsSection = () => {
     avatarUrl: null,
     level: "Level 0",
     batchId: "none",
-    feesStatus: "pending",
+    levelStartDate: "",
+    levelEndDate: "",
+    feesStatus: "unpaid",
   });
 
   const filteredStudents = students.filter((student) => {
     const matchesSearch = student.name.toLowerCase().includes(search.toLowerCase());
-    const matchesFee = feeFilter === "all" || student.feesStatus === feeFilter;
+    const matchesFee =
+      feeFilter === "all" ||
+      (feeFilter === "paid" ? student.feesStatus === "paid" : student.feesStatus !== "paid");
     return matchesSearch && matchesFee;
   });
 
@@ -322,7 +326,9 @@ const StudentsSection = () => {
       avatarUrl: null,
       level: "Level 0",
       batchId: "none",
-      feesStatus: "pending",
+      levelStartDate: "",
+      levelEndDate: "",
+      feesStatus: "unpaid",
     });
 
   const handleStudentPhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -356,6 +362,8 @@ const StudentsSection = () => {
         avatarUrl: formState.avatarUrl,
         level: formState.level,
         batchId: formState.batchId === "none" ? null : formState.batchId,
+        levelStartDate: formState.levelStartDate,
+        levelEndDate: formState.levelEndDate,
         feesStatus: formState.feesStatus,
         joinedAt: formState.joiningDate || editingStudent.joinedAt,
       });
@@ -373,6 +381,8 @@ const StudentsSection = () => {
         avatarUrl: formState.avatarUrl,
         level: formState.level,
         batchId: formState.batchId === "none" ? null : formState.batchId,
+        levelStartDate: formState.levelStartDate,
+        levelEndDate: formState.levelEndDate,
         feesStatus: formState.feesStatus,
         joinedAt: formState.joiningDate || new Date().toISOString().slice(0, 10),
       });
@@ -395,6 +405,8 @@ const StudentsSection = () => {
       avatarUrl: student.avatarUrl || null,
       level: student.level,
       batchId: student.batchId ?? "none",
+      levelStartDate: student.levelStartDate || "",
+      levelEndDate: student.levelEndDate || "",
       feesStatus: student.feesStatus,
     });
     setIsStudentFormOpen(true);
@@ -497,6 +509,24 @@ const StudentsSection = () => {
                 />
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="levelStartDate" className="text-xs font-normal text-slate-500">Level Start Date</Label>
+                <Input
+                  id="levelStartDate"
+                  type="date"
+                  value={formState.levelStartDate}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, levelStartDate: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="levelEndDate" className="text-xs font-normal text-slate-500">Level End Date</Label>
+                <Input
+                  id="levelEndDate"
+                  type="date"
+                  value={formState.levelEndDate}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, levelEndDate: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="profilePic" className="text-xs font-normal text-slate-500">Profile Pic</Label>
                 <Input id="profilePic" type="file" accept="image/*" onChange={handleStudentPhotoChange} />
               </div>
@@ -528,7 +558,7 @@ const StudentsSection = () => {
           <SelectContent>
             <SelectItem value="all">All Fees</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="unpaid">Unpaid</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -539,6 +569,8 @@ const StudentsSection = () => {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Level</TableHead>
+              <TableHead>Start</TableHead>
+              <TableHead>End</TableHead>
               <TableHead>Batch</TableHead>
               <TableHead>Fees</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -551,10 +583,12 @@ const StudentsSection = () => {
                 <TableRow key={student.id}>
                   <TableCell className="font-medium">{student.name}</TableCell>
                   <TableCell>{student.level}</TableCell>
+                  <TableCell>{formatDate(student.levelStartDate || "")}</TableCell>
+                  <TableCell>{formatDate(student.levelEndDate || "")}</TableCell>
                   <TableCell>{batch?.name || "Unassigned"}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${feeBadge(student.feesStatus)}`}>
-                      {student.feesStatus}
+                      {feeStatusLabel(student.feesStatus)}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
@@ -620,7 +654,25 @@ const StudentDetailPanel = ({ student, onClose }: { student: Student | null; onC
                 </div>
                 <div>
                   <p className="text-muted-foreground">Fees</p>
-                  <p className="font-medium capitalize">{student.feesStatus}</p>
+                  <p className="font-medium">{feeStatusLabel(student.feesStatus)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Level Start</p>
+                  <p className="font-medium">{formatDate(student.levelStartDate || "")}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Level End</p>
+                  <p className="font-medium">{formatDate(student.levelEndDate || "")}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Level Status</p>
+                  <p className="font-medium">
+                    {student.levelEndDate
+                      ? new Date(student.levelEndDate) >= new Date()
+                        ? "Active"
+                        : "Completed"
+                      : "Not set"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Joined</p>
@@ -1182,7 +1234,7 @@ const FeesSection = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <SectionTitle title="Fees Management" subtitle="Track payments and pending dues" />
+        <SectionTitle title="Fees Management" subtitle="Track paid and unpaid fees" />
         <Dialog>
           <DialogTrigger asChild>
             <Button className="gap-2">
@@ -1216,13 +1268,13 @@ const FeesSection = () => {
                 value={form.method}
                 onChange={(e) => setForm((prev) => ({ ...prev, method: e.target.value }))}
               />
-              <Select value={form.status} onValueChange={(value: "paid" | "pending") => setForm((prev) => ({ ...prev, status: value }))}>
+              <Select value={form.status} onValueChange={(value: FeesStatus) => setForm((prev) => ({ ...prev, status: value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
                 </SelectContent>
               </Select>
               <Button onClick={handleAddPayment}>Save Payment</Button>
@@ -1250,7 +1302,7 @@ const FeesSection = () => {
                 <TableCell>{formatDate(payment.date)}</TableCell>
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${feeBadge(payment.status)}`}>
-                    {payment.status}
+                    {feeStatusLabel(payment.status)}
                   </span>
                 </TableCell>
                 <TableCell>{payment.method}</TableCell>
@@ -1941,7 +1993,7 @@ const ProfileSection = () => {
 
 const InstructorDashboardShell = () => {
   const { profile, updateProfile } = useInstructorDashboard();
-  const { logout, user } = useAuth();
+  const { logout, token, user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<NavKey>(() => {
     const saved = localStorage.getItem("instructor_active_tab");
@@ -2091,13 +2143,9 @@ const InstructorDashboardShell = () => {
             {activeTab === "overview" && <OverviewSection onNavigate={handleTabChange} />}
             {activeTab === "courses" && <CoursesSection />}
             {activeTab === "students" && <StudentsSection />}
+            {activeTab === "shop" && <TeacherShopSection token={token} paymentPath="/teacher-dashboard/payment-gateway" backPath="/teacher-dashboard" />}
             {activeTab === "batches" && <BatchesSection />}
             {activeTab === "enquiries" && <EnquiriesSection />}
-            {activeTab === "promote" && <PromoteSection />}
-            {activeTab === "certificates" && <CertificatesSection />}
-            {activeTab === "feedback" && <FeedbackSection />}
-            {activeTab === "slots" && <SlotsSection />}
-            {activeTab === "papers" && <AssignmentsSection />}
             {activeTab === "settings" && <ProfileSection />}
           </main>
         </div>
@@ -2114,7 +2162,6 @@ const TeacherDashboard = () => (
 );
 
 export default TeacherDashboard;
-
 
 
 

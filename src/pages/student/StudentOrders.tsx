@@ -13,6 +13,8 @@ import {
 
 const TOKEN_KEY = "abacus_auth_token";
 
+const paymentStatusLabel = (status: StudentSubscription["paymentStatus"]) => (status === "paid" ? "Paid" : "Unpaid");
+
 type RazorpayCheckoutResponse = {
   razorpay_payment_id: string;
   razorpay_order_id: string;
@@ -288,7 +290,7 @@ const StudentOrders = () => {
                         </td>
                         <td className="py-2 pr-3">{formatDate(row.startDate)}</td>
                         <td className="py-2 pr-3">{formatDate(row.expiryDate)}</td>
-                        <td className="py-2 pr-3">{row.paymentStatus}</td>
+                        <td className="py-2 pr-3">{paymentStatusLabel(row.paymentStatus)}</td>
                         <td className="py-2">{row.status}</td>
                       </tr>
                     ))}

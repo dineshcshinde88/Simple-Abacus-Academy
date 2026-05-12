@@ -14,6 +14,7 @@ require_once __DIR__ . '/plain/controllers_misc.php';
 require_once __DIR__ . '/plain/controllers_subscriptions.php';
 require_once __DIR__ . '/plain/controllers_instructor_auth.php';
 require_once __DIR__ . '/plain/controllers_worksheet_sub.php';
+require_once __DIR__ . '/plain/controllers_training.php';
 
 load_env_file(__DIR__ . '/.env');
 apply_cors_headers();
@@ -35,11 +36,57 @@ if ($method === 'GET' && $path === '/api/subscriptions/plans/public') {
     controller_public_subscription_plans();
 }
 
+if ($method === 'POST' && $path === '/api/training/auth/register') {
+    controller_training_register($data);
+}
+if ($method === 'POST' && $path === '/api/training/auth/login') {
+    controller_training_login($data);
+}
+if ($method === 'GET' && $path === '/api/training/auth/me') {
+    controller_training_me(require_auth());
+}
+if ($method === 'GET' && $path === '/api/training/teacher/dashboard') {
+    controller_training_teacher_dashboard(require_training_teacher());
+}
+if ($method === 'POST' && $path === '/api/training/teacher/students') {
+    controller_training_teacher_add_student(require_training_teacher(), $data);
+}
+if ($method === 'GET' && $path === '/api/training/teacher/shop/orders') {
+    controller_training_teacher_shop_orders(require_training_teacher());
+}
+if ($method === 'POST' && $path === '/api/training/teacher/shop/orders') {
+    controller_training_teacher_shop_create_order(require_training_teacher(), $data);
+}
+if ($method === 'POST' && preg_match('#^/api/training/teacher/shop/orders/([^/]+)/pay$#', $path, $m)) {
+    controller_training_teacher_shop_pay_order(require_training_teacher(), $m[1]);
+}
+if ($method === 'POST' && preg_match('#^/api/training/teacher/shop/orders/([^/]+)/verify$#', $path, $m)) {
+    controller_training_teacher_shop_verify_order(require_training_teacher(), $m[1], $data);
+}
+if ($method === 'GET' && $path === '/api/training/admin/teachers') {
+    require_role(['admin']);
+    controller_training_admin_teachers();
+}
+if ($method === 'PUT' && preg_match('#^/api/training/admin/teachers/([^/]+)/approve$#', $path)) {
+    require_role(['admin']);
+    json_response(['message' => 'Teacher approved']);
+}
+if ($method === 'GET' && $path === '/api/training/admin/students') {
+    require_role(['admin']);
+    controller_training_admin_students();
+}
+
 if ($method === 'POST' && $path === '/api/auth/register') {
     controller_auth_register($data);
 }
 if ($method === 'POST' && $path === '/api/auth/login') {
     controller_auth_login($data);
+}
+if ($method === 'POST' && $path === '/api/auth/forgot-password') {
+    controller_auth_forgot_password($data);
+}
+if ($method === 'POST' && $path === '/api/auth/reset-password') {
+    controller_auth_reset_password($data);
 }
 if ($method === 'GET' && $path === '/api/auth/me') {
     controller_auth_me(require_auth());

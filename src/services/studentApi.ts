@@ -7,6 +7,7 @@ export type StudentDashboardData = {
   worksheetsCount: number;
   videosCount: number;
   subscriptionStatus: "active" | "expired";
+  startDate: string | null;
   expiryDate: string | null;
 };
 

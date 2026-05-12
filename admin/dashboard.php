@@ -12,31 +12,201 @@ function admin_dashboard_table_exists(PDO $pdo, string $table): bool
     return (int) $stmt->fetchColumn() > 0;
 }
 
-$hasNewSubscriptions = admin_dashboard_table_exists($pdo, 'student_subscriptions');
+function admin_dashboard_database_name(PDO $pdo): string
+{
+    return (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+}
 
-$totalStudents = (int) $pdo->query('SELECT COUNT(*) FROM students')->fetchColumn();
-$totalSubscriptions = $hasNewSubscriptions
-  ? (int) $pdo->query("SELECT COUNT(*) FROM student_subscriptions WHERE payment_status = 'paid'")->fetchColumn()
-  : (int) $pdo->query("SELECT COUNT(*) FROM subscriptions WHERE payment_status = 'paid'")->fetchColumn();
-$totalDemos = (int) $pdo->query('SELECT COUNT(*) FROM demo_bookings')->fetchColumn();
+function admin_dashboard_env_value(string $path, string $key): string
+{
+    if (!is_file($path)) {
+        return '';
+    }
+
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!is_array($lines)) {
+        return '';
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+        }
+
+        [$lineKey, $value] = explode('=', $line, 2);
+        if (trim($lineKey) !== $key) {
+            continue;
+        }
+
+        $value = trim($value);
+        if ($value !== '' && (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'")))) {
+            $value = substr($value, 1, -1);
+        }
+
+        return $value;
+    }
+
+    return '';
+}
+
+function admin_dashboard_backend_pdo(PDO $adminPdo): ?PDO
+{
+    $databaseUrl = admin_dashboard_env_value(__DIR__ . '/../backend/.env', 'DATABASE_URL');
+    if ($databaseUrl === '') {
+        $databaseUrl = admin_dashboard_env_value(__DIR__ . '/../.env', 'DATABASE_URL');
+    }
+    if ($databaseUrl === '') {
+        return null;
+    }
+
+    $parts = parse_url($databaseUrl);
+    if (!is_array($parts)) {
+        return null;
+    }
+
+    $host = (string) ($parts['host'] ?? 'localhost');
+    $port = (string) ($parts['port'] ?? '3306');
+    $db = isset($parts['path']) ? trim((string) $parts['path'], '/') : '';
+    $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
+    $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
+
+    if ($db === '' || $user === '') {
+        return null;
+    }
+
+    if ($db === admin_dashboard_database_name($adminPdo)) {
+        return $adminPdo;
+    }
+
+    try {
+        return new PDO("mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4", $user, $pass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function admin_dashboard_count(PDO $pdo, string $sql): int
+{
+    try {
+        return (int) $pdo->query($sql)->fetchColumn();
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
+function admin_dashboard_rows(PDO $pdo, string $sql): array
+{
+    try {
+        $rows = $pdo->query($sql)->fetchAll();
+        return is_array($rows) ? $rows : [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function admin_dashboard_format_datetime(?string $value): string
+{
+    if (!$value) {
+        return '-';
+    }
+    $ts = strtotime($value);
+    return $ts ? date('d M Y, h:i A', $ts) : $value;
+}
+
+$backendPdo = admin_dashboard_backend_pdo($pdo);
+$hasLegacySubscriptions = admin_dashboard_table_exists($pdo, 'subscriptions');
+$hasAppStudents = $backendPdo
+  && admin_dashboard_table_exists($backendPdo, 'users')
+  && admin_dashboard_table_exists($backendPdo, 'students');
+$hasAppSubscriptions = $backendPdo
+  && admin_dashboard_table_exists($backendPdo, 'student_subscriptions')
+  && admin_dashboard_table_exists($backendPdo, 'users')
+  && admin_dashboard_table_exists($backendPdo, 'students');
+$hasAppDemoBookings = $backendPdo && admin_dashboard_table_exists($backendPdo, 'demo_bookings');
+
+$legacyStudents = admin_dashboard_count($pdo, 'SELECT COUNT(*) FROM students');
+$appStudents = $hasAppStudents ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM users WHERE role = 'student'") : 0;
+$totalStudents = $legacyStudents + $appStudents;
+$totalSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE payment_status = 'paid'") : 0)
+  + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE payment_status = 'paid'") : 0);
+$totalUnpaidSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0)
+  + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0);
+$totalDemos = (int) $pdo->query('SELECT COUNT(*) FROM demo_bookings')->fetchColumn()
+  + ($hasAppDemoBookings ? admin_dashboard_count($backendPdo, 'SELECT COUNT(*) FROM demo_bookings') : 0);
 $totalTeachers = (int) $pdo->query('SELECT COUNT(*) FROM teachers')->fetchColumn();
 
-$subscriptionActivitySql = $hasNewSubscriptions
-  ? "(SELECT 'Subscription' AS type, plan_name AS title, created_at AS created_at FROM student_subscriptions)"
-  : "(SELECT 'Subscription' AS type, plan_name AS title, start_date AS created_at FROM subscriptions)";
+$recentActivities = [];
 
-$activitySql = "
-  (SELECT 'Student' AS type, name AS title, created_at AS created_at FROM students)
-  UNION ALL
-  {$subscriptionActivitySql}
-  UNION ALL
-  (SELECT 'Demo Booking' AS type, name AS title, preferred_date AS created_at FROM demo_bookings)
-  UNION ALL
-  (SELECT 'Teacher' AS type, name AS title, joining_date AS created_at FROM teachers)
-  ORDER BY created_at DESC
-  LIMIT 5
-";
-$recentActivities = $pdo->query($activitySql)->fetchAll();
+foreach (admin_dashboard_rows($pdo, "SELECT 'Student Enrolled' AS type, name AS title, CONCAT('Course: ', course) AS details, created_at FROM students") as $row) {
+    $recentActivities[] = $row;
+}
+
+if ($hasLegacySubscriptions) {
+    foreach (admin_dashboard_rows($pdo, "
+        SELECT
+          'Level Subscription' AS type,
+          COALESCE(st.name, s.plan_name) AS title,
+          CONCAT(s.plan_name, ' • ', UPPER(s.payment_status), ' • ', s.start_date, ' to ', s.end_date) AS details,
+          s.start_date AS created_at
+        FROM subscriptions s
+        LEFT JOIN students st ON st.id = s.student_id
+    ") as $row) {
+        $recentActivities[] = $row;
+    }
+}
+
+if ($hasAppStudents) {
+    foreach (admin_dashboard_rows($backendPdo, "
+        SELECT
+          'Student Enrolled' AS type,
+          u.name AS title,
+          CONCAT('Website registration • ', u.email) AS details,
+          COALESCE(s.created_at, u.created_at) AS created_at
+        FROM students s
+        INNER JOIN users u ON u.id = s.user_id
+        WHERE u.role = 'student'
+    ") as $row) {
+        $recentActivities[] = $row;
+    }
+}
+
+if ($hasAppSubscriptions) {
+    foreach (admin_dashboard_rows($backendPdo, "
+        SELECT
+          'Level Subscription' AS type,
+          u.name AS title,
+          CONCAT(COALESCE(l.level_name, ss.plan_name), ' • ', ss.plan_name, ' • ', UPPER(ss.payment_status), ' • ', DATE(ss.start_date), ' to ', DATE(ss.expiry_date)) AS details,
+          ss.created_at
+        FROM student_subscriptions ss
+        INNER JOIN students st ON st.id = ss.student_id
+        INNER JOIN users u ON u.id = st.user_id
+        LEFT JOIN levels l ON l.id = ss.level_id
+    ") as $row) {
+        $recentActivities[] = $row;
+    }
+}
+
+foreach (admin_dashboard_rows($pdo, "SELECT 'Demo Booking' AS type, name AS title, email AS details, preferred_date AS created_at FROM demo_bookings") as $row) {
+    $recentActivities[] = $row;
+}
+if ($hasAppDemoBookings) {
+    foreach (admin_dashboard_rows($backendPdo, "SELECT 'Demo Booking' AS type, name AS title, CONCAT(email, ' • ', phone) AS details, COALESCE(created_at, preferred_date) AS created_at FROM demo_bookings") as $row) {
+        $recentActivities[] = $row;
+    }
+}
+foreach (admin_dashboard_rows($pdo, "SELECT 'Teacher' AS type, name AS title, expertise AS details, joining_date AS created_at FROM teachers") as $row) {
+    $recentActivities[] = $row;
+}
+
+usort($recentActivities, static function (array $a, array $b): int {
+    return strtotime((string) ($b['created_at'] ?? '')) <=> strtotime((string) ($a['created_at'] ?? ''));
+});
+$recentActivities = array_slice($recentActivities, 0, 25);
 ?>
 <div class="row g-4 mb-4">
   <div class="col-md-6 col-xl-3">
@@ -47,8 +217,14 @@ $recentActivities = $pdo->query($activitySql)->fetchAll();
   </div>
   <div class="col-md-6 col-xl-3">
     <div class="card card-metric p-3">
-      <div class="text-muted small">Paid Subscriptions</div>
+      <div class="text-muted small">Paid Fees</div>
       <div class="fs-3 fw-bold"><?php echo $totalSubscriptions; ?></div>
+    </div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="card card-metric p-3">
+      <div class="text-muted small">Unpaid Fees</div>
+      <div class="fs-3 fw-bold"><?php echo $totalUnpaidSubscriptions; ?></div>
     </div>
   </div>
   <div class="col-md-6 col-xl-3">
@@ -69,7 +245,7 @@ $recentActivities = $pdo->query($activitySql)->fetchAll();
   <div class="col-lg-7">
     <div class="card shadow-sm border-0">
       <div class="card-body">
-        <h5 class="card-title">Recent Activities</h5>
+        <h5 class="card-title">Recent Enrollments & Level Subscriptions</h5>
         <div class="list-group list-group-flush">
           <?php if (empty($recentActivities)): ?>
             <div class="text-muted">No recent activity found.</div>
@@ -78,10 +254,15 @@ $recentActivities = $pdo->query($activitySql)->fetchAll();
               <div class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
                   <div class="fw-semibold"><?php echo htmlspecialchars($activity['title']); ?></div>
-                  <div class="text-muted small"><?php echo htmlspecialchars($activity['type']); ?></div>
+                  <div class="text-muted small">
+                    <?php echo htmlspecialchars($activity['type']); ?>
+                    <?php if (!empty($activity['details'])): ?>
+                      · <?php echo htmlspecialchars($activity['details']); ?>
+                    <?php endif; ?>
+                  </div>
                 </div>
                 <div class="text-muted small">
-                  <?php echo htmlspecialchars($activity['created_at']); ?>
+                  <?php echo htmlspecialchars(admin_dashboard_format_datetime($activity['created_at'] ?? null)); ?>
                 </div>
               </div>
             <?php endforeach; ?>
@@ -106,11 +287,11 @@ $recentActivities = $pdo->query($activitySql)->fetchAll();
     new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: ['Students', 'Paid Subs', 'Demos', 'Teachers'],
+        labels: ['Students', 'Paid Fees', 'Unpaid Fees', 'Demos', 'Teachers'],
         datasets: [{
           label: 'Counts',
-          data: [<?php echo $totalStudents; ?>, <?php echo $totalSubscriptions; ?>, <?php echo $totalDemos; ?>, <?php echo $totalTeachers; ?>],
-          backgroundColor: ['#4b1e83', '#f97316', '#0ea5e9', '#22c55e'],
+          data: [<?php echo $totalStudents; ?>, <?php echo $totalSubscriptions; ?>, <?php echo $totalUnpaidSubscriptions; ?>, <?php echo $totalDemos; ?>, <?php echo $totalTeachers; ?>],
+          backgroundColor: ['#4b1e83', '#f97316', '#facc15', '#0ea5e9', '#22c55e'],
           borderRadius: 8
         }]
       },

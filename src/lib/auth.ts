@@ -69,6 +69,13 @@ export async function forgotPassword(email: string): Promise<{ message: string }
   });
 }
 
+export async function resetPassword(email: string, token: string, password: string, confirmPassword: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ email, token, password, confirmPassword }),
+  });
+}
+
 export async function getMe(token: string): Promise<{ user: AuthUser }> {
   return apiRequest<{ user: AuthUser }>("/api/auth/me", {
     method: "GET",

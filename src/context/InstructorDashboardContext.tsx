@@ -1,6 +1,6 @@
 ﻿import { createContext, ReactNode, useContext, useMemo, useState } from "react";
 
-export type FeesStatus = "paid" | "pending";
+export type FeesStatus = "paid" | "unpaid";
 export type PerformanceStatus = "Good" | "Average" | "Needs Improvement";
 
 export type Student = {
@@ -17,6 +17,8 @@ export type Student = {
   batchId: string | null;
   feesStatus: FeesStatus;
   joinedAt: string;
+  levelStartDate?: string;
+  levelEndDate?: string;
   progress: {
     marks: number;
     levelCompleted: number;
@@ -65,7 +67,7 @@ export type Payment = {
   amount: number;
   date: string;
   method: string;
-  status: "paid" | "pending";
+  status: FeesStatus;
 };
 
 export type Announcement = {
@@ -128,6 +130,8 @@ const initialStudents: Student[] = [
     batchId: "batch-1",
     feesStatus: "paid",
     joinedAt: "2026-03-12",
+    levelStartDate: "2026-04-01",
+    levelEndDate: "2026-06-30",
     progress: { marks: 86, levelCompleted: 3, status: "Good" },
   },
   {
@@ -136,8 +140,10 @@ const initialStudents: Student[] = [
     email: "siya@student.com",
     level: "Level 2",
     batchId: "batch-1",
-    feesStatus: "pending",
+    feesStatus: "unpaid",
     joinedAt: "2026-02-24",
+    levelStartDate: "2026-03-15",
+    levelEndDate: "2026-05-15",
     progress: { marks: 72, levelCompleted: 2, status: "Average" },
   },
   {
@@ -148,6 +154,8 @@ const initialStudents: Student[] = [
     batchId: "batch-2",
     feesStatus: "paid",
     joinedAt: "2026-01-18",
+    levelStartDate: "2026-02-01",
+    levelEndDate: "2026-04-30",
     progress: { marks: 91, levelCompleted: 4, status: "Good" },
   },
   {
@@ -156,8 +164,10 @@ const initialStudents: Student[] = [
     email: "myra@student.com",
     level: "Level 1",
     batchId: null,
-    feesStatus: "pending",
+    feesStatus: "unpaid",
     joinedAt: "2026-03-28",
+    levelStartDate: "2026-04-10",
+    levelEndDate: "2026-07-10",
     progress: { marks: 58, levelCompleted: 1, status: "Needs Improvement" },
   },
 ];
@@ -215,7 +225,7 @@ const initialMaterials: Material[] = [
 
 const initialPayments: Payment[] = [
   { id: "pay-1", studentId: "stu-1", amount: 1500, date: "2026-04-01", method: "UPI", status: "paid" },
-  { id: "pay-2", studentId: "stu-2", amount: 1500, date: "2026-04-05", method: "Cash", status: "pending" },
+  { id: "pay-2", studentId: "stu-2", amount: 1500, date: "2026-04-05", method: "Cash", status: "unpaid" },
 ];
 
 const initialAnnouncements: Announcement[] = [

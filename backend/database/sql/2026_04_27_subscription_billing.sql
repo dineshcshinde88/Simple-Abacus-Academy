@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS student_subscriptions (
   start_date DATETIME NOT NULL,
   expiry_date DATETIME NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'active',
-  payment_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  payment_status VARCHAR(20) NOT NULL DEFAULT 'unpaid',
   payment_attempt_id CHAR(36) NULL,
   razorpay_order_id VARCHAR(120) NULL,
   razorpay_payment_id VARCHAR(120) NULL,

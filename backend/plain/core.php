@@ -129,8 +129,16 @@ function apply_cors_headers(): void
 {
     $origin = request_header('Origin');
     $allowed = array_values(array_filter(array_map('trim', explode(',', (string) envv('CORS_ORIGIN', '')))));
+    $originHost = '';
+    if ($origin !== null) {
+        $parts = parse_url($origin);
+        if (is_array($parts)) {
+            $originHost = strtolower((string) ($parts['host'] ?? ''));
+        }
+    }
+    $isLocalDevOrigin = in_array($originHost, ['localhost', '127.0.0.1', '::1'], true);
 
-    if (!empty($allowed) && $origin !== null && is_origin_allowed($origin, $allowed)) {
+    if ($origin !== null && ($isLocalDevOrigin || (!empty($allowed) && is_origin_allowed($origin, $allowed)))) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Vary: Origin');
     } elseif (empty($allowed)) {

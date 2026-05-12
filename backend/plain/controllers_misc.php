@@ -1,14 +1,88 @@
 <?php
 
-function send_plain_mail(string $to, string $subject, string $body): void
+function mail_header_address(string $email, string $name = ''): string
 {
-    $from = (string) envv('MAIL_FROM_ADDRESS', 'no-reply@simpleabacus.com');
+    $safeEmail = str_replace(["\r", "\n"], '', trim($email));
+    $safeName = str_replace(["\r", "\n", '"'], '', trim($name));
+
+    return $safeName !== '' ? '"' . $safeName . '" <' . $safeEmail . '>' : $safeEmail;
+}
+
+function mail_sender_identity(): array
+{
+    $fromName = (string) envv('MAIL_FROM_NAME', (string) envv('EMAIL_FROM_NAME', 'Simple Abacus'));
+    $fromEmail = (string) envv('MAIL_FROM_ADDRESS', (string) envv('EMAIL_FROM_ADDRESS', ''));
+    $combined = (string) envv('EMAIL_FROM', '');
+
+    if ($fromEmail === '' && preg_match('/^(.*?)<([^>]+)>$/', $combined, $m) === 1) {
+        $fromName = trim(trim($m[1]), '"') ?: $fromName;
+        $fromEmail = trim($m[2]);
+    } elseif ($fromEmail === '' && filter_var($combined, FILTER_VALIDATE_EMAIL)) {
+        $fromEmail = $combined;
+    }
+
+    if ($fromEmail === '') {
+        $fromEmail = (string) envv('EMAIL_USER', (string) envv('MAIL_USERNAME', 'no-reply@simpleabacus.com'));
+    }
+
+    return [$fromEmail, $fromName];
+}
+
+function send_plain_mail(string $to, string $subject, string $body, string $replyTo = '', string $replyName = ''): void
+{
+    [$fromEmail, $fromName] = mail_sender_identity();
+    $from = mail_header_address($fromEmail, $fromName);
+    $replyTo = filter_var($replyTo, FILTER_VALIDATE_EMAIL) ? (string) $replyTo : $fromEmail;
+    $reply = mail_header_address($replyTo, $replyName);
+
+    if (class_exists('\\Symfony\\Component\\Mailer\\Transport') && class_exists('\\Symfony\\Component\\Mime\\Email')) {
+        try {
+            $host = (string) envv('EMAIL_HOST', (string) envv('MAIL_HOST', ''));
+            $port = (int) envv('EMAIL_PORT', (string) envv('MAIL_PORT', '587'));
+            $user = (string) envv('EMAIL_USER', (string) envv('MAIL_USERNAME', ''));
+            $pass = (string) envv('EMAIL_PASS', (string) envv('MAIL_PASSWORD', ''));
+            if ($host !== '' && $user !== '') {
+                $scheme = $port === 465 ? 'smtps' : 'smtp';
+                $dsn = sprintf('%s://%s:%s@%s:%d', $scheme, rawurlencode($user), rawurlencode($pass), $host, $port);
+                $transport = \Symfony\Component\Mailer\Transport::fromDsn($dsn);
+                $mailer = new \Symfony\Component\Mailer\Mailer($transport);
+                $email = (new \Symfony\Component\Mime\Email())
+                    ->from(new \Symfony\Component\Mime\Address($fromEmail, $fromName))
+                    ->to($to)
+                    ->replyTo(new \Symfony\Component\Mime\Address($replyTo, $replyName ?: $replyTo))
+                    ->subject($subject)
+                    ->text($body);
+                $mailer->send($email);
+                return;
+            }
+        } catch (Throwable $e) {
+            error_log('Notification SMTP failed: ' . $e->getMessage());
+        }
+    }
+
     $headers = [
         'From: ' . $from,
-        'Reply-To: ' . $from,
+        'Reply-To: ' . $reply,
         'X-Mailer: PHP/' . phpversion(),
     ];
-    @mail($to, $subject, $body, implode("\r\n", $headers));
+    $envelope = filter_var($fromEmail, FILTER_VALIDATE_EMAIL) ? '-f' . $fromEmail : '';
+    @mail($to, $subject, $body, implode("\r\n", $headers), $envelope);
+}
+
+function ensure_demo_booking_schema(): void
+{
+    db_exec_sql(
+        'CREATE TABLE IF NOT EXISTS demo_bookings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(160) NOT NULL,
+            phone VARCHAR(20) NOT NULL,
+            preferred_date DATE NOT NULL,
+            message TEXT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT \'pending\',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
 }
 
 function controller_demo_book(array $data): void
@@ -22,10 +96,43 @@ function controller_demo_book(array $data): void
 
     $programs = $data['programs'] ?? [];
     $programsText = is_array($programs) && !empty($programs) ? implode(', ', $programs) : 'N/A';
+    $gender = trim((string) ($data['gender'] ?? ''));
+    $motherTongue = trim((string) ($data['motherTongue'] ?? ''));
+    $dob = trim((string) ($data['dob'] ?? ''));
+    $messageParts = [
+        'Programs: ' . $programsText,
+    ];
+    if ($gender !== '') {
+        $messageParts[] = 'Gender: ' . $gender;
+    }
+    if ($motherTongue !== '') {
+        $messageParts[] = 'Mother Tongue: ' . $motherTongue;
+    }
+    if ($dob !== '') {
+        $messageParts[] = 'Date of Birth: ' . $dob;
+    }
+    $message = implode("\n", $messageParts);
+
+    ensure_demo_booking_schema();
+    db_exec_sql(
+        'INSERT INTO demo_bookings (name, email, phone, preferred_date, message, status, created_at)
+         VALUES (:name, :email, :phone, :preferred_date, :message, \'pending\', :created_at)',
+        [
+            'name' => $name,
+            'email' => $email,
+            'phone' => $mobile,
+            'preferred_date' => gmdate('Y-m-d'),
+            'message' => $message,
+            'created_at' => now_sql(),
+        ]
+    );
+
     send_plain_mail(
         (string) envv('DEMO_NOTIFICATION_EMAIL', 'simpleabacuspune@gmail.com'),
         'New Free Demo Request',
-        "Free Demo Booking\nName: {$name}\nEmail: {$email}\nMobile: {$mobile}\nPrograms: {$programsText}"
+        "Free Demo Booking\nName: {$name}\nEmail: {$email}\nMobile: {$mobile}\n{$message}",
+        $email,
+        $name
     );
 
     json_response(['message' => 'Demo request received']);
@@ -46,7 +153,9 @@ function controller_franchise_apply(array $data): void
     send_plain_mail(
         (string) envv('FRANCHISE_NOTIFICATION_EMAIL', 'simpleabacuspune@gmail.com'),
         'New Franchise Application',
-        "Franchise Application\nName: {$data['name']}\nEmail: {$data['email']}\nMobile: {$data['mobile']}\nLocation: {$data['location']}"
+        "Franchise Application\nName: {$data['name']}\nEmail: {$data['email']}\nMobile: {$data['mobile']}\nLocation: {$data['location']}",
+        (string) $data['email'],
+        (string) $data['name']
     );
 
     json_response(['message' => 'Application received']);
@@ -67,7 +176,9 @@ function controller_instructor_apply(array $data): void
     send_plain_mail(
         (string) envv('INSTRUCTOR_NOTIFICATION_EMAIL', 'simpleabacuspune@gmail.com'),
         'New Instructor Registration',
-        "Instructor Application\nName: {$data['name']}\nEmail: {$data['email']}\nMobile: {$data['mobile']}"
+        "Instructor Application\nName: {$data['name']}\nEmail: {$data['email']}\nMobile: {$data['mobile']}",
+        (string) $data['email'],
+        (string) $data['name']
     );
 
     json_response(['message' => 'Application received']);
@@ -88,4 +199,3 @@ function controller_payments_webhook(array $data): void
         ],
     ]);
 }
-

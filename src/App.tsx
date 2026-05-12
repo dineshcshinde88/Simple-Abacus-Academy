@@ -45,6 +45,7 @@ import InstructorRegistration from "./pages/InstructorRegistration";
 import InstructorOtpVerification from "./pages/InstructorOtpVerification";
 import StudentLogin from "./pages/StudentLogin";
 import StudentRegistration from "./pages/StudentRegistration";
+import StudentResetPassword from "./pages/StudentResetPassword";
 import Testimonials from "./pages/Testimonials";
 import Teachers from "./pages/Teachers";
 import BreadcrumbBanner from "./components/layout/BreadcrumbBanner";
@@ -55,6 +56,7 @@ import TrainingLogin from "./pages/training/TrainingLogin";
 import TrainingRegister from "./pages/training/TrainingRegister";
 import TrainingTeacherDashboard from "./pages/training/TeacherDashboard";
 import TrainingAdminDashboard from "./pages/training/AdminDashboard";
+import TrainingPaymentGateway from "./pages/training/TrainingPaymentGateway";
 import TrainingProtectedRoute from "./components/training/TrainingProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -98,6 +100,7 @@ const App = () => (
             <Route path="/instructor-verify-otp" element={<InstructorOtpVerification />} />
             <Route path="/student-login" element={<StudentLogin />} />
             <Route path="/student-registration" element={<StudentRegistration />} />
+            <Route path="/student-reset-password" element={<StudentResetPassword />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
             <Route path="/refund-cancellation-policy" element={<RefundCancellationPolicy />} />
@@ -194,6 +197,14 @@ const App = () => (
                 </RequireRole>
               )}
             />
+            <Route
+              path="/teacher-dashboard/payment-gateway"
+              element={(
+                <RequireRole role="tutor">
+                  <TrainingPaymentGateway />
+                </RequireRole>
+              )}
+            />
             <Route path="/training/login" element={<TrainingLogin />} />
             <Route path="/training/register" element={<TrainingRegister />} />
             <Route
@@ -209,6 +220,14 @@ const App = () => (
               element={(
                 <TrainingProtectedRoute role="admin">
                   <TrainingAdminDashboard />
+                </TrainingProtectedRoute>
+              )}
+            />
+            <Route
+              path="/training/payment-gateway"
+              element={(
+                <TrainingProtectedRoute role="teacher">
+                  <TrainingPaymentGateway />
                 </TrainingProtectedRoute>
               )}
             />

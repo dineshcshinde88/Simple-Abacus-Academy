@@ -9,6 +9,7 @@ use App\Models\Tutor;
 use App\Models\User;
 use App\Models\Video;
 use App\Models\Worksheet;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -81,11 +82,39 @@ class TutorController extends Controller
             return response()->json(['message' => 'Level not found'], 404);
         }
 
-        $student = Student::find($studentId);
+            $student = Student::find($studentId);
         if (!$student) {
             return response()->json(['message' => 'Student not found'], 404);
         }
         $student->level_id = $level->id;
+        $student->save();
+
+        return response()->json(['student' => $student]);
+    }
+
+    public function updateSubscriptionDates(Request $request, string $studentId)
+    {
+        $data = $request->validate([
+            'startDate' => ['nullable', 'date'],
+            'endDate' => ['nullable', 'date'],
+        ]);
+
+        $student = Student::find($studentId);
+        if (!$student) {
+            return response()->json(['message' => 'Student not found'], 404);
+        }
+
+        if (!empty($data['startDate'])) {
+            $student->subscription_start = Carbon::parse($data['startDate']);
+        }
+        if (!empty($data['endDate'])) {
+            $student->subscription_end = Carbon::parse($data['endDate']);
+        }
+
+        if ($student->subscription_start && $student->subscription_end) {
+            $student->subscription_status = $student->subscription_end->isPast() ? 'expired' : 'active';
+        }
+
         $student->save();
 
         return response()->json(['student' => $student]);
