@@ -127,7 +127,7 @@ const InstructorLogin = () => {
                     </button>
                     <div className="text-muted-foreground">
                       New to ABACUS {" "}
-                      <Link to="/programs" className="text-red-600 font-semibold hover:underline">
+                      <Link to="/instructor-registration" className="text-red-600 font-semibold hover:underline">
                         Sign Up
                       </Link>
                     </div>
