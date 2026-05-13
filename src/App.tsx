@@ -208,7 +208,7 @@ const App = () => (
             />
             <Route path="/training/login" element={<TrainingLogin />} />
             <Route path="/training/register" element={<TrainingRegister />} />
-            <Route path="/admin/login.php" element={<Navigate to="/training/login" replace />} />
+            <Route path="/admin/login.php" element={<TrainingLogin />} />
             <Route path="/admin/dashboard.php" element={<Navigate to="/training/admin" replace />} />
             <Route path="/admin" element={<Navigate to="/training/admin" replace />} />
             <Route

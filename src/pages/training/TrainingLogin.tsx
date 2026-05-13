@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { useTrainingAuth } from "@/context/TrainingAuthContext";
 const TrainingLogin = () => {
   const { login } = useTrainingAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminLogin = location.pathname.startsWith("/admin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,7 +37,9 @@ const TrainingLogin = () => {
         <section className="py-16">
           <div className="container mx-auto px-4">
             <div className="max-w-md mx-auto rounded-2xl border border-border bg-white p-6 shadow-card">
-              <h1 className="text-2xl font-heading font-bold text-foreground">Teacher Training Login</h1>
+              <h1 className="text-2xl font-heading font-bold text-foreground">
+                {isAdminLogin ? "Admin Login" : "Teacher Training Login"}
+              </h1>
               <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
                   <Label>Email</Label>
@@ -49,12 +53,14 @@ const TrainingLogin = () => {
                   {loading ? "Signing in..." : "Login"}
                 </Button>
               </form>
-              <p className="mt-4 text-sm text-muted-foreground">
-                New teacher?{" "}
-                <Link to="/training/register" className="text-primary font-semibold">
-                  Create an account
-                </Link>
-              </p>
+              {!isAdminLogin ? (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  New teacher?{" "}
+                  <Link to="/training/register" className="text-primary font-semibold">
+                    Create an account
+                  </Link>
+                </p>
+              ) : null}
             </div>
           </div>
         </section>
