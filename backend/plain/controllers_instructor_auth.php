@@ -65,8 +65,9 @@ function instructor_utc_timestamp(string $value): int
     return $timestamp === false ? 0 : $timestamp;
 }
 
-function instructor_send_html_mail(string $to, string $subject, string $html, string $text): void
+function instructor_send_html_mail(string $to, string $subject, string $html, string $text): bool
 {
+    $timeout = max(3, (int) envv('EMAIL_TIMEOUT_SECONDS', '10'));
     $fromRaw = (string) envv('EMAIL_FROM', (string) envv('MAIL_FROM_ADDRESS', 'Abacus Trainer <no-reply@abacustrainer.com>'));
     $fromEmail = $fromRaw;
     $fromName = 'Abacus Trainer';
@@ -83,7 +84,7 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
             $pass = (string) envv('EMAIL_PASS', (string) envv('MAIL_PASSWORD', ''));
             if ($host !== '' && $user !== '') {
                 $scheme = $port === 465 ? 'smtps' : 'smtp';
-                $dsn = sprintf('%s://%s:%s@%s:%d', $scheme, rawurlencode($user), rawurlencode($pass), $host, $port);
+                $dsn = sprintf('%s://%s:%s@%s:%d?timeout=%d', $scheme, rawurlencode($user), rawurlencode($pass), $host, $port, $timeout);
                 $transport = \Symfony\Component\Mailer\Transport::fromDsn($dsn);
                 $mailer = new \Symfony\Component\Mailer\Mailer($transport);
                 $email = (new \Symfony\Component\Mime\Email())
@@ -93,7 +94,7 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
                     ->text($text)
                     ->html($html);
                 $mailer->send($email);
-                return;
+                return true;
             }
         } catch (Throwable $e) {
             error_log('Instructor OTP SMTP failed: ' . $e->getMessage());
@@ -106,10 +107,16 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
         'From: ' . $fromRaw,
         'Reply-To: ' . $fromEmail,
     ];
-    @mail($to, $subject, $html, implode("\r\n", $headers));
+    $previousTimeout = ini_get('default_socket_timeout');
+    @ini_set('default_socket_timeout', (string) $timeout);
+    $sent = @mail($to, $subject, $html, implode("\r\n", $headers));
+    if ($previousTimeout !== false) {
+        @ini_set('default_socket_timeout', (string) $previousTimeout);
+    }
+    return $sent;
 }
 
-function instructor_send_otp_email(string $name, string $email, string $otp): void
+function instructor_send_otp_email(string $name, string $email, string $otp): bool
 {
     $siteUrl = rtrim((string) envv('SITE_URL', 'https://abacustrainer.com'), '/');
     $logoUrl = $siteUrl . '/abacus_logo.png';
@@ -132,7 +139,7 @@ function instructor_send_otp_email(string $name, string $email, string $otp): vo
         . '</div></div></div>';
 
     $text = "Hello {$name},\n\nThank you for registering as an instructor with Abacus Trainer.\nPlease use the OTP below to verify your email.\n\nOTP: {$otp}\n\nThis OTP expires in 5 minutes.\n\nAbacus Trainer";
-    instructor_send_html_mail($email, $subject, $html, $text);
+    return instructor_send_html_mail($email, $subject, $html, $text);
 }
 
 function instructor_issue_otp(string $name, string $email): void
@@ -161,7 +168,9 @@ function instructor_issue_otp(string $name, string $email): void
         );
     }
 
-    instructor_send_otp_email($name, $email, $otp);
+    if (!instructor_send_otp_email($name, $email, $otp)) {
+        json_response(['message' => 'Unable to send OTP email. Please check SMTP settings on the live backend.'], 500);
+    }
 }
 
 function controller_instructor_register_start(array $data): void

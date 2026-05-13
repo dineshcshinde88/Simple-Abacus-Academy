@@ -1,6 +1,7 @@
 import { getApiBase } from "@/lib/apiBase";
 
 const API_BASE = getApiBase();
+const REQUEST_TIMEOUT_MS = 20000;
 
 export class ApiError extends Error {
   status: number;
@@ -13,11 +14,26 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("OTP email is taking too long to send. Please check the live backend email settings and try again.", 0);
+    }
+    throw new ApiError("Unable to reach the instructor registration server. Please try again.", 0);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 404) {
