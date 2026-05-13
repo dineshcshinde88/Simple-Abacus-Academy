@@ -11,7 +11,9 @@ const TrainingProtectedRoute = ({
   const { user, loading } = useTrainingAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/training/login" replace />;
-  if (role && user.role !== role) return <Navigate to="/training/dashboard" replace />;
+  if (role && user.role !== role) {
+    return <Navigate to={user.role === "admin" ? "/training/admin" : "/training/dashboard"} replace />;
+  }
   return <>{children}</>;
 };
 

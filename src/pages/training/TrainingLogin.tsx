@@ -18,8 +18,8 @@ const TrainingLogin = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
-      navigate("/training/dashboard");
+      const user = await login(email, password);
+      navigate(user.role === "admin" ? "/training/admin" : "/training/dashboard");
     } catch {
       // eslint-disable-next-line no-alert
       alert("Login failed. Check credentials or approval status.");

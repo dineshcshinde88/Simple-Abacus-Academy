@@ -13,8 +13,8 @@ type TrainingAuthContextType = {
   user: TrainingUser | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, role: "teacher" | "admin") => Promise<void>;
+  login: (email: string, password: string) => Promise<TrainingUser>;
+  register: (name: string, email: string, password: string, role: "teacher" | "admin") => Promise<TrainingUser>;
   logout: () => void;
 };
 
@@ -56,12 +56,14 @@ export const TrainingAuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(response.user);
         setToken(response.token);
         localStorage.setItem(TOKEN_KEY, response.token);
+        return response.user;
       },
       register: async (name: string, email: string, password: string, role: "teacher" | "admin") => {
         const response = await trainingRegister(name, email, password, role);
         setUser(response.user);
         setToken(response.token);
         localStorage.setItem(TOKEN_KEY, response.token);
+        return response.user;
       },
       logout: () => {
         setUser(null);
