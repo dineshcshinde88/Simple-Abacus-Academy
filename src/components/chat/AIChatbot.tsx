@@ -111,7 +111,7 @@ const AIChatbot = () => {
 
   const isDashboardRoute =
     pathname === "/teacher-dashboard" ||
-    pathname === "/student-dashboard" ||
+    pathname === "/student/dashboard" ||
     pathname.startsWith("/student/");
 
   if (isDashboardRoute) {

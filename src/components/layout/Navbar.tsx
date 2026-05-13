@@ -254,7 +254,7 @@ const Navbar = () => {
             })}
             {user ? (
               <Button variant="ghost" size="sm" asChild>
-                <Link to={user.role === "tutor" ? "/teacher-dashboard" : "/student-dashboard"}>Dashboard</Link>
+                <Link to={user.role === "tutor" ? "/teacher-dashboard" : "/student/dashboard"}>Dashboard</Link>
               </Button>
             ) : null}
           </div>
@@ -358,7 +358,7 @@ const Navbar = () => {
                       asChild
                       onClick={() => setIsOpen(false)}
                     >
-                      <Link to={user.role === "tutor" ? "/teacher-dashboard" : "/student-dashboard"}>
+                      <Link to={user.role === "tutor" ? "/teacher-dashboard" : "/student/dashboard"}>
                         Dashboard
                       </Link>
                     </Button>

@@ -31,7 +31,7 @@ const titleMap: Record<string, string> = {
   "/terms-and-conditions": "Terms and Conditions",
   "/refund-cancellation-policy": "Refund and Cancellation Policy",
   "/testimonials": "Testimonials",
-  "/student-dashboard": "Student Dashboard",
+  "/student/dashboard": "Student Dashboard",
   "/teacher-dashboard": "Teacher Dashboard",
 };
 

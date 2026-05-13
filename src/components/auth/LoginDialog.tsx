@@ -51,12 +51,12 @@ const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
         await register(name, email, password, role);
         toast.success("Account created successfully.");
         onOpenChange(false);
-        navigate(role === "tutor" ? "/teacher-dashboard" : "/student-dashboard");
+        navigate(role === "tutor" ? "/teacher-dashboard" : "/student/dashboard");
       } else {
         await login(email, password, role);
         toast.success("Logged in successfully.");
         onOpenChange(false);
-        navigate(role === "tutor" ? "/teacher-dashboard" : "/student-dashboard");
+        navigate(role === "tutor" ? "/teacher-dashboard" : "/student/dashboard");
       }
     } catch (error) {
       let message = error instanceof Error ? error.message : "Authentication failed";
