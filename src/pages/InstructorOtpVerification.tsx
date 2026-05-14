@@ -11,6 +11,7 @@ import { ApiError, resendInstructorOtp, setInstructorPassword, verifyInstructorO
 type LocationState = {
   email?: string;
   fullName?: string;
+  devOtp?: string;
 };
 
 const InstructorOtpVerification = () => {
@@ -18,6 +19,7 @@ const InstructorOtpVerification = () => {
   const location = useLocation();
   const state = (location.state || {}) as LocationState;
   const email = useMemo(() => state.email || sessionStorage.getItem("instructor_otp_email") || "", [state.email]);
+  const [devOtp, setDevOtp] = useState(() => state.devOtp || sessionStorage.getItem("instructor_dev_otp") || "");
   const [otp, setOtp] = useState("");
   const [isVerified, setIsVerified] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -25,7 +27,12 @@ const InstructorOtpVerification = () => {
 
   useEffect(() => {
     if (state.email) sessionStorage.setItem("instructor_otp_email", state.email);
-  }, [state.email]);
+    if (state.devOtp) {
+      sessionStorage.setItem("instructor_dev_otp", state.devOtp);
+      setDevOtp(state.devOtp);
+      setOtp(state.devOtp);
+    }
+  }, [state.email, state.devOtp]);
 
   const handleVerify = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -70,7 +77,15 @@ const InstructorOtpVerification = () => {
       setIsSubmitting(true);
       const response = await resendInstructorOtp({ email });
       toast.success(response.message || "OTP resent.");
-      setOtp("");
+      if (response.devOtp) {
+        sessionStorage.setItem("instructor_dev_otp", response.devOtp);
+        setDevOtp(response.devOtp);
+        setOtp(response.devOtp);
+      } else {
+        sessionStorage.removeItem("instructor_dev_otp");
+        setDevOtp("");
+        setOtp("");
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to resend OTP.");
     } finally {
@@ -98,6 +113,7 @@ const InstructorOtpVerification = () => {
       });
       toast.success(response.message || "Password set successfully.");
       sessionStorage.removeItem("instructor_otp_email");
+      sessionStorage.removeItem("instructor_dev_otp");
       navigate("/instructor-login");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to set password.");
@@ -121,6 +137,11 @@ const InstructorOtpVerification = () => {
                 <p className="mt-2 text-sm text-muted-foreground">
                   {isVerified ? "Create your instructor login password." : `OTP sent to ${email || "your email"}. It expires in 5 minutes.`}
                 </p>
+                {!isVerified && devOtp ? (
+                  <p className="mt-3 rounded-md bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-700">
+                    Development OTP: {devOtp}
+                  </p>
+                ) : null}
               </div>
 
               {!isVerified ? (

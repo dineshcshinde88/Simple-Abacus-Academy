@@ -36,6 +36,7 @@ const InstructorRegistration = () => {
         state: {
           email: response.email,
           fullName: form.fullName.trim(),
+          devOtp: response.devOtp,
         },
       });
     } catch (error) {

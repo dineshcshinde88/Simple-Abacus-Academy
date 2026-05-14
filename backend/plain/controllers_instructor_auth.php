@@ -65,8 +65,36 @@ function instructor_utc_timestamp(string $value): int
     return $timestamp === false ? 0 : $timestamp;
 }
 
+function instructor_is_dev_email_mode(): bool
+{
+    $mode = strtolower((string) envv('INSTRUCTOR_OTP_EMAIL_MODE', ''));
+    if (in_array($mode, ['smtp', 'mail', 'live'], true)) {
+        return false;
+    }
+    if (in_array($mode, ['dev', 'mock', 'log'], true)) {
+        return true;
+    }
+
+    $enabled = strtolower((string) envv('EMAIL_ENABLED', 'true'));
+    if (in_array($enabled, ['0', 'false', 'no', 'off'], true)) {
+        return true;
+    }
+
+    $appEnv = strtolower((string) envv('APP_ENV', (string) envv('NODE_ENV', 'production')));
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    $host = preg_replace('/:\d+$/', '', $host) ?? $host;
+    $isLocalHost = in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+
+    return $isLocalHost && in_array($appEnv, ['local', 'dev', 'development'], true);
+}
+
 function instructor_send_html_mail(string $to, string $subject, string $html, string $text): bool
 {
+    if (instructor_is_dev_email_mode()) {
+        error_log('Instructor OTP email skipped in development mode for ' . $to);
+        return true;
+    }
+
     $timeout = max(3, (int) envv('EMAIL_TIMEOUT_SECONDS', '10'));
     $fromRaw = (string) envv('EMAIL_FROM', (string) envv('MAIL_FROM_ADDRESS', 'Abacus Trainer <no-reply@abacustrainer.com>'));
     $fromEmail = $fromRaw;
@@ -142,7 +170,7 @@ function instructor_send_otp_email(string $name, string $email, string $otp): bo
     return instructor_send_html_mail($email, $subject, $html, $text);
 }
 
-function instructor_issue_otp(string $name, string $email): void
+function instructor_issue_otp(string $name, string $email): ?string
 {
     $existingOtp = db_one('SELECT * FROM otp_verifications WHERE email = :email LIMIT 1', ['email' => $email]);
     if ($existingOtp && !empty($existingOtp['last_sent_at']) && (time() - instructor_utc_timestamp((string) $existingOtp['last_sent_at'])) < 60) {
@@ -171,6 +199,8 @@ function instructor_issue_otp(string $name, string $email): void
     if (!instructor_send_otp_email($name, $email, $otp)) {
         json_response(['message' => 'Unable to send OTP email. Please check SMTP settings on the live backend.'], 500);
     }
+
+    return instructor_is_dev_email_mode() ? $otp : null;
 }
 
 function controller_instructor_register_start(array $data): void
@@ -203,8 +233,13 @@ function controller_instructor_register_start(array $data): void
         );
     }
 
-    instructor_issue_otp($name, $email);
-    json_response(['message' => 'OTP sent to your email', 'email' => $email]);
+    $devOtp = instructor_issue_otp($name, $email);
+    $payload = ['message' => 'OTP sent to your email', 'email' => $email];
+    if ($devOtp !== null) {
+        $payload['devOtp'] = $devOtp;
+        $payload['message'] = 'Development OTP generated. Use the code shown on the next screen.';
+    }
+    json_response($payload);
 }
 
 function controller_instructor_verify_otp(array $data): void
@@ -256,8 +291,13 @@ function controller_instructor_resend_otp(array $data): void
     if (!$instructor) {
         json_response(['message' => 'Instructor registration not found'], 404);
     }
-    instructor_issue_otp((string) $instructor['full_name'], $email);
-    json_response(['message' => 'A new OTP has been sent']);
+    $devOtp = instructor_issue_otp((string) $instructor['full_name'], $email);
+    $payload = ['message' => 'A new OTP has been sent'];
+    if ($devOtp !== null) {
+        $payload['devOtp'] = $devOtp;
+        $payload['message'] = 'Development OTP regenerated. Use the code shown on this screen.';
+    }
+    json_response($payload);
 }
 
 function controller_instructor_set_password(array $data): void

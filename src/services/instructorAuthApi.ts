@@ -13,6 +13,12 @@ export class ApiError extends Error {
   }
 }
 
+export type InstructorOtpResponse = {
+  message: string;
+  email?: string;
+  devOtp?: string;
+};
+
 async function request<T>(path: string, body: unknown): Promise<T> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -48,13 +54,13 @@ async function request<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const startInstructorRegistration = (payload: { fullName: string; mobile: string; email: string }) =>
-  request<{ message: string; email: string }>("/api/instructor/register/start", payload);
+  request<InstructorOtpResponse & { email: string }>("/api/instructor/register/start", payload);
 
 export const verifyInstructorOtp = (payload: { email: string; otp: string }) =>
   request<{ message: string; email: string }>("/api/instructor/register/verify-otp", payload);
 
 export const resendInstructorOtp = (payload: { email: string }) =>
-  request<{ message: string }>("/api/instructor/register/resend-otp", payload);
+  request<InstructorOtpResponse>("/api/instructor/register/resend-otp", payload);
 
 export const setInstructorPassword = (payload: { email: string; password: string; confirmPassword: string }) =>
   request<{ message: string }>("/api/instructor/register/set-password", payload);
