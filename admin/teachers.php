@@ -311,9 +311,14 @@ if (isset($_GET['edit'])) {
                     <div class="text-muted small"><?php echo htmlspecialchars($teacher['specialization']); ?></div>
                   </td>
                   <td>
-                    <?php if (!empty($teacher['image'])): ?>
-                      <img src="<?php echo htmlspecialchars(admin_asset_url((string) $teacher['image'])); ?>" alt="<?php echo htmlspecialchars($teacher['name']); ?>" width="48" height="48" class="rounded object-fit-cover border" />
-                    <?php endif; ?>
+                    <img
+                      src="<?php echo htmlspecialchars(admin_image_url_or_placeholder($teacher['image'] ?? '', (string) $teacher['name'])); ?>"
+                      alt="<?php echo htmlspecialchars($teacher['name']); ?>"
+                      width="48"
+                      height="48"
+                      class="rounded object-fit-cover border"
+                      onerror="<?php echo admin_image_fallback_attr((string) $teacher['name']); ?>"
+                    />
                   </td>
                   <td><?php echo htmlspecialchars($teacher['joining_date']); ?></td>
                   <td>
