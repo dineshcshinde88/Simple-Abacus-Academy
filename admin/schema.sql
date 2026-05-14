@@ -69,5 +69,5 @@ ON DUPLICATE KEY UPDATE email = email;
 -- Sample admin user (password: Admin@123)
 -- Replace email/name and change password after first login.
 INSERT INTO admins (name, email, password)
-VALUES ('Admin', 'admin@simpleabacus.com', '$2y$10$4GmXWlT3N5mG8yT6Rb7o7u8J1f0vLk5G6X6rOe4K0kDtw0V2wqI5y')
-ON DUPLICATE KEY UPDATE email = email;
+VALUES ('Admin', 'admin@simpleabacus.com', '$2y$10$0FRd5zBbHWNSK/VBBesajOWgJ.M0awaN0oSrNGQaRN.aGHqfig16W')
+ON DUPLICATE KEY UPDATE name = VALUES(name), password = VALUES(password);

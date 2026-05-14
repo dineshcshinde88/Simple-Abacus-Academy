@@ -43,7 +43,7 @@ function send_plain_mail(string $to, string $subject, string $body, string $repl
             $pass = (string) envv('EMAIL_PASS', (string) envv('MAIL_PASSWORD', ''));
             if ($host !== '' && $user !== '') {
                 $scheme = $port === 465 ? 'smtps' : 'smtp';
-                $dsn = sprintf('%s://%s:%s@%s:%d', $scheme, rawurlencode($user), rawurlencode($pass), $host, $port);
+                $dsn = sprintf('%s://%s:%s@%s:%d?timeout=5', $scheme, rawurlencode($user), rawurlencode($pass), $host, $port);
                 $transport = \Symfony\Component\Mailer\Transport::fromDsn($dsn);
                 $mailer = new \Symfony\Component\Mailer\Mailer($transport);
                 $email = (new \Symfony\Component\Mime\Email())
@@ -67,6 +67,29 @@ function send_plain_mail(string $to, string $subject, string $body, string $repl
     ];
     $envelope = filter_var($fromEmail, FILTER_VALIDATE_EMAIL) ? '-f' . $fromEmail : '';
     @mail($to, $subject, $body, implode("\r\n", $headers), $envelope);
+}
+
+function finish_json_response(array $payload, int $status = 200): bool
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES);
+
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+        return true;
+    }
+
+    if (function_exists('litespeed_finish_request')) {
+        litespeed_finish_request();
+        return true;
+    }
+
+    if (ob_get_level() > 0) {
+        @ob_flush();
+    }
+    @flush();
+    return false;
 }
 
 function ensure_demo_booking_schema(): void
@@ -127,15 +150,24 @@ function controller_demo_book(array $data): void
         ]
     );
 
-    send_plain_mail(
-        (string) envv('DEMO_NOTIFICATION_EMAIL', 'simpleabacuspune@gmail.com'),
-        'New Free Demo Request',
-        "Free Demo Booking\nName: {$name}\nEmail: {$email}\nMobile: {$mobile}\n{$message}",
-        $email,
-        $name
-    );
+    $canNotifyAfterResponse = finish_json_response(['message' => 'Demo request received']);
+    $sendEmailSynchronously = strtolower((string) envv('DEMO_SEND_EMAIL_SYNC', 'false')) === 'true';
 
-    json_response(['message' => 'Demo request received']);
+    if ($canNotifyAfterResponse || $sendEmailSynchronously) {
+        try {
+            send_plain_mail(
+                (string) envv('DEMO_NOTIFICATION_EMAIL', 'simpleabacuspune@gmail.com'),
+                'New Free Demo Request',
+                "Free Demo Booking\nName: {$name}\nEmail: {$email}\nMobile: {$mobile}\n{$message}",
+                $email,
+                $name
+            );
+        } catch (Throwable $e) {
+            error_log('Demo notification failed: ' . $e->getMessage());
+        }
+    }
+
+    exit;
 }
 
 function controller_franchise_apply(array $data): void

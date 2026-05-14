@@ -19,6 +19,7 @@ import LoginDialog from "@/components/auth/LoginDialog";
 import { getApiBase } from "@/lib/apiBase";
 
 const fadeUp = { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true } };
+type FormStatus = { type: "success" | "error"; message: string } | null;
 
 const buildCaptcha = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -28,6 +29,8 @@ const buildCaptcha = () => {
   }
   return result;
 };
+
+const DEMO_REQUEST_TIMEOUT_MS = 15000;
 
 const BookDemo = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,6 +44,7 @@ const BookDemo = () => {
   const [gender, setGender] = useState("");
   const [motherTongue, setMotherTongue] = useState("");
   const [dob, setDob] = useState("");
+  const [formStatus, setFormStatus] = useState<FormStatus>(null);
 
   const API_BASE = getApiBase();
 
@@ -58,18 +62,27 @@ const BookDemo = () => {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setFormStatus(null);
+
     if (!captchaInput.trim()) {
-      toast.error("Please enter the captcha code.");
+      const message = "Please enter the captcha code.";
+      setFormStatus({ type: "error", message });
+      toast.error(message);
       return;
     }
 
     if (captchaInput.trim().toUpperCase() !== captcha) {
-      toast.error("Captcha code does not match. Please try again.");
+      const message = "Captcha code does not match. Please try again.";
+      setFormStatus({ type: "error", message });
+      toast.error(message);
       refreshCaptcha();
       return;
     }
 
     setIsSubmitting(true);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), DEMO_REQUEST_TIMEOUT_MS);
+
     try {
       const programs = [
         selectedPrograms.abacus ? "Abacus" : null,
@@ -79,6 +92,7 @@ const BookDemo = () => {
       const response = await fetch(`${API_BASE}/api/demo/book`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           name: fullName,
           email,
@@ -95,7 +109,9 @@ const BookDemo = () => {
         throw new Error((data as { message?: string }).message || "Request failed");
       }
 
-      toast.success("Thanks! We'll reach out to confirm your free demo session.");
+      const message = "Thank you! Your free demo request has been submitted. Our team will contact you soon.";
+      setFormStatus({ type: "success", message });
+      toast.success(message);
       setFullName("");
       setEmail("");
       setMobile("");
@@ -105,9 +121,16 @@ const BookDemo = () => {
       refreshCaptcha();
       setSelectedPrograms({ abacus: true, vedic: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to submit. Please try again.";
+      const message =
+        error instanceof DOMException && error.name === "AbortError"
+          ? "The request timed out. Please try again or call us directly."
+            : error instanceof Error
+            ? error.message
+            : "Unable to submit. Please try again.";
+      setFormStatus({ type: "error", message });
       toast.error(message);
     } finally {
+      window.clearTimeout(timeoutId);
       setIsSubmitting(false);
     }
   };
@@ -254,6 +277,19 @@ const BookDemo = () => {
                       {isSubmitting ? "Submitting..." : "Book Free Demo"}
                     </Button>
                   </div>
+                  {formStatus ? (
+                    <div
+                      className={`rounded-lg border px-4 py-3 text-sm font-medium ${
+                        formStatus.type === "success"
+                          ? "border-green-200 bg-green-50 text-green-800"
+                          : "border-red-200 bg-red-50 text-red-800"
+                      }`}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {formStatus.message}
+                    </div>
+                  ) : null}
                 </form>
               </div>
             </motion.div>
