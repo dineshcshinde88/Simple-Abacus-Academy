@@ -173,13 +173,22 @@ function instructor_send_otp_email(string $name, string $email, string $otp): bo
 
 function instructor_issue_otp(string $name, string $email): ?string
 {
+    $cooldownSeconds = max(10, (int) envv('INSTRUCTOR_OTP_COOLDOWN_SECONDS', '60'));
     $existingOtp = db_one('SELECT * FROM otp_verifications WHERE email = :email LIMIT 1', ['email' => $email]);
-    if ($existingOtp && !empty($existingOtp['last_sent_at']) && (time() - instructor_utc_timestamp((string) $existingOtp['last_sent_at'])) < 60) {
-        json_response(['message' => 'Please wait before requesting another OTP'], 429);
+    if ($existingOtp && !empty($existingOtp['last_sent_at'])) {
+        $elapsed = time() - instructor_utc_timestamp((string) $existingOtp['last_sent_at']);
+        if ($elapsed < $cooldownSeconds) {
+            $retryAfter = max(1, $cooldownSeconds - $elapsed);
+            json_response([
+                'message' => "Please wait {$retryAfter} seconds before requesting another OTP",
+                'retryAfter' => $retryAfter,
+            ], 429);
+        }
     }
 
     $otp = (string) random_int(100000, 999999);
     $now = now_sql();
+    $unsentTimestamp = gmdate('Y-m-d H:i:s', time() - $cooldownSeconds - 1);
     $expiry = gmdate('Y-m-d H:i:s', time() + 300);
     if ($existingOtp) {
         db_exec_sql(
@@ -187,19 +196,21 @@ function instructor_issue_otp(string $name, string $email): ?string
              SET previous_otp = otp, previous_expiry_time = expiry_time, otp = :otp, expiry_time = :expiry_time,
                  attempts = 0, last_sent_at = :last_sent_at
              WHERE email = :email',
-            ['otp' => instructor_otp_hash($otp), 'expiry_time' => $expiry, 'last_sent_at' => $now, 'email' => $email]
+            ['otp' => instructor_otp_hash($otp), 'expiry_time' => $expiry, 'last_sent_at' => $unsentTimestamp, 'email' => $email]
         );
     } else {
         db_exec_sql(
             'INSERT INTO otp_verifications (id, email, otp, expiry_time, attempts, last_sent_at, created_at)
              VALUES (:id, :email, :otp, :expiry_time, 0, :last_sent_at, :created_at)',
-            ['id' => uuid_v4(), 'email' => $email, 'otp' => instructor_otp_hash($otp), 'expiry_time' => $expiry, 'last_sent_at' => $now, 'created_at' => $now]
+            ['id' => uuid_v4(), 'email' => $email, 'otp' => instructor_otp_hash($otp), 'expiry_time' => $expiry, 'last_sent_at' => $unsentTimestamp, 'created_at' => $now]
         );
     }
 
     if (!instructor_send_otp_email($name, $email, $otp)) {
         json_response(['message' => 'Unable to send OTP email. Please check SMTP settings on the live backend.'], 500);
     }
+
+    db_exec_sql('UPDATE otp_verifications SET last_sent_at = :last_sent_at WHERE email = :email', ['last_sent_at' => $now, 'email' => $email]);
 
     return instructor_is_dev_email_mode() ? $otp : null;
 }
