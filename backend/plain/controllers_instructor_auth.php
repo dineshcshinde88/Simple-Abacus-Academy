@@ -83,6 +83,66 @@ function instructor_is_dev_email_mode(): bool
     return false;
 }
 
+function instructor_parse_mail_address(string $raw, string $defaultName): array
+{
+    $email = trim($raw);
+    $name = $defaultName;
+    if (preg_match('/^(.*?)<([^>]+)>$/', $raw, $m) === 1) {
+        $name = trim(trim($m[1]), '"') ?: $defaultName;
+        $email = trim($m[2]);
+    }
+
+    return [$email, $name];
+}
+
+function instructor_send_brevo_api_mail(string $to, string $subject, string $html, string $text, string $fromRaw): ?bool
+{
+    $apiKey = trim((string) envv('BREVO_API_KEY', (string) envv('SENDINBLUE_API_KEY', '')));
+    if ($apiKey === '') {
+        return null;
+    }
+    if (!function_exists('curl_init')) {
+        error_log('Brevo API email failed: PHP cURL extension is not available');
+        return false;
+    }
+
+    [$fromEmail, $fromName] = instructor_parse_mail_address($fromRaw, 'Abacus Trainer');
+    $timeout = max(3, (int) envv('EMAIL_TIMEOUT_SECONDS', '10'));
+    $payload = [
+        'sender' => ['email' => $fromEmail, 'name' => $fromName],
+        'to' => [['email' => $to]],
+        'subject' => $subject,
+        'htmlContent' => $html,
+        'textContent' => $text,
+    ];
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+            'Content-Type: application/json',
+            'api-key: ' . $apiKey,
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_SLASHES),
+        CURLOPT_CONNECTTIMEOUT => $timeout,
+        CURLOPT_TIMEOUT => $timeout,
+    ]);
+
+    $response = curl_exec($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($response === false || $status < 200 || $status >= 300) {
+        error_log('Brevo API email failed: status=' . $status . ' error=' . $error . ' response=' . (string) $response);
+        return false;
+    }
+
+    return true;
+}
+
 function instructor_send_html_mail(string $to, string $subject, string $html, string $text): bool
 {
     if (instructor_is_dev_email_mode()) {
@@ -92,12 +152,11 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
 
     $timeout = max(3, (int) envv('EMAIL_TIMEOUT_SECONDS', '10'));
     $fromRaw = (string) envv('EMAIL_FROM', (string) envv('MAIL_FROM_ADDRESS', 'Abacus Trainer <no-reply@abacustrainer.com>'));
-    $fromEmail = $fromRaw;
-    $fromName = 'Abacus Trainer';
-    if (preg_match('/^(.*?)<([^>]+)>$/', $fromRaw, $m) === 1) {
-        $fromName = trim(trim($m[1]), '"') ?: $fromName;
-        $fromEmail = trim($m[2]);
+    $apiSent = instructor_send_brevo_api_mail($to, $subject, $html, $text, $fromRaw);
+    if ($apiSent !== null) {
+        return $apiSent;
     }
+    [$fromEmail, $fromName] = instructor_parse_mail_address($fromRaw, 'Abacus Trainer');
 
     $host = (string) envv('EMAIL_HOST', (string) envv('MAIL_HOST', ''));
     $port = (int) envv('EMAIL_PORT', (string) envv('MAIL_PORT', '587'));
