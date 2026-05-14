@@ -15,6 +15,24 @@ function teacher_admin_image_src(string $image): string
     return $image;
 }
 
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS teachers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        email VARCHAR(160) NOT NULL UNIQUE,
+        phone VARCHAR(20) NOT NULL,
+        expertise VARCHAR(160) NOT NULL,
+        qualification VARCHAR(160) NOT NULL DEFAULT 'Certified Abacus Trainer',
+        experience VARCHAR(120) NOT NULL DEFAULT '',
+        location VARCHAR(160) NOT NULL DEFAULT '',
+        specialization VARCHAR(120) NOT NULL DEFAULT 'Abacus',
+        image VARCHAR(255) NOT NULL DEFAULT '',
+        description TEXT NULL,
+        joining_date DATE NOT NULL,
+        status ENUM('active','inactive') DEFAULT 'active'
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
 $teacherColumns = [
     'qualification' => "VARCHAR(160) NOT NULL DEFAULT 'Certified Abacus Trainer'",
     'experience' => "VARCHAR(120) NOT NULL DEFAULT ''",
