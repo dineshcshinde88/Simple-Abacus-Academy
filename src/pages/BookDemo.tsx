@@ -30,7 +30,7 @@ const buildCaptcha = () => {
   return result;
 };
 
-const DEMO_REQUEST_TIMEOUT_MS = 15000;
+const DEMO_REQUEST_TIMEOUT_MS = 60000;
 
 const BookDemo = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -123,7 +123,7 @@ const BookDemo = () => {
     } catch (error) {
       const message =
         error instanceof DOMException && error.name === "AbortError"
-          ? "The request timed out. Please try again or call us directly."
+          ? "The server is taking too long to respond. Please call or WhatsApp us directly at +91 89991 64139."
             : error instanceof Error
             ? error.message
             : "Unable to submit. Please try again.";
