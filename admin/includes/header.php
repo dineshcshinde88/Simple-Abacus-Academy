@@ -9,6 +9,8 @@ $activeMenu = $activeMenu ?? '';
 $adminStmt = $pdo->prepare('SELECT id, name, email, profile_image FROM admins WHERE id = ?');
 $adminStmt->execute([$_SESSION['admin_id']]);
 $admin = $adminStmt->fetch();
+$adminName = (string) ($admin['name'] ?? 'Admin');
+$adminProfileImage = admin_image_url_or_placeholder($admin['profile_image'] ?? '', $adminName);
 ?>
 <!doctype html>
 <html lang="en">
@@ -26,19 +28,20 @@ $admin = $adminStmt->fetch();
     <div class="admin-topbar">
       <div>
         <h1 class="h5 mb-0"><?php echo htmlspecialchars($pageTitle); ?></h1>
-        <div class="text-muted small">Welcome back, <?php echo htmlspecialchars($admin['name'] ?? 'Admin'); ?></div>
+        <div class="text-muted small">Welcome back, <?php echo htmlspecialchars($adminName); ?></div>
       </div>
       <div class="d-flex align-items-center gap-3">
         <div class="text-end">
-          <div class="fw-semibold small"><?php echo htmlspecialchars($admin['name'] ?? 'Admin'); ?></div>
+          <div class="fw-semibold small"><?php echo htmlspecialchars($adminName); ?></div>
           <div class="text-muted small"><?php echo htmlspecialchars($admin['email'] ?? ''); ?></div>
         </div>
         <img
-          src="<?php echo htmlspecialchars(!empty($admin['profile_image']) ? admin_asset_url((string) $admin['profile_image']) : admin_placeholder_avatar((string) ($admin['name'] ?? 'Admin'))); ?>"
+          src="<?php echo htmlspecialchars($adminProfileImage); ?>"
           alt="Profile"
           class="rounded-circle"
           width="40"
           height="40"
+          onerror="<?php echo admin_image_fallback_attr($adminName); ?>"
         />
       </div>
     </div>

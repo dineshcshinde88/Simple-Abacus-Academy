@@ -14,6 +14,7 @@ $menuItems = [
       class="admin-logo"
       src="assets/admin_logo.png"
       alt="Simple Abacus"
+      onerror="this.onerror=null;this.src='/abacus_logo.svg';"
     />
   </div>
   <nav class="admin-nav">
