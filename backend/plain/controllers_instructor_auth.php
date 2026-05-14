@@ -99,13 +99,15 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
         $fromEmail = trim($m[2]);
     }
 
+    $host = (string) envv('EMAIL_HOST', (string) envv('MAIL_HOST', ''));
+    $port = (int) envv('EMAIL_PORT', (string) envv('MAIL_PORT', '587'));
+    $user = (string) envv('EMAIL_USER', (string) envv('MAIL_USERNAME', ''));
+    $pass = (string) envv('EMAIL_PASS', (string) envv('MAIL_PASSWORD', ''));
+    $hasSmtpConfig = $host !== '' && $user !== '';
+
     if (class_exists('\\Symfony\\Component\\Mailer\\Transport') && class_exists('\\Symfony\\Component\\Mime\\Email')) {
         try {
-            $host = (string) envv('EMAIL_HOST', (string) envv('MAIL_HOST', ''));
-            $port = (int) envv('EMAIL_PORT', (string) envv('MAIL_PORT', '587'));
-            $user = (string) envv('EMAIL_USER', (string) envv('MAIL_USERNAME', ''));
-            $pass = (string) envv('EMAIL_PASS', (string) envv('MAIL_PASSWORD', ''));
-            if ($host !== '' && $user !== '') {
+            if ($hasSmtpConfig) {
                 $scheme = $port === 465 ? 'smtps' : 'smtp';
                 $dsn = sprintf('%s://%s:%s@%s:%d?timeout=%d', $scheme, rawurlencode($user), rawurlencode($pass), $host, $port, $timeout);
                 $transport = \Symfony\Component\Mailer\Transport::fromDsn($dsn);
@@ -122,6 +124,10 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
         } catch (Throwable $e) {
             error_log('Instructor OTP SMTP failed: ' . $e->getMessage());
         }
+    }
+
+    if ($hasSmtpConfig && strtolower((string) envv('EMAIL_ALLOW_PHP_MAIL_FALLBACK', 'false')) !== 'true') {
+        return false;
     }
 
     $headers = [
