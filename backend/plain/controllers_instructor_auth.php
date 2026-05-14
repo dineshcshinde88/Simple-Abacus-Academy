@@ -80,12 +80,7 @@ function instructor_is_dev_email_mode(): bool
         return true;
     }
 
-    $appEnv = strtolower((string) envv('APP_ENV', (string) envv('NODE_ENV', 'production')));
-    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
-    $host = preg_replace('/:\d+$/', '', $host) ?? $host;
-    $isLocalHost = in_array($host, ['localhost', '127.0.0.1', '::1'], true);
-
-    return $isLocalHost && in_array($appEnv, ['local', 'dev', 'development'], true);
+    return false;
 }
 
 function instructor_send_html_mail(string $to, string $subject, string $html, string $text): bool
