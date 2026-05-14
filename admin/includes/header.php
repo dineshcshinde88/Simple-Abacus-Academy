@@ -1,6 +1,7 @@
 ﻿<?php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/image.php';
 
 $pageTitle = $pageTitle ?? 'Admin Dashboard';
 $activeMenu = $activeMenu ?? '';
@@ -33,7 +34,7 @@ $admin = $adminStmt->fetch();
           <div class="text-muted small"><?php echo htmlspecialchars($admin['email'] ?? ''); ?></div>
         </div>
         <img
-          src="<?php echo !empty($admin['profile_image']) ? 'uploads/' . htmlspecialchars($admin['profile_image']) : 'https://via.placeholder.com/40'; ?>"
+          src="<?php echo htmlspecialchars(!empty($admin['profile_image']) ? admin_asset_url((string) $admin['profile_image']) : admin_placeholder_avatar((string) ($admin['name'] ?? 'Admin'))); ?>"
           alt="Profile"
           class="rounded-circle"
           width="40"

@@ -27,9 +27,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errors[] = 'Profile image must be jpg, png, or webp.';
                 } else {
                     $newName = 'admin_' . time() . '.' . $ext;
-                    $target = __DIR__ . '/uploads/' . $newName;
-                    move_uploaded_file($file['tmp_name'], $target);
-                    $profileImage = $newName;
+                    $uploadDir = __DIR__ . '/uploads';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0775, true);
+                    }
+                    $target = $uploadDir . '/' . $newName;
+                    if (move_uploaded_file($file['tmp_name'], $target)) {
+                        $profileImage = $newName;
+                    } else {
+                        $errors[] = 'Profile image could not be uploaded. Please check admin/uploads folder permissions.';
+                    }
                 }
             }
         }

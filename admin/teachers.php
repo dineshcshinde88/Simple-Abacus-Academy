@@ -6,15 +6,6 @@ require_once __DIR__ . '/includes/header.php';
 $errors = [];
 $success = '';
 
-function teacher_admin_image_src(string $image): string
-{
-    if (strpos($image, '/assets/') === 0) {
-        return '../public' . $image;
-    }
-
-    return $image;
-}
-
 try {
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS teachers (
@@ -321,7 +312,7 @@ if (isset($_GET['edit'])) {
                   </td>
                   <td>
                     <?php if (!empty($teacher['image'])): ?>
-                      <img src="<?php echo htmlspecialchars(teacher_admin_image_src($teacher['image'])); ?>" alt="<?php echo htmlspecialchars($teacher['name']); ?>" width="48" height="48" class="rounded object-fit-cover border" />
+                      <img src="<?php echo htmlspecialchars(admin_asset_url((string) $teacher['image'])); ?>" alt="<?php echo htmlspecialchars($teacher['name']); ?>" width="48" height="48" class="rounded object-fit-cover border" />
                     <?php endif; ?>
                   </td>
                   <td><?php echo htmlspecialchars($teacher['joining_date']); ?></td>
