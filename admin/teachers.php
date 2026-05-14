@@ -15,42 +15,46 @@ function teacher_admin_image_src(string $image): string
     return $image;
 }
 
-$pdo->exec(
-    "CREATE TABLE IF NOT EXISTS teachers (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(120) NOT NULL,
-        email VARCHAR(160) NOT NULL UNIQUE,
-        phone VARCHAR(20) NOT NULL,
-        expertise VARCHAR(160) NOT NULL,
-        qualification VARCHAR(160) NOT NULL DEFAULT 'Certified Abacus Trainer',
-        experience VARCHAR(120) NOT NULL DEFAULT '',
-        location VARCHAR(160) NOT NULL DEFAULT '',
-        specialization VARCHAR(120) NOT NULL DEFAULT 'Abacus',
-        image VARCHAR(255) NOT NULL DEFAULT '',
-        description TEXT NULL,
-        joining_date DATE NOT NULL,
-        status ENUM('active','inactive') DEFAULT 'active'
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-);
-
-$teacherColumns = [
-    'qualification' => "VARCHAR(160) NOT NULL DEFAULT 'Certified Abacus Trainer'",
-    'experience' => "VARCHAR(120) NOT NULL DEFAULT ''",
-    'location' => "VARCHAR(160) NOT NULL DEFAULT ''",
-    'specialization' => "VARCHAR(120) NOT NULL DEFAULT 'Abacus'",
-    'image' => "VARCHAR(255) NOT NULL DEFAULT ''",
-    'description' => "TEXT NULL",
-];
-
-foreach ($teacherColumns as $column => $definition) {
-    $stmt = $pdo->prepare(
-        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+try {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS teachers (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(160) NOT NULL UNIQUE,
+            phone VARCHAR(20) NOT NULL,
+            expertise VARCHAR(160) NOT NULL,
+            qualification VARCHAR(160) NOT NULL DEFAULT 'Certified Abacus Trainer',
+            experience VARCHAR(120) NOT NULL DEFAULT '',
+            location VARCHAR(160) NOT NULL DEFAULT '',
+            specialization VARCHAR(120) NOT NULL DEFAULT 'Abacus',
+            image VARCHAR(255) NOT NULL DEFAULT '',
+            description TEXT NULL,
+            joining_date DATE NOT NULL,
+            status ENUM('active','inactive') DEFAULT 'active'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
-    $stmt->execute(['teachers', $column]);
 
-    if ((int) $stmt->fetchColumn() === 0) {
-        $pdo->exec("ALTER TABLE teachers ADD COLUMN {$column} {$definition}");
+    $teacherColumns = [
+        'qualification' => "VARCHAR(160) NOT NULL DEFAULT 'Certified Abacus Trainer'",
+        'experience' => "VARCHAR(120) NOT NULL DEFAULT ''",
+        'location' => "VARCHAR(160) NOT NULL DEFAULT ''",
+        'specialization' => "VARCHAR(120) NOT NULL DEFAULT 'Abacus'",
+        'image' => "VARCHAR(255) NOT NULL DEFAULT ''",
+        'description' => "TEXT NULL",
+    ];
+
+    foreach ($teacherColumns as $column => $definition) {
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['teachers', $column]);
+
+        if ((int) $stmt->fetchColumn() === 0) {
+            $pdo->exec("ALTER TABLE teachers ADD COLUMN {$column} {$definition}");
+        }
     }
+} catch (Throwable $e) {
+    $errors[] = 'Teachers table setup failed: ' . $e->getMessage();
 }
 
 $defaultTeachers = [
@@ -112,27 +116,39 @@ $defaultTeachers = [
     ],
 ];
 
-$seedStmt = $pdo->prepare(
-    'INSERT INTO teachers (name, email, phone, expertise, joining_date, status, qualification, experience, location, specialization, image, description)
-     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-     WHERE NOT EXISTS (SELECT 1 FROM teachers WHERE name = ?)'
-);
-foreach ($defaultTeachers as $teacher) {
-    $seedStmt->execute([
-        $teacher['name'],
-        $teacher['email'],
-        $teacher['phone'],
-        $teacher['expertise'],
-        $teacher['joining_date'],
-        $teacher['status'],
-        $teacher['qualification'],
-        $teacher['experience'],
-        $teacher['location'],
-        $teacher['specialization'],
-        $teacher['image'],
-        $teacher['description'],
-        $teacher['name'],
-    ]);
+try {
+    $seedStmt = $pdo->prepare(
+        'INSERT INTO teachers (name, email, phone, expertise, joining_date, status, qualification, experience, location, specialization, image, description)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           phone = VALUES(phone),
+           expertise = VALUES(expertise),
+           qualification = VALUES(qualification),
+           experience = VALUES(experience),
+           location = VALUES(location),
+           specialization = VALUES(specialization),
+           image = VALUES(image),
+           description = VALUES(description),
+           status = VALUES(status)'
+    );
+    foreach ($defaultTeachers as $teacher) {
+        $seedStmt->execute([
+            $teacher['name'],
+            $teacher['email'],
+            $teacher['phone'],
+            $teacher['expertise'],
+            $teacher['joining_date'],
+            $teacher['status'],
+            $teacher['qualification'],
+            $teacher['experience'],
+            $teacher['location'],
+            $teacher['specialization'],
+            $teacher['image'],
+            $teacher['description'],
+        ]);
+    }
+} catch (Throwable $e) {
+    $errors[] = 'Default teacher setup failed: ' . $e->getMessage();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -177,7 +193,12 @@ if (isset($_GET['delete'])) {
     $success = 'Teacher deleted successfully.';
 }
 
-$teachers = $pdo->query('SELECT * FROM teachers ORDER BY joining_date DESC, id DESC')->fetchAll();
+$teachers = [];
+try {
+    $teachers = $pdo->query('SELECT * FROM teachers ORDER BY joining_date DESC, id DESC')->fetchAll();
+} catch (Throwable $e) {
+    $errors[] = 'Teacher list could not be loaded: ' . $e->getMessage();
+}
 
 $editTeacher = null;
 if (isset($_GET['edit'])) {
