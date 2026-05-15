@@ -97,6 +97,7 @@ const App = () => (
             <Route path="/digital-frame" element={<DigitalFrame />} />
             <Route path="/instructor-login" element={<InstructorLogin />} />
             <Route path="/instructor-registration" element={<InstructorRegistration />} />
+            <Route path="/register-tutor" element={<InstructorRegistration />} />
             <Route path="/instructor-reset-password" element={<InstructorResetPassword />} />
             <Route path="/student-login" element={<StudentLogin />} />
             <Route path="/student-registration" element={<StudentRegistration />} />

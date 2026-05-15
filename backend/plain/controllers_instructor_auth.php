@@ -9,6 +9,15 @@ function ensure_instructor_auth_schema(): void
             mobile VARCHAR(30) NOT NULL,
             email VARCHAR(255) NOT NULL UNIQUE,
             password VARCHAR(255) NULL,
+            course_type VARCHAR(60) NULL,
+            country_code VARCHAR(10) NULL,
+            gender VARCHAR(30) NULL,
+            date_of_birth DATE NULL,
+            qualification VARCHAR(255) NULL,
+            career_started VARCHAR(100) NULL,
+            students_trained VARCHAR(100) NULL,
+            address TEXT NULL,
+            profile_picture TEXT NULL,
             is_verified TINYINT(1) NOT NULL DEFAULT 0,
             role VARCHAR(30) NOT NULL DEFAULT \'instructor\',
             status VARCHAR(30) NOT NULL DEFAULT \'pending\',
@@ -21,6 +30,15 @@ function ensure_instructor_auth_schema(): void
     $instructorColumns = [
         'role' => "VARCHAR(30) NOT NULL DEFAULT 'instructor'",
         'status' => "VARCHAR(30) NOT NULL DEFAULT 'pending'",
+        'course_type' => 'VARCHAR(60) NULL',
+        'country_code' => 'VARCHAR(10) NULL',
+        'gender' => 'VARCHAR(30) NULL',
+        'date_of_birth' => 'DATE NULL',
+        'qualification' => 'VARCHAR(255) NULL',
+        'career_started' => 'VARCHAR(100) NULL',
+        'students_trained' => 'VARCHAR(100) NULL',
+        'address' => 'TEXT NULL',
+        'profile_picture' => 'TEXT NULL',
         'reset_token' => 'VARCHAR(64) NULL',
         'reset_expiry' => 'DATETIME NULL',
     ];
@@ -43,6 +61,42 @@ function instructor_normalize_email(array $data): string
 function instructor_validate_mobile(string $mobile): bool
 {
     return preg_match('/^[0-9+\-\s()]{7,20}$/', $mobile) === 1;
+}
+
+function instructor_normalize_course_type(string $courseType): string
+{
+    $courseType = strtolower(trim($courseType));
+    if (in_array($courseType, ['abacus', 'vedic_maths'], true)) {
+        return $courseType;
+    }
+    if (in_array($courseType, ['vedic maths', 'vedic-maths', 'vedic'], true)) {
+        return 'vedic_maths';
+    }
+    return '';
+}
+
+function instructor_handle_profile_picture(): string
+{
+    if (!isset($_FILES['profilePicture']) || !is_array($_FILES['profilePicture'])) {
+        return '';
+    }
+    if (($_FILES['profilePicture']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return '';
+    }
+    if (($_FILES['profilePicture']['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        json_response(['message' => 'Profile picture upload failed. Please try again.'], 422);
+    }
+    if ((int) ($_FILES['profilePicture']['size'] ?? 0) > 2 * 1024 * 1024) {
+        json_response(['message' => 'Profile picture must be 2MB or smaller.'], 422);
+    }
+
+    $tmp = (string) ($_FILES['profilePicture']['tmp_name'] ?? '');
+    $mime = $tmp !== '' && function_exists('mime_content_type') ? (string) mime_content_type($tmp) : '';
+    if ($mime !== '' && !in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+        json_response(['message' => 'Profile picture must be a JPG, PNG, or WebP image.'], 422);
+    }
+
+    return handle_upload_file('profilePicture');
 }
 
 function instructor_validate_password(string $password): ?string
@@ -446,13 +500,34 @@ function controller_instructor_register_start(array $data): void
 {
     ensure_instructor_auth_schema();
     $name = trim((string) ($data['fullName'] ?? $data['name'] ?? ''));
-    $mobile = trim((string) ($data['mobile'] ?? ''));
+    $countryCode = trim((string) ($data['countryCode'] ?? ''));
+    $mobileInput = trim((string) ($data['mobile'] ?? ''));
+    $mobile = trim($countryCode . ' ' . $mobileInput);
     $email = instructor_normalize_email($data);
+    $courseType = instructor_normalize_course_type((string) ($data['courseType'] ?? ''));
+    $gender = strtolower(trim((string) ($data['gender'] ?? '')));
+    $dateOfBirth = trim((string) ($data['dateOfBirth'] ?? ''));
+    $qualification = trim((string) ($data['qualification'] ?? ''));
+    $careerStarted = trim((string) ($data['careerStarted'] ?? ''));
+    $studentsTrained = trim((string) ($data['studentsTrained'] ?? ''));
+    $address = trim((string) ($data['address'] ?? ''));
     $password = (string) ($data['password'] ?? '');
     $confirm = (string) ($data['confirmPassword'] ?? '');
 
-    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !instructor_validate_mobile($mobile)) {
-        json_response(['message' => 'Please enter a valid name, mobile number, and email address'], 422);
+    if (
+        $courseType === ''
+        || $name === ''
+        || !filter_var($email, FILTER_VALIDATE_EMAIL)
+        || !instructor_validate_mobile($mobile)
+        || !in_array($gender, ['male', 'female', 'other'], true)
+        || $dateOfBirth === ''
+        || strtotime($dateOfBirth) === false
+        || $qualification === ''
+        || $careerStarted === ''
+        || $studentsTrained === ''
+        || $address === ''
+    ) {
+        json_response(['message' => 'Please fill all tutor registration fields with valid details.'], 422);
     }
     if ($password !== $confirm) {
         json_response(['message' => 'Passwords do not match.'], 422);
@@ -464,24 +539,84 @@ function controller_instructor_register_start(array $data): void
 
     $instructor = db_one('SELECT * FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
     if ($instructor) {
-        json_response(['message' => 'Already registered. Please login.'], 409);
-    }
+        $status = (string) ($instructor['status'] ?? 'pending');
+        if ((int) ($instructor['is_verified'] ?? 0) === 1 || $status === 'approved') {
+            json_response(['message' => 'This tutor account is already approved. Please login with your email and password.'], 409);
+        }
 
-    $mobileExists = db_one('SELECT id FROM instructors WHERE mobile = :mobile LIMIT 1', ['mobile' => $mobile]);
-    if ($mobileExists) {
-        json_response(['message' => 'Already registered. Please login.'], 409);
+        $now = now_sql();
+        $uploadedProfilePicture = instructor_handle_profile_picture();
+        $profilePicture = $uploadedProfilePicture !== '' ? $uploadedProfilePicture : (string) ($instructor['profile_picture'] ?? '');
+        db_exec_sql(
+            'UPDATE instructors SET
+                full_name = :full_name,
+                mobile = :mobile,
+                password = :password,
+                course_type = :course_type,
+                country_code = :country_code,
+                gender = :gender,
+                date_of_birth = :date_of_birth,
+                qualification = :qualification,
+                career_started = :career_started,
+                students_trained = :students_trained,
+                address = :address,
+                profile_picture = :profile_picture,
+                is_verified = 0,
+                role = :role,
+                status = :status,
+                created_at = :created_at
+             WHERE id = :id',
+            [
+                'full_name' => $name,
+                'mobile' => $mobile,
+                'password' => password_hash($password, PASSWORD_BCRYPT),
+                'course_type' => $courseType,
+                'country_code' => $countryCode,
+                'gender' => $gender,
+                'date_of_birth' => date('Y-m-d', strtotime($dateOfBirth)),
+                'qualification' => $qualification,
+                'career_started' => $careerStarted,
+                'students_trained' => $studentsTrained,
+                'address' => $address,
+                'profile_picture' => $profilePicture,
+                'role' => 'instructor',
+                'status' => 'pending',
+                'created_at' => $now,
+                'id' => $instructor['id'],
+            ]
+        );
+
+        json_response(['message' => 'Registration submitted successfully. Wait for admin approval.', 'email' => $email], 200);
     }
 
     $now = now_sql();
+    $profilePicture = instructor_handle_profile_picture();
     db_exec_sql(
-        'INSERT INTO instructors (id, full_name, mobile, email, password, is_verified, role, status, created_at)
-         VALUES (:id, :full_name, :mobile, :email, :password, 0, :role, :status, :created_at)',
+        'INSERT INTO instructors (
+            id, full_name, mobile, email, password, course_type, country_code, gender, date_of_birth,
+            qualification, career_started, students_trained, address, profile_picture,
+            is_verified, role, status, created_at
+         )
+         VALUES (
+            :id, :full_name, :mobile, :email, :password, :course_type, :country_code, :gender, :date_of_birth,
+            :qualification, :career_started, :students_trained, :address, :profile_picture,
+            0, :role, :status, :created_at
+         )',
         [
             'id' => uuid_v4(),
             'full_name' => $name,
             'mobile' => $mobile,
             'email' => $email,
             'password' => password_hash($password, PASSWORD_BCRYPT),
+            'course_type' => $courseType,
+            'country_code' => $countryCode,
+            'gender' => $gender,
+            'date_of_birth' => date('Y-m-d', strtotime($dateOfBirth)),
+            'qualification' => $qualification,
+            'career_started' => $careerStarted,
+            'students_trained' => $studentsTrained,
+            'address' => $address,
+            'profile_picture' => $profilePicture,
             'role' => 'instructor',
             'status' => 'pending',
             'created_at' => $now,

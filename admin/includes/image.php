@@ -12,11 +12,11 @@ function admin_asset_url(string $path): string
     }
 
     if (strpos($path, '/assets/') === 0) {
-        return $path;
+        return '../public' . $path;
     }
 
     if (strpos($path, 'assets/') === 0) {
-        return '/' . $path;
+        return '../public/' . $path;
     }
 
     if (strpos($path, 'uploads/') === 0) {

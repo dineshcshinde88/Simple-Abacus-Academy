@@ -97,6 +97,15 @@ function ensure_admin_instructor_schema(PDO $pdo): void
             mobile VARCHAR(30) NOT NULL,
             email VARCHAR(255) NOT NULL UNIQUE,
             password VARCHAR(255) NULL,
+            course_type VARCHAR(60) NULL,
+            country_code VARCHAR(10) NULL,
+            gender VARCHAR(30) NULL,
+            date_of_birth DATE NULL,
+            qualification VARCHAR(255) NULL,
+            career_started VARCHAR(100) NULL,
+            students_trained VARCHAR(100) NULL,
+            address TEXT NULL,
+            profile_picture TEXT NULL,
             is_verified TINYINT(1) NOT NULL DEFAULT 0,
             role VARCHAR(30) NOT NULL DEFAULT 'instructor',
             status VARCHAR(30) NOT NULL DEFAULT 'pending',
@@ -109,6 +118,15 @@ function ensure_admin_instructor_schema(PDO $pdo): void
     foreach ([
         'role' => "VARCHAR(30) NOT NULL DEFAULT 'instructor'",
         'status' => "VARCHAR(30) NOT NULL DEFAULT 'pending'",
+        'course_type' => 'VARCHAR(60) NULL',
+        'country_code' => 'VARCHAR(10) NULL',
+        'gender' => 'VARCHAR(30) NULL',
+        'date_of_birth' => 'DATE NULL',
+        'qualification' => 'VARCHAR(255) NULL',
+        'career_started' => 'VARCHAR(100) NULL',
+        'students_trained' => 'VARCHAR(100) NULL',
+        'address' => 'TEXT NULL',
+        'profile_picture' => 'TEXT NULL',
         'reset_token' => 'VARCHAR(64) NULL',
         'reset_expiry' => 'DATETIME NULL',
     ] as $column => $definition) {
@@ -185,6 +203,34 @@ function approve_instructor(PDO $pdo, string $id): void
     }
 }
 
+function admin_instructor_course_label(?string $courseType): string
+{
+    return match ((string) $courseType) {
+        'abacus' => 'Abacus',
+        'vedic_maths' => 'Vedic Maths',
+        default => 'Not added',
+    };
+}
+
+function admin_instructor_profile_picture_url(?string $url): string
+{
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    $parts = parse_url($url);
+    $path = is_array($parts) ? (string) ($parts['path'] ?? '') : '';
+    if ($path !== '' && str_starts_with($path, '/uploads/')) {
+        $fileName = basename($path);
+        if (is_file(__DIR__ . '/../backend/uploads/' . $fileName)) {
+            return '../backend/uploads/' . rawurlencode($fileName);
+        }
+    }
+
+    return $url;
+}
+
 $instructorPdo = $pdo;
 try {
     $instructorPdo = admin_instructors_backend_pdo($pdo);
@@ -254,6 +300,7 @@ foreach ($instructors as $instructor) {
                 <tr>
                   <th>Name</th>
                   <th>Contact</th>
+                  <th>Details</th>
                   <th>Registered</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -262,10 +309,34 @@ foreach ($instructors as $instructor) {
               <tbody>
                 <?php foreach ($rows as $instructor): ?>
                   <tr>
-                    <td><?php echo htmlspecialchars($instructor['full_name']); ?></td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <?php $profilePictureUrl = admin_instructor_profile_picture_url($instructor['profile_picture'] ?? ''); ?>
+                        <?php if ($profilePictureUrl !== ''): ?>
+                          <img
+                            src="<?php echo htmlspecialchars($profilePictureUrl); ?>"
+                            alt="<?php echo htmlspecialchars($instructor['full_name']); ?>"
+                            class="rounded-circle"
+                            style="width:44px;height:44px;object-fit:cover;"
+                          />
+                        <?php endif; ?>
+                        <div>
+                          <div><?php echo htmlspecialchars($instructor['full_name']); ?></div>
+                          <div class="text-muted small"><?php echo htmlspecialchars(admin_instructor_course_label($instructor['course_type'] ?? null)); ?></div>
+                        </div>
+                      </div>
+                    </td>
                     <td>
                       <div><?php echo htmlspecialchars($instructor['email']); ?></div>
                       <div class="text-muted small"><?php echo htmlspecialchars($instructor['mobile']); ?></div>
+                    </td>
+                    <td>
+                      <div class="small">Gender: <?php echo htmlspecialchars(ucfirst((string) ($instructor['gender'] ?? 'Not added'))); ?></div>
+                      <div class="small">DOB: <?php echo htmlspecialchars((string) ($instructor['date_of_birth'] ?? 'Not added')); ?></div>
+                      <div class="small">Qualification: <?php echo htmlspecialchars((string) ($instructor['qualification'] ?? 'Not added')); ?></div>
+                      <div class="small">Career: <?php echo htmlspecialchars((string) ($instructor['career_started'] ?? 'Not added')); ?></div>
+                      <div class="small">Students: <?php echo htmlspecialchars((string) ($instructor['students_trained'] ?? 'Not added')); ?></div>
+                      <div class="text-muted small" style="max-width:260px;white-space:normal;"><?php echo htmlspecialchars((string) ($instructor['address'] ?? '')); ?></div>
                     </td>
                     <td><?php echo htmlspecialchars($instructor['created_at']); ?></td>
                     <td><span class="badge bg-secondary"><?php echo htmlspecialchars($instructor['status']); ?></span></td>
@@ -295,7 +366,7 @@ foreach ($instructors as $instructor) {
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$rows): ?>
-                  <tr><td colspan="5" class="text-center text-muted">No <?php echo htmlspecialchars($status); ?> instructors.</td></tr>
+                  <tr><td colspan="6" class="text-center text-muted">No <?php echo htmlspecialchars($status); ?> instructors.</td></tr>
                 <?php endif; ?>
               </tbody>
             </table>

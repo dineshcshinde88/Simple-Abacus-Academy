@@ -25,6 +25,7 @@ const titleMap: Record<string, string> = {
   "/digital-frame": "Digital Frame",
   "/instructor-login": "Instructor Login",
   "/instructor-registration": "Instructor Registration",
+  "/register-tutor": "Tutor Registration",
   "/student-login": "Student Login",
   "/student-registration": "Student Registration",
   "/privacy-policy": "Privacy Policy",

@@ -128,6 +128,7 @@ $hasAppSubscriptions = $backendPdo
   && admin_dashboard_table_exists($backendPdo, 'users')
   && admin_dashboard_table_exists($backendPdo, 'students');
 $hasAppDemoBookings = $backendPdo && admin_dashboard_table_exists($backendPdo, 'demo_bookings');
+$hasAppInstructors = $backendPdo && admin_dashboard_table_exists($backendPdo, 'instructors');
 
 $legacyStudents = admin_dashboard_count($pdo, 'SELECT COUNT(*) FROM students');
 $appStudents = $hasAppStudents ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM users WHERE role = 'student'") : 0;
@@ -139,6 +140,7 @@ $totalUnpaidSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pd
 $totalDemos = (int) $pdo->query('SELECT COUNT(*) FROM demo_bookings')->fetchColumn()
   + ($hasAppDemoBookings ? admin_dashboard_count($backendPdo, 'SELECT COUNT(*) FROM demo_bookings') : 0);
 $totalTeachers = (int) $pdo->query('SELECT COUNT(*) FROM teachers')->fetchColumn();
+$pendingInstructors = $hasAppInstructors ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM instructors WHERE status = 'pending'") : 0;
 
 $recentActivities = [];
 
@@ -202,6 +204,18 @@ if ($hasAppDemoBookings) {
 foreach (admin_dashboard_rows($pdo, "SELECT 'Teacher' AS type, name AS title, expertise AS details, joining_date AS created_at FROM teachers") as $row) {
     $recentActivities[] = $row;
 }
+if ($hasAppInstructors) {
+    foreach (admin_dashboard_rows($backendPdo, "
+        SELECT
+          'Tutor Application' AS type,
+          full_name AS title,
+          CONCAT(email, ' • ', mobile, ' • ', COALESCE(course_type, '')) AS details,
+          created_at
+        FROM instructors
+    ") as $row) {
+        $recentActivities[] = $row;
+    }
+}
 
 usort($recentActivities, static function (array $a, array $b): int {
     return strtotime((string) ($b['created_at'] ?? '')) <=> strtotime((string) ($a['created_at'] ?? ''));
@@ -238,6 +252,12 @@ $recentActivities = array_slice($recentActivities, 0, 25);
       <div class="text-muted small">Teachers</div>
       <div class="fs-3 fw-bold"><?php echo $totalTeachers; ?></div>
     </div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <a class="card card-metric p-3 text-decoration-none text-reset d-block" href="instructors.php">
+      <div class="text-muted small">Pending Tutor Approvals</div>
+      <div class="fs-3 fw-bold"><?php echo $pendingInstructors; ?></div>
+    </a>
   </div>
 </div>
 
@@ -287,11 +307,11 @@ $recentActivities = array_slice($recentActivities, 0, 25);
     new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: ['Students', 'Paid Fees', 'Unpaid Fees', 'Demos', 'Teachers'],
+        labels: ['Students', 'Paid Fees', 'Unpaid Fees', 'Demos', 'Teachers', 'Pending Tutors'],
         datasets: [{
           label: 'Counts',
-          data: [<?php echo $totalStudents; ?>, <?php echo $totalSubscriptions; ?>, <?php echo $totalUnpaidSubscriptions; ?>, <?php echo $totalDemos; ?>, <?php echo $totalTeachers; ?>],
-          backgroundColor: ['#4b1e83', '#f97316', '#facc15', '#0ea5e9', '#22c55e'],
+          data: [<?php echo $totalStudents; ?>, <?php echo $totalSubscriptions; ?>, <?php echo $totalUnpaidSubscriptions; ?>, <?php echo $totalDemos; ?>, <?php echo $totalTeachers; ?>, <?php echo $pendingInstructors; ?>],
+          backgroundColor: ['#4b1e83', '#f97316', '#facc15', '#0ea5e9', '#22c55e', '#ef4444'],
           borderRadius: 8
         }]
       },

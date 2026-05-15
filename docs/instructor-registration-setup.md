@@ -2,7 +2,7 @@
 
 ## Flow
 
-- Instructor registers with full name, mobile, email, password, and confirm password.
+- Instructor registers with course type, full name, country code, mobile, email, gender, date of birth, qualification, career started, students trained, address, profile picture, password, and confirm password.
 - New instructors are saved with `role = instructor` and `status = pending`.
 - Admin approves, rejects, or deletes instructors from `admin/instructors.php`.
 - Approved instructors can log in through `/instructor-login` and access the instructor dashboard.
@@ -20,6 +20,15 @@ CREATE TABLE instructors (
   mobile VARCHAR(30) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
   password VARCHAR(255) NULL,
+  course_type VARCHAR(60) NULL,
+  country_code VARCHAR(10) NULL,
+  gender VARCHAR(30) NULL,
+  date_of_birth DATE NULL,
+  qualification VARCHAR(255) NULL,
+  career_started VARCHAR(100) NULL,
+  students_trained VARCHAR(100) NULL,
+  address TEXT NULL,
+  profile_picture TEXT NULL,
   is_verified TINYINT(1) NOT NULL DEFAULT 0,
   role VARCHAR(30) NOT NULL DEFAULT 'instructor',
   status VARCHAR(30) NOT NULL DEFAULT 'pending',

@@ -21,13 +21,14 @@ export type InstructorRegistrationResponse = {
 async function request<T>(path: string, body: unknown): Promise<T> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const isFormData = body instanceof FormData;
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers: isFormData ? undefined : { "Content-Type": "application/json" },
+      body: isFormData ? body : JSON.stringify(body),
       signal: controller.signal,
     });
   } catch (error) {
@@ -54,11 +55,33 @@ async function request<T>(path: string, body: unknown): Promise<T> {
 
 export const registerInstructor = (payload: {
   fullName: string;
+  courseType: string;
+  countryCode: string;
   mobile: string;
   email: string;
+  gender: string;
+  dateOfBirth: string;
+  qualification: string;
+  careerStarted: string;
+  studentsTrained: string;
+  address: string;
+  profilePicture?: File | null;
   password: string;
   confirmPassword: string;
-}) => request<{ message: string; email: string }>("/api/instructor/register/start", payload);
+}) => {
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (key === "profilePicture") {
+      if (value instanceof File) {
+        formData.append(key, value);
+      }
+      return;
+    }
+    formData.append(key, String(value ?? ""));
+  });
+
+  return request<{ message: string; email: string }>("/api/instructor/register/start", formData);
+};
 
 export const forgotInstructorPassword = (payload: { email: string }) =>
   request<{ message: string }>("/api/instructor/forgot-password", payload);
