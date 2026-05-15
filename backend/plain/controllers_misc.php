@@ -241,37 +241,39 @@ function public_teacher_image_url(?string $url): string
     return $url;
 }
 
+function public_table_exists(string $table): bool
+{
+    return (int) db_value(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table',
+        ['table' => $table]
+    ) > 0;
+}
+
 function controller_public_teachers(): void
 {
-    if (function_exists('ensure_instructor_auth_schema')) {
-        ensure_instructor_auth_schema();
+    if (!public_table_exists('teachers')) {
+        json_response(['teachers' => []]);
     }
 
     $rows = db_all(
-        "SELECT full_name, email, mobile, course_type, qualification, career_started, students_trained, address, profile_picture, created_at
-         FROM instructors
-         WHERE status = 'approved' AND is_verified = 1
-         ORDER BY created_at DESC"
+        "SELECT name, email, phone, expertise, qualification, experience, location, specialization, image, description, joining_date
+         FROM teachers
+         WHERE status = 'active'
+         ORDER BY joining_date DESC, id DESC"
     );
 
     $teachers = array_map(static function (array $row): array {
-        $specialization = public_teacher_course_label($row['course_type'] ?? null);
-        $careerStarted = trim((string) ($row['career_started'] ?? ''));
-        $students = trim((string) ($row['students_trained'] ?? ''));
-
         return [
-            'name' => (string) ($row['full_name'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
-            'phone' => (string) ($row['mobile'] ?? ''),
+            'phone' => (string) ($row['phone'] ?? ''),
             'qualification' => (string) (($row['qualification'] ?? '') ?: 'Certified Abacus Trainer'),
-            'experience' => $careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer',
-            'location' => (string) (($row['address'] ?? '') ?: 'Online'),
-            'specialization' => $specialization,
-            'image' => public_teacher_image_url($row['profile_picture'] ?? ''),
-            'description' => $students !== ''
-                ? 'Approved Simple Abacus tutor with experience training ' . $students . ' students.'
-                : 'Approved Simple Abacus tutor ready to guide students with structured practice.',
-            'source' => 'approved_instructor',
+            'experience' => (string) (($row['experience'] ?? '') ?: 'Certified Trainer'),
+            'location' => (string) (($row['location'] ?? '') ?: 'Online'),
+            'specialization' => (string) (($row['specialization'] ?? '') ?: public_teacher_course_label($row['expertise'] ?? null)),
+            'image' => public_teacher_image_url($row['image'] ?? ''),
+            'description' => (string) (($row['description'] ?? '') ?: 'Simple Abacus teacher ready to guide students with structured practice.'),
+            'source' => 'admin_teacher',
         ];
     }, $rows);
 

@@ -102,6 +102,7 @@ function ensure_admin_instructor_schema(PDO $pdo): void
             gender VARCHAR(30) NULL,
             date_of_birth DATE NULL,
             qualification VARCHAR(255) NULL,
+            experience VARCHAR(120) NULL,
             career_started VARCHAR(100) NULL,
             students_trained VARCHAR(100) NULL,
             address TEXT NULL,
@@ -123,6 +124,7 @@ function ensure_admin_instructor_schema(PDO $pdo): void
         'gender' => 'VARCHAR(30) NULL',
         'date_of_birth' => 'DATE NULL',
         'qualification' => 'VARCHAR(255) NULL',
+        'experience' => 'VARCHAR(120) NULL',
         'career_started' => 'VARCHAR(100) NULL',
         'students_trained' => 'VARCHAR(100) NULL',
         'address' => 'TEXT NULL',
@@ -337,6 +339,7 @@ foreach ($instructors as $instructor) {
                       <div class="small">Gender: <?php echo htmlspecialchars(ucfirst((string) ($instructor['gender'] ?? 'Not added'))); ?></div>
                       <div class="small">DOB: <?php echo htmlspecialchars((string) ($instructor['date_of_birth'] ?? 'Not added')); ?></div>
                       <div class="small">Qualification: <?php echo htmlspecialchars((string) ($instructor['qualification'] ?? 'Not added')); ?></div>
+                      <div class="small">Experience: <?php echo htmlspecialchars((string) ($instructor['experience'] ?? 'Not added')); ?></div>
                       <div class="small">Career: <?php echo htmlspecialchars((string) ($instructor['career_started'] ?? 'Not added')); ?></div>
                       <div class="small">Students: <?php echo htmlspecialchars((string) ($instructor['students_trained'] ?? 'Not added')); ?></div>
                       <div class="text-muted small" style="max-width:260px;white-space:normal;"><?php echo htmlspecialchars((string) ($instructor['address'] ?? '')); ?></div>

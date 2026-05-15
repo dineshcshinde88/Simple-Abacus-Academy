@@ -44,7 +44,7 @@ const AdminDashboard = () => {
                 <h2 className="text-xl font-semibold">Teachers</h2>
                 <ul className="mt-4 space-y-3 text-sm">
                   {teachers.map((t) => (
-                    <li key={t._id} className="flex items-center justify-between">
+                    <li key={t.id} className="flex items-center justify-between">
                       <div>
                         <div className="font-semibold">{t.name}</div>
                         <div className="text-muted-foreground">{t.email}</div>
@@ -52,7 +52,7 @@ const AdminDashboard = () => {
                       {t.approved ? (
                         <span className="text-emerald-600 font-semibold">Approved</span>
                       ) : (
-                        <Button size="sm" onClick={() => handleApprove(t._id)}>Approve</Button>
+                        <Button size="sm" onClick={() => handleApprove(t.id)}>Approve</Button>
                       )}
                     </li>
                   ))}

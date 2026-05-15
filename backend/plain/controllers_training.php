@@ -3,6 +3,23 @@
 function ensure_training_schema(): void
 {
     db_exec_sql(
+        'CREATE TABLE IF NOT EXISTS users (
+            id CHAR(36) PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
+            role VARCHAR(30) NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+
+    if (function_exists('billing_table_has_column') && !billing_table_has_column('users', 'training_status')) {
+        db_exec_sql("ALTER TABLE users ADD COLUMN training_status VARCHAR(30) NOT NULL DEFAULT 'pending'");
+        db_exec_sql("UPDATE users SET training_status = 'approved' WHERE role = 'admin'");
+    }
+
+    db_exec_sql(
         'CREATE TABLE IF NOT EXISTS training_teacher_students (
             id CHAR(36) PRIMARY KEY,
             teacher_user_id CHAR(36) NOT NULL,
@@ -60,20 +77,27 @@ function ensure_training_schema(): void
 function training_public_user(array $user): array
 {
     $role = (string) ($user['role'] ?? '');
+    $status = (string) ($user['training_status'] ?? 'approved');
     return [
         'id' => (string) ($user['id'] ?? ''),
         'name' => (string) ($user['name'] ?? ''),
         'email' => (string) ($user['email'] ?? ''),
         'role' => $role === 'tutor' ? 'teacher' : $role,
-        'approved' => true,
+        'approved' => $role !== 'tutor' || $status === 'approved',
+        'status' => $role === 'tutor' ? $status : 'approved',
     ];
 }
 
 function require_training_teacher(): array
 {
+    ensure_training_schema();
     $ctx = require_auth();
     if (!in_array((string) $ctx['user']['role'], ['tutor', 'teacher'], true)) {
         json_response(['message' => 'Forbidden'], 403);
+    }
+    $status = (string) db_value('SELECT training_status FROM users WHERE id = :id LIMIT 1', ['id' => $ctx['user']['id']]);
+    if ($status !== 'approved') {
+        json_response(['message' => 'Your teacher account is waiting for admin approval.'], 403);
     }
     return $ctx;
 }
@@ -103,15 +127,17 @@ function controller_training_register(array $data): void
 
     $pdo->beginTransaction();
     try {
+        $trainingStatus = $dbRole === 'tutor' ? 'pending' : 'approved';
         db_exec_sql(
-            'INSERT INTO users (id, name, email, password, role, created_at, updated_at)
-             VALUES (:id, :name, :email, :password, :role, :created_at, :updated_at)',
+            'INSERT INTO users (id, name, email, password, role, training_status, created_at, updated_at)
+             VALUES (:id, :name, :email, :password, :role, :training_status, :created_at, :updated_at)',
             [
                 'id' => $userId,
                 'name' => $name,
                 'email' => $email,
                 'password' => password_hash($password, PASSWORD_BCRYPT),
                 'role' => $dbRole,
+                'training_status' => $trainingStatus,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]
@@ -130,12 +156,20 @@ function controller_training_register(array $data): void
         json_response(['message' => 'Failed to register training user'], 500);
     }
 
-    $user = db_one('SELECT id, name, email, role, created_at, updated_at FROM users WHERE id = :id', ['id' => $userId]);
+    $user = db_one('SELECT id, name, email, role, training_status, created_at, updated_at FROM users WHERE id = :id', ['id' => $userId]);
+    if ($dbRole === 'tutor') {
+        json_response([
+            'message' => 'Registration submitted successfully. Wait for admin approval.',
+            'user' => training_public_user($user),
+        ], 201);
+    }
+
     json_response(['token' => jwt_create($user), 'user' => training_public_user($user)], 201);
 }
 
 function controller_training_login(array $data): void
 {
+    ensure_training_schema();
     $email = strtolower(trim((string) ($data['email'] ?? '')));
     $password = (string) ($data['password'] ?? '');
 
@@ -147,12 +181,16 @@ function controller_training_login(array $data): void
     if (!$user || !password_verify($password, (string) $user['password'])) {
         json_response(['message' => 'Invalid email or password'], 401);
     }
+    if ((string) $user['role'] === 'tutor' && (string) ($user['training_status'] ?? 'approved') !== 'approved') {
+        json_response(['message' => 'Your teacher account is waiting for admin approval.'], 403);
+    }
 
     $safe = [
         'id' => $user['id'],
         'name' => $user['name'],
         'email' => $user['email'],
         'role' => $user['role'],
+        'training_status' => $user['training_status'] ?? 'approved',
         'created_at' => $user['created_at'] ?? null,
         'updated_at' => $user['updated_at'] ?? null,
     ];
@@ -162,7 +200,18 @@ function controller_training_login(array $data): void
 
 function controller_training_me(array $ctx): void
 {
-    json_response(['user' => training_public_user($ctx['user'])]);
+    ensure_training_schema();
+    $user = db_one(
+        'SELECT id, name, email, role, training_status FROM users WHERE id = :id LIMIT 1',
+        ['id' => $ctx['user']['id']]
+    );
+    if (!$user) {
+        json_response(['message' => 'Unauthorized'], 401);
+    }
+    if ((string) $user['role'] === 'tutor' && (string) ($user['training_status'] ?? 'approved') !== 'approved') {
+        json_response(['message' => 'Your teacher account is waiting for admin approval.'], 403);
+    }
+    json_response(['user' => training_public_user($user)]);
 }
 
 function controller_training_teacher_dashboard(array $ctx): void
@@ -430,8 +479,30 @@ function controller_training_teacher_shop_verify_order(array $ctx, string $order
 
 function controller_training_admin_teachers(): void
 {
-    $teachers = db_all('SELECT id, name, email, role FROM users WHERE role = "tutor" ORDER BY created_at DESC');
+    ensure_training_schema();
+    $teachers = db_all('SELECT id, name, email, role, training_status FROM users WHERE role = "tutor" ORDER BY FIELD(training_status, "pending", "approved", "rejected"), created_at DESC');
     json_response(['teachers' => array_map('training_public_user', $teachers)]);
+}
+
+function controller_training_admin_approve_teacher(string $teacherId): void
+{
+    ensure_training_schema();
+    $teacherId = trim($teacherId);
+    if ($teacherId === '') {
+        json_response(['message' => 'Invalid teacher'], 422);
+    }
+
+    $teacher = db_one('SELECT id FROM users WHERE id = :id AND role = "tutor" LIMIT 1', ['id' => $teacherId]);
+    if (!$teacher) {
+        json_response(['message' => 'Teacher not found'], 404);
+    }
+
+    db_exec_sql(
+        'UPDATE users SET training_status = :training_status, updated_at = :updated_at WHERE id = :id AND role = "tutor"',
+        ['training_status' => 'approved', 'updated_at' => now_sql(), 'id' => $teacherId]
+    );
+
+    json_response(['message' => 'Teacher approved']);
 }
 
 function controller_training_admin_students(): void

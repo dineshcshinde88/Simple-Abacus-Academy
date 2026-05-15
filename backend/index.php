@@ -71,9 +71,9 @@ if ($method === 'GET' && $path === '/api/training/admin/teachers') {
     require_role(['admin']);
     controller_training_admin_teachers();
 }
-if ($method === 'PUT' && preg_match('#^/api/training/admin/teachers/([^/]+)/approve$#', $path)) {
+if ($method === 'PUT' && preg_match('#^/api/training/admin/teachers/([^/]+)/approve$#', $path, $m)) {
     require_role(['admin']);
-    json_response(['message' => 'Teacher approved']);
+    controller_training_admin_approve_teacher($m[1]);
 }
 if ($method === 'GET' && $path === '/api/training/admin/students') {
     require_role(['admin']);

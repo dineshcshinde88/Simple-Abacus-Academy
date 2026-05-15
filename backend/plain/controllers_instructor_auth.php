@@ -14,6 +14,7 @@ function ensure_instructor_auth_schema(): void
             gender VARCHAR(30) NULL,
             date_of_birth DATE NULL,
             qualification VARCHAR(255) NULL,
+            experience VARCHAR(120) NULL,
             career_started VARCHAR(100) NULL,
             students_trained VARCHAR(100) NULL,
             address TEXT NULL,
@@ -35,6 +36,7 @@ function ensure_instructor_auth_schema(): void
         'gender' => 'VARCHAR(30) NULL',
         'date_of_birth' => 'DATE NULL',
         'qualification' => 'VARCHAR(255) NULL',
+        'experience' => 'VARCHAR(120) NULL',
         'career_started' => 'VARCHAR(100) NULL',
         'students_trained' => 'VARCHAR(100) NULL',
         'address' => 'TEXT NULL',
@@ -508,6 +510,7 @@ function controller_instructor_register_start(array $data): void
     $gender = strtolower(trim((string) ($data['gender'] ?? '')));
     $dateOfBirth = trim((string) ($data['dateOfBirth'] ?? ''));
     $qualification = trim((string) ($data['qualification'] ?? ''));
+    $experience = trim((string) ($data['experience'] ?? ''));
     $careerStarted = trim((string) ($data['careerStarted'] ?? ''));
     $studentsTrained = trim((string) ($data['studentsTrained'] ?? ''));
     $address = trim((string) ($data['address'] ?? ''));
@@ -523,6 +526,7 @@ function controller_instructor_register_start(array $data): void
         || $dateOfBirth === ''
         || strtotime($dateOfBirth) === false
         || $qualification === ''
+        || $experience === ''
         || $careerStarted === ''
         || $studentsTrained === ''
         || $address === ''
@@ -557,6 +561,7 @@ function controller_instructor_register_start(array $data): void
                 gender = :gender,
                 date_of_birth = :date_of_birth,
                 qualification = :qualification,
+                experience = :experience,
                 career_started = :career_started,
                 students_trained = :students_trained,
                 address = :address,
@@ -575,6 +580,7 @@ function controller_instructor_register_start(array $data): void
                 'gender' => $gender,
                 'date_of_birth' => date('Y-m-d', strtotime($dateOfBirth)),
                 'qualification' => $qualification,
+                'experience' => $experience,
                 'career_started' => $careerStarted,
                 'students_trained' => $studentsTrained,
                 'address' => $address,
@@ -595,11 +601,13 @@ function controller_instructor_register_start(array $data): void
         'INSERT INTO instructors (
             id, full_name, mobile, email, password, course_type, country_code, gender, date_of_birth,
             qualification, career_started, students_trained, address, profile_picture,
+            experience,
             is_verified, role, status, created_at
          )
          VALUES (
             :id, :full_name, :mobile, :email, :password, :course_type, :country_code, :gender, :date_of_birth,
             :qualification, :career_started, :students_trained, :address, :profile_picture,
+            :experience,
             0, :role, :status, :created_at
          )',
         [
@@ -613,6 +621,7 @@ function controller_instructor_register_start(array $data): void
             'gender' => $gender,
             'date_of_birth' => date('Y-m-d', strtotime($dateOfBirth)),
             'qualification' => $qualification,
+            'experience' => $experience,
             'career_started' => $careerStarted,
             'students_trained' => $studentsTrained,
             'address' => $address,

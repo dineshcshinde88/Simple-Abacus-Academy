@@ -3,7 +3,7 @@ import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { getApiBase } from "@/lib/apiBase";
 
 type TeacherProfile = {
@@ -15,49 +15,6 @@ type TeacherProfile = {
   image: string;
   description: string;
 };
-
-const defaultTeachers: TeacherProfile[] = [
-  {
-    name: "Poonam Yuvraj Gavhane",
-    qualification: "Certified Abacus Trainer",
-    experience: "5+ Years Experience",
-    location: "Pune, Maharashtra",
-    specialization: "Abacus",
-    image: "/assets/teachers/poonam-gavhane.png",
-    description:
-      "Patient, structured instruction that builds number sense, focus, and confident mental math habits.",
-  },
-  {
-    name: "Mahanthi Kamini Devi",
-    qualification: "Certified Abacus Trainer",
-    experience: "6+ Years Experience",
-    location: "Thane, Maharashtra",
-    specialization: "Abacus",
-    image: "/assets/teachers/mahanthi-kamini-devi.png",
-    description:
-      "Known for engaging classes and step-by-step guidance that keeps learners motivated and consistent.",
-  },
-  {
-    name: "Nayana Uday Patil",
-    qualification: "Certified Abacus Trainer",
-    experience: "4+ Years Experience",
-    location: "Pune, Maharashtra",
-    specialization: "Abacus",
-    image: "/assets/teachers/nayana-uday-patil.png",
-    description:
-      "Focuses on accuracy, speed, and confidence with child-friendly teaching and regular feedback.",
-  },
-  {
-    name: "Ashvini Balu Talekar",
-    qualification: "Certified Abacus Trainer",
-    experience: "5+ Years Experience",
-    location: "Pune, Maharashtra",
-    specialization: "Abacus",
-    image: "/assets/teachers/ashvini-balu-talekar.png",
-    description:
-      "Encouraging mentor who blends fun practice with clear fundamentals and personalized attention.",
-  },
-];
 
 const highlights = [
   {
@@ -79,27 +36,21 @@ const highlights = [
 ];
 
 const Teachers = () => {
-  const [approvedTeachers, setApprovedTeachers] = useState<TeacherProfile[]>([]);
+  const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
     fetch(`${getApiBase()}/api/teachers/public`, { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((data: { teachers?: TeacherProfile[] }) => {
-        setApprovedTeachers(Array.isArray(data.teachers) ? data.teachers : []);
+        setTeachers(Array.isArray(data.teachers) ? data.teachers : []);
       })
       .catch(() => {
-        setApprovedTeachers([]);
+        setTeachers([]);
       });
 
     return () => controller.abort();
   }, []);
-
-  const teachers = useMemo(() => {
-    const existingNames = new Set(defaultTeachers.map((teacher) => teacher.name.toLowerCase()));
-    const approved = approvedTeachers.filter((teacher) => teacher.name && !existingNames.has(teacher.name.toLowerCase()));
-    return [...defaultTeachers, ...approved];
-  }, [approvedTeachers]);
 
   return (
   <div className="min-h-screen bg-white">
@@ -159,6 +110,11 @@ const Teachers = () => {
                 </div>
               </article>
             ))}
+            {teachers.length === 0 ? (
+              <div className="md:col-span-2 lg:col-span-3 text-center text-slate-500">
+                No teachers are available right now.
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

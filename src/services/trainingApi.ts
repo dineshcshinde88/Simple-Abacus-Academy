@@ -21,7 +21,7 @@ export const trainingLogin = (email: string, password: string) =>
   });
 
 export const trainingRegister = (name: string, email: string, password: string, role: "teacher" | "admin") =>
-  request<{ token: string; user: any }>("/api/training/auth/register", {
+  request<{ token?: string; user: any; message?: string }>("/api/training/auth/register", {
     method: "POST",
     body: JSON.stringify({ name, email, password, role }),
   });

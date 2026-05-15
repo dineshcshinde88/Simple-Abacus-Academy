@@ -20,7 +20,9 @@ const TrainingRegister = () => {
     setLoading(true);
     try {
       await register(name, email, password, "teacher");
-      navigate("/training/dashboard");
+      // eslint-disable-next-line no-alert
+      alert("Registration submitted successfully. Please wait for admin approval before login.");
+      navigate("/training/login");
     } catch {
       // eslint-disable-next-line no-alert
       alert("Registration failed. Try another email.");

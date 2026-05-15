@@ -62,6 +62,7 @@ export const registerInstructor = (payload: {
   gender: string;
   dateOfBirth: string;
   qualification: string;
+  experience: string;
   careerStarted: string;
   studentsTrained: string;
   address: string;

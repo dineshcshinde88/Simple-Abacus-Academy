@@ -41,6 +41,13 @@ function admin_teachers_database_name(PDO $pdo): string
     return (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
 }
 
+function admin_teachers_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+    $stmt->execute([$table, $column]);
+    return (int) $stmt->fetchColumn() > 0;
+}
+
 function admin_teachers_backend_pdo(PDO $adminPdo): PDO
 {
     $databaseUrl = admin_teachers_env_value(__DIR__ . '/../backend/.env', 'DATABASE_URL');
@@ -100,8 +107,9 @@ function admin_teacher_profile_picture_url(?string $url): string
 
 function admin_teachers_sync_approved_instructors(PDO $teacherPdo, PDO $instructorPdo): void
 {
+    $experienceSelect = admin_teachers_column_exists($instructorPdo, 'instructors', 'experience') ? 'experience' : "'' AS experience";
     $stmt = $instructorPdo->query(
-        "SELECT full_name, email, mobile, course_type, qualification, career_started, students_trained, address, profile_picture, created_at
+        "SELECT full_name, email, mobile, course_type, qualification, {$experienceSelect}, career_started, students_trained, address, profile_picture, created_at
          FROM instructors
          WHERE status = 'approved' AND is_verified = 1"
     );
@@ -128,6 +136,7 @@ function admin_teachers_sync_approved_instructors(PDO $teacherPdo, PDO $instruct
 
     foreach ($approvedInstructors as $instructor) {
         $careerStarted = trim((string) ($instructor['career_started'] ?? ''));
+        $experience = trim((string) ($instructor['experience'] ?? ''));
         $studentsTrained = trim((string) ($instructor['students_trained'] ?? ''));
         $specialization = admin_teacher_course_label($instructor['course_type'] ?? null);
         $syncStmt->execute([
@@ -138,7 +147,7 @@ function admin_teachers_sync_approved_instructors(PDO $teacherPdo, PDO $instruct
             substr((string) (($instructor['created_at'] ?? '') ?: date('Y-m-d')), 0, 10),
             'active',
             (string) (($instructor['qualification'] ?? '') ?: 'Certified Abacus Trainer'),
-            $careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer',
+            $experience !== '' ? $experience : ($careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer'),
             (string) (($instructor['address'] ?? '') ?: 'Online'),
             $specialization,
             admin_teacher_profile_picture_url($instructor['profile_picture'] ?? ''),
@@ -251,35 +260,28 @@ $defaultTeachers = [
 ];
 
 try {
-    $seedStmt = $pdo->prepare(
-        'INSERT INTO teachers (name, email, phone, expertise, joining_date, status, qualification, experience, location, specialization, image, description)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           phone = VALUES(phone),
-           expertise = VALUES(expertise),
-           qualification = VALUES(qualification),
-           experience = VALUES(experience),
-           location = VALUES(location),
-           specialization = VALUES(specialization),
-           image = VALUES(image),
-           description = VALUES(description),
-           status = VALUES(status)'
-    );
-    foreach ($defaultTeachers as $teacher) {
-        $seedStmt->execute([
-            $teacher['name'],
-            $teacher['email'],
-            $teacher['phone'],
-            $teacher['expertise'],
-            $teacher['joining_date'],
-            $teacher['status'],
-            $teacher['qualification'],
-            $teacher['experience'],
-            $teacher['location'],
-            $teacher['specialization'],
-            $teacher['image'],
-            $teacher['description'],
-        ]);
+    $teacherCount = (int) $pdo->query('SELECT COUNT(*) FROM teachers')->fetchColumn();
+    if ($teacherCount === 0) {
+        $seedStmt = $pdo->prepare(
+            'INSERT INTO teachers (name, email, phone, expertise, joining_date, status, qualification, experience, location, specialization, image, description)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        foreach ($defaultTeachers as $teacher) {
+            $seedStmt->execute([
+                $teacher['name'],
+                $teacher['email'],
+                $teacher['phone'],
+                $teacher['expertise'],
+                $teacher['joining_date'],
+                $teacher['status'],
+                $teacher['qualification'],
+                $teacher['experience'],
+                $teacher['location'],
+                $teacher['specialization'],
+                $teacher['image'],
+                $teacher['description'],
+            ]);
+        }
     }
 } catch (Throwable $e) {
     $errors[] = 'Default teacher setup failed: ' . $e->getMessage();
@@ -342,8 +344,9 @@ try {
 
 try {
     $teacherBackendPdo = admin_teachers_backend_pdo($pdo);
+    $experienceSelect = admin_teachers_column_exists($teacherBackendPdo, 'instructors', 'experience') ? 'experience' : "'' AS experience";
     $stmt = $teacherBackendPdo->query(
-        "SELECT id, full_name, email, mobile, course_type, qualification, career_started, students_trained, address, profile_picture, created_at, status
+        "SELECT id, full_name, email, mobile, course_type, qualification, {$experienceSelect}, career_started, students_trained, address, profile_picture, created_at, status
          FROM instructors
          WHERE status = 'approved' AND is_verified = 1
          ORDER BY created_at DESC"
@@ -358,6 +361,7 @@ try {
         }
 
         $careerStarted = trim((string) ($instructor['career_started'] ?? ''));
+        $experience = trim((string) ($instructor['experience'] ?? ''));
         $studentsTrained = trim((string) ($instructor['students_trained'] ?? ''));
         $teachers[] = [
             'id' => 'instructor-' . (string) ($instructor['id'] ?? $email),
@@ -366,7 +370,7 @@ try {
             'phone' => (string) ($instructor['mobile'] ?? ''),
             'expertise' => admin_teacher_course_label($instructor['course_type'] ?? null),
             'qualification' => (string) (($instructor['qualification'] ?? '') ?: 'Certified Abacus Trainer'),
-            'experience' => $careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer',
+            'experience' => $experience !== '' ? $experience : ($careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer'),
             'location' => (string) (($instructor['address'] ?? '') ?: 'Online'),
             'specialization' => admin_teacher_course_label($instructor['course_type'] ?? null),
             'image' => admin_teacher_profile_picture_url($instructor['profile_picture'] ?? ''),

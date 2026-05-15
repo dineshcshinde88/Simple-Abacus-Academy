@@ -20,6 +20,7 @@ const InstructorRegistration = () => {
     gender: "",
     dateOfBirth: "",
     qualification: "",
+    experience: "",
     careerStarted: "",
     studentsTrained: "",
     address: "",
@@ -44,6 +45,7 @@ const InstructorRegistration = () => {
       !form.gender ||
       !form.dateOfBirth ||
       !form.qualification.trim() ||
+      !form.experience.trim() ||
       !form.careerStarted.trim() ||
       !form.studentsTrained.trim() ||
       !form.address.trim() ||
@@ -69,6 +71,7 @@ const InstructorRegistration = () => {
         gender: form.gender,
         dateOfBirth: form.dateOfBirth,
         qualification: form.qualification.trim(),
+        experience: form.experience.trim(),
         careerStarted: form.careerStarted.trim(),
         studentsTrained: form.studentsTrained.trim(),
         address: form.address.trim(),
@@ -202,6 +205,16 @@ const InstructorRegistration = () => {
                     placeholder="Highest qualification"
                     value={form.qualification}
                     onChange={(event) => updateField("qualification", event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="experience">Experience</Label>
+                  <Input
+                    id="experience"
+                    placeholder="Example: 5+ years experience"
+                    value={form.experience}
+                    onChange={(event) => updateField("experience", event.target.value)}
                     required
                   />
                 </div>

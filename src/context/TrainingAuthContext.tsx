@@ -60,9 +60,15 @@ export const TrainingAuthProvider = ({ children }: { children: ReactNode }) => {
       },
       register: async (name: string, email: string, password: string, role: "teacher" | "admin") => {
         const response = await trainingRegister(name, email, password, role);
-        setUser(response.user);
-        setToken(response.token);
-        localStorage.setItem(TOKEN_KEY, response.token);
+        if (response.token) {
+          setUser(response.user);
+          setToken(response.token);
+          localStorage.setItem(TOKEN_KEY, response.token);
+        } else {
+          setUser(null);
+          setToken(null);
+          localStorage.removeItem(TOKEN_KEY);
+        }
         return response.user;
       },
       logout: () => {
