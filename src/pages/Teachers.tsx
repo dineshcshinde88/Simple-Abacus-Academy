@@ -154,7 +154,7 @@ const Teachers = () => {
                 <Button size="lg" className="bg-white text-[#0f5132] hover:bg-white/90" asChild>
                   <Link to="/programs">Enroll Now</Link>
                 </Button>
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10" asChild>
+                <Button size="lg" variant="outline" className="border-white bg-white text-[#0f5132] hover:bg-white/90 hover:text-[#0f5132]" asChild>
                   <Link to="/teacher-training">Become a Teacher</Link>
                 </Button>
               </div>

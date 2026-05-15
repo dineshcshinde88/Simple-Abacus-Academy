@@ -49,6 +49,7 @@ import StudentResetPassword from "./pages/StudentResetPassword";
 import Testimonials from "./pages/Testimonials";
 import Teachers from "./pages/Teachers";
 import BreadcrumbBanner from "./components/layout/BreadcrumbBanner";
+import SeoManager from "./components/SeoManager";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import RefundCancellationPolicy from "./pages/RefundCancellationPolicy";
@@ -69,6 +70,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <SeoManager />
             <ScrollToTop />
             <BreadcrumbBanner />
             <Routes>
