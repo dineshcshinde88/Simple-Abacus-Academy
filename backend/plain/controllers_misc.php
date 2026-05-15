@@ -216,6 +216,68 @@ function controller_instructor_apply(array $data): void
     json_response(['message' => 'Application received']);
 }
 
+function public_teacher_course_label(?string $courseType): string
+{
+    return match ((string) $courseType) {
+        'abacus' => 'Abacus',
+        'vedic_maths' => 'Vedic Maths',
+        default => 'Abacus',
+    };
+}
+
+function public_teacher_image_url(?string $url): string
+{
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    $parts = parse_url($url);
+    $path = is_array($parts) ? (string) ($parts['path'] ?? '') : '';
+    if ($path !== '' && str_starts_with($path, '/uploads/')) {
+        return rtrim((string) envv('BASE_URL', get_base_url()), '/') . $path;
+    }
+
+    return $url;
+}
+
+function controller_public_teachers(): void
+{
+    if (function_exists('ensure_instructor_auth_schema')) {
+        ensure_instructor_auth_schema();
+    }
+
+    $rows = db_all(
+        "SELECT full_name, email, mobile, course_type, qualification, career_started, students_trained, address, profile_picture, created_at
+         FROM instructors
+         WHERE status = 'approved' AND is_verified = 1
+         ORDER BY created_at DESC"
+    );
+
+    $teachers = array_map(static function (array $row): array {
+        $specialization = public_teacher_course_label($row['course_type'] ?? null);
+        $careerStarted = trim((string) ($row['career_started'] ?? ''));
+        $students = trim((string) ($row['students_trained'] ?? ''));
+
+        return [
+            'name' => (string) ($row['full_name'] ?? ''),
+            'email' => (string) ($row['email'] ?? ''),
+            'phone' => (string) ($row['mobile'] ?? ''),
+            'qualification' => (string) (($row['qualification'] ?? '') ?: 'Certified Abacus Trainer'),
+            'experience' => $careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer',
+            'location' => (string) (($row['address'] ?? '') ?: 'Online'),
+            'specialization' => $specialization,
+            'image' => public_teacher_image_url($row['profile_picture'] ?? ''),
+            'description' => $students !== ''
+                ? 'Approved Simple Abacus tutor with experience training ' . $students . ' students.'
+                : 'Approved Simple Abacus tutor ready to guide students with structured practice.',
+            'source' => 'approved_instructor',
+        ];
+    }, $rows);
+
+    json_response(['teachers' => $teachers]);
+}
+
 function controller_payments_webhook(array $data): void
 {
     json_response([

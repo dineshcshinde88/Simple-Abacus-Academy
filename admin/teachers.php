@@ -6,6 +6,98 @@ require_once __DIR__ . '/includes/header.php';
 $errors = [];
 $success = '';
 
+function admin_teachers_env_value(string $path, string $key): string
+{
+    if (!is_file($path)) {
+        return '';
+    }
+
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!is_array($lines)) {
+        return '';
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+        }
+        [$lineKey, $value] = explode('=', $line, 2);
+        if (trim($lineKey) !== $key) {
+            continue;
+        }
+        $value = trim($value);
+        if ($value !== '' && (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'")))) {
+            $value = substr($value, 1, -1);
+        }
+        return $value;
+    }
+
+    return '';
+}
+
+function admin_teachers_database_name(PDO $pdo): string
+{
+    return (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+}
+
+function admin_teachers_backend_pdo(PDO $adminPdo): PDO
+{
+    $databaseUrl = admin_teachers_env_value(__DIR__ . '/../backend/.env', 'DATABASE_URL');
+    if ($databaseUrl === '') {
+        $databaseUrl = admin_teachers_env_value(__DIR__ . '/../.env', 'DATABASE_URL');
+    }
+
+    $parts = $databaseUrl !== '' ? parse_url($databaseUrl) : false;
+    if (!is_array($parts)) {
+        return $adminPdo;
+    }
+
+    $host = (string) ($parts['host'] ?? 'localhost');
+    $port = (string) ($parts['port'] ?? '3306');
+    $db = isset($parts['path']) ? trim((string) $parts['path'], '/') : '';
+    $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
+    $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
+
+    if ($db === '' || $user === '' || $db === admin_teachers_database_name($adminPdo)) {
+        return $adminPdo;
+    }
+
+    return new PDO("mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4", $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+}
+
+function admin_teacher_course_label(?string $courseType): string
+{
+    return match ((string) $courseType) {
+        'abacus' => 'Abacus',
+        'vedic_maths' => 'Vedic Maths',
+        default => 'Abacus',
+    };
+}
+
+function admin_teacher_profile_picture_url(?string $url): string
+{
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    $parts = parse_url($url);
+    $path = is_array($parts) ? (string) ($parts['path'] ?? '') : '';
+    if ($path !== '' && str_starts_with($path, '/uploads/')) {
+        $fileName = basename($path);
+        if (is_file(__DIR__ . '/../backend/uploads/' . $fileName)) {
+            return '../backend/uploads/' . rawurlencode($fileName);
+        }
+    }
+
+    return $url;
+}
+
 try {
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS teachers (
@@ -191,6 +283,48 @@ try {
     $errors[] = 'Teacher list could not be loaded: ' . $e->getMessage();
 }
 
+try {
+    $teacherBackendPdo = admin_teachers_backend_pdo($pdo);
+    $stmt = $teacherBackendPdo->query(
+        "SELECT id, full_name, email, mobile, course_type, qualification, career_started, students_trained, address, profile_picture, created_at, status
+         FROM instructors
+         WHERE status = 'approved' AND is_verified = 1
+         ORDER BY created_at DESC"
+    );
+    $approvedInstructors = $stmt->fetchAll();
+    $existingTeacherEmails = array_flip(array_map(static fn (array $teacher): string => strtolower((string) ($teacher['email'] ?? '')), $teachers));
+
+    foreach ($approvedInstructors as $instructor) {
+        $email = strtolower((string) ($instructor['email'] ?? ''));
+        if ($email !== '' && isset($existingTeacherEmails[$email])) {
+            continue;
+        }
+
+        $careerStarted = trim((string) ($instructor['career_started'] ?? ''));
+        $studentsTrained = trim((string) ($instructor['students_trained'] ?? ''));
+        $teachers[] = [
+            'id' => 'instructor-' . (string) ($instructor['id'] ?? $email),
+            'name' => (string) ($instructor['full_name'] ?? ''),
+            'email' => (string) ($instructor['email'] ?? ''),
+            'phone' => (string) ($instructor['mobile'] ?? ''),
+            'expertise' => admin_teacher_course_label($instructor['course_type'] ?? null),
+            'qualification' => (string) (($instructor['qualification'] ?? '') ?: 'Certified Abacus Trainer'),
+            'experience' => $careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer',
+            'location' => (string) (($instructor['address'] ?? '') ?: 'Online'),
+            'specialization' => admin_teacher_course_label($instructor['course_type'] ?? null),
+            'image' => admin_teacher_profile_picture_url($instructor['profile_picture'] ?? ''),
+            'description' => $studentsTrained !== ''
+                ? 'Approved tutor with experience training ' . $studentsTrained . ' students.'
+                : 'Approved tutor from instructor registrations.',
+            'joining_date' => substr((string) ($instructor['created_at'] ?? ''), 0, 10),
+            'status' => 'active',
+            'source' => 'approved_instructor',
+        ];
+    }
+} catch (Throwable $e) {
+    $errors[] = 'Approved instructors could not be added to teacher list: ' . $e->getMessage();
+}
+
 $editTeacher = null;
 if (isset($_GET['edit'])) {
     $editId = (int) $_GET['edit'];
@@ -300,7 +434,12 @@ if (isset($_GET['edit'])) {
             <tbody>
               <?php foreach ($teachers as $teacher): ?>
                 <tr>
-                  <td><?php echo htmlspecialchars($teacher['name']); ?></td>
+                  <td>
+                    <div><?php echo htmlspecialchars($teacher['name']); ?></div>
+                    <?php if (($teacher['source'] ?? '') === 'approved_instructor'): ?>
+                      <div class="text-muted small">Approved instructor</div>
+                    <?php endif; ?>
+                  </td>
                   <td>
                     <div><?php echo htmlspecialchars($teacher['email']); ?></div>
                     <div class="text-muted small"><?php echo htmlspecialchars($teacher['phone']); ?></div>
@@ -327,8 +466,12 @@ if (isset($_GET['edit'])) {
                     </span>
                   </td>
                   <td class="d-flex gap-2">
-                    <a class="btn btn-sm btn-outline-primary" href="teachers.php?edit=<?php echo (int) $teacher['id']; ?>">Edit</a>
-                    <a class="btn btn-sm btn-outline-danger" href="teachers.php?delete=<?php echo (int) $teacher['id']; ?>" onclick="return confirm('Delete this teacher?');">Delete</a>
+                    <?php if (($teacher['source'] ?? '') === 'approved_instructor'): ?>
+                      <a class="btn btn-sm btn-outline-secondary" href="instructors.php">Manage</a>
+                    <?php else: ?>
+                      <a class="btn btn-sm btn-outline-primary" href="teachers.php?edit=<?php echo (int) $teacher['id']; ?>">Edit</a>
+                      <a class="btn btn-sm btn-outline-danger" href="teachers.php?delete=<?php echo (int) $teacher['id']; ?>" onclick="return confirm('Delete this teacher?');">Delete</a>
+                    <?php endif; ?>
                   </td>
                 </tr>
               <?php endforeach; ?>

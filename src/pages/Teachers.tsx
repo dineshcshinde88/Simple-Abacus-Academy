@@ -3,8 +3,20 @@ import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { getApiBase } from "@/lib/apiBase";
 
-const teachers = [
+type TeacherProfile = {
+  name: string;
+  qualification: string;
+  experience: string;
+  location: string;
+  specialization: string;
+  image: string;
+  description: string;
+};
+
+const defaultTeachers: TeacherProfile[] = [
   {
     name: "Poonam Yuvraj Gavhane",
     qualification: "Certified Abacus Trainer",
@@ -66,7 +78,30 @@ const highlights = [
   },
 ];
 
-const Teachers = () => (
+const Teachers = () => {
+  const [approvedTeachers, setApprovedTeachers] = useState<TeacherProfile[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${getApiBase()}/api/teachers/public`, { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then((data: { teachers?: TeacherProfile[] }) => {
+        setApprovedTeachers(Array.isArray(data.teachers) ? data.teachers : []);
+      })
+      .catch(() => {
+        setApprovedTeachers([]);
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  const teachers = useMemo(() => {
+    const existingNames = new Set(defaultTeachers.map((teacher) => teacher.name.toLowerCase()));
+    const approved = approvedTeachers.filter((teacher) => teacher.name && !existingNames.has(teacher.name.toLowerCase()));
+    return [...defaultTeachers, ...approved];
+  }, [approvedTeachers]);
+
+  return (
   <div className="min-h-screen bg-white">
     <Navbar />
     <main className="pt-16">
@@ -98,7 +133,7 @@ const Teachers = () => (
               >
                 <div className="relative">
                   <img
-                    src={teacher.image}
+                    src={teacher.image || "/placeholder.svg"}
                     alt={teacher.name}
                     className="h-72 w-full object-contain bg-[#eef5ff]"
                     loading="lazy"
@@ -174,6 +209,7 @@ const Teachers = () => (
     </main>
     <Footer />
   </div>
-);
+  );
+};
 
 export default Teachers;

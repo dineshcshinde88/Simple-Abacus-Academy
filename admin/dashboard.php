@@ -139,7 +139,8 @@ $totalUnpaidSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pd
   + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0);
 $totalDemos = (int) $pdo->query('SELECT COUNT(*) FROM demo_bookings')->fetchColumn()
   + ($hasAppDemoBookings ? admin_dashboard_count($backendPdo, 'SELECT COUNT(*) FROM demo_bookings') : 0);
-$totalTeachers = (int) $pdo->query('SELECT COUNT(*) FROM teachers')->fetchColumn();
+$approvedInstructors = $hasAppInstructors ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM instructors WHERE status = 'approved' AND is_verified = 1") : 0;
+$totalTeachers = (int) $pdo->query('SELECT COUNT(*) FROM teachers')->fetchColumn() + $approvedInstructors;
 $pendingInstructors = $hasAppInstructors ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM instructors WHERE status = 'pending'") : 0;
 
 $recentActivities = [];
