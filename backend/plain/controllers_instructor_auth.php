@@ -101,10 +101,6 @@ function instructor_send_brevo_api_mail(string $to, string $subject, string $htm
     if ($apiKey === '') {
         return null;
     }
-    if (!function_exists('curl_init')) {
-        error_log('Brevo API email failed: PHP cURL extension is not available');
-        return false;
-    }
 
     [$fromEmail, $fromName] = instructor_parse_mail_address($fromRaw, 'Abacus Trainer');
     $timeout = max(3, (int) envv('EMAIL_TIMEOUT_SECONDS', '10'));
@@ -116,6 +112,41 @@ function instructor_send_brevo_api_mail(string $to, string $subject, string $htm
         'textContent' => $text,
     ];
 
+    $jsonPayload = json_encode($payload, JSON_UNESCAPED_SLASHES);
+    if ($jsonPayload === false) {
+        error_log('Brevo API email failed: unable to encode payload');
+        return false;
+    }
+
+    if (!function_exists('curl_init')) {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => implode("\r\n", [
+                    'Accept: application/json',
+                    'Content-Type: application/json',
+                    'api-key: ' . $apiKey,
+                ]),
+                'content' => $jsonPayload,
+                'timeout' => $timeout,
+                'ignore_errors' => true,
+            ],
+        ]);
+        $response = @file_get_contents('https://api.brevo.com/v3/smtp/email', false, $context);
+        $status = 0;
+        foreach (($http_response_header ?? []) as $header) {
+            if (preg_match('#^HTTP/\S+\s+(\d+)#', $header, $m) === 1) {
+                $status = (int) $m[1];
+                break;
+            }
+        }
+        if ($response === false || $status < 200 || $status >= 300) {
+            error_log('Brevo API email failed without cURL: status=' . $status . ' response=' . (string) $response);
+            return false;
+        }
+        return true;
+    }
+
     $ch = curl_init('https://api.brevo.com/v3/smtp/email');
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
@@ -125,7 +156,7 @@ function instructor_send_brevo_api_mail(string $to, string $subject, string $htm
             'Content-Type: application/json',
             'api-key: ' . $apiKey,
         ],
-        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_SLASHES),
+        CURLOPT_POSTFIELDS => $jsonPayload,
         CURLOPT_CONNECTTIMEOUT => $timeout,
         CURLOPT_TIMEOUT => $timeout,
     ]);
@@ -141,6 +172,116 @@ function instructor_send_brevo_api_mail(string $to, string $subject, string $htm
     }
 
     return true;
+}
+
+function instructor_smtp_expect($socket, array $expectedCodes, string $step): string
+{
+    $response = '';
+    while (($line = fgets($socket, 2048)) !== false) {
+        $response .= $line;
+        if (strlen($line) >= 4 && $line[3] === ' ') {
+            break;
+        }
+    }
+
+    $code = (int) substr($response, 0, 3);
+    if (!in_array($code, $expectedCodes, true)) {
+        throw new RuntimeException($step . ' failed with SMTP response: ' . trim($response));
+    }
+
+    return $response;
+}
+
+function instructor_smtp_command($socket, string $command, array $expectedCodes, string $step): string
+{
+    if (fwrite($socket, $command . "\r\n") === false) {
+        throw new RuntimeException($step . ' failed while writing to SMTP server');
+    }
+
+    return instructor_smtp_expect($socket, $expectedCodes, $step);
+}
+
+function instructor_smtp_data_line(string $value): string
+{
+    return preg_replace('/^\./m', '..', str_replace(["\r\n", "\r"], "\n", $value)) ?? '';
+}
+
+function instructor_send_smtp_mail(
+    string $to,
+    string $subject,
+    string $html,
+    string $text,
+    string $fromEmail,
+    string $fromName,
+    string $host,
+    int $port,
+    string $user,
+    string $pass,
+    int $timeout
+): bool {
+    if (!function_exists('stream_socket_client')) {
+        error_log('Instructor OTP SMTP failed: stream_socket_client is not available');
+        return false;
+    }
+
+    $remote = ($port === 465 ? 'ssl://' : 'tcp://') . $host . ':' . $port;
+    $errno = 0;
+    $errstr = '';
+    $socket = @stream_socket_client($remote, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT);
+    if (!$socket) {
+        error_log('Instructor OTP SMTP failed: connection error ' . $errno . ' ' . $errstr);
+        return false;
+    }
+
+    stream_set_timeout($socket, $timeout);
+    $boundary = 'abacus_otp_' . bin2hex(random_bytes(12));
+    $domain = preg_match('/@([^@]+)$/', $fromEmail, $m) === 1 ? $m[1] : 'abacustrainer.com';
+    $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+    $headers = [
+        'Date: ' . gmdate('D, d M Y H:i:s') . ' +0000',
+        'From: ' . mail_header_address($fromEmail, $fromName),
+        'To: ' . mail_header_address($to),
+        'Subject: ' . $encodedSubject,
+        'Message-ID: <' . bin2hex(random_bytes(16)) . '@' . $domain . '>',
+        'MIME-Version: 1.0',
+        'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
+    ];
+    $message = implode("\r\n", $headers)
+        . "\r\n\r\n--{$boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n"
+        . instructor_smtp_data_line($text)
+        . "\r\n--{$boundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n"
+        . instructor_smtp_data_line($html)
+        . "\r\n--{$boundary}--\r\n";
+
+    try {
+        instructor_smtp_expect($socket, [220], 'Greeting');
+        $ehlo = instructor_smtp_command($socket, 'EHLO ' . $domain, [250], 'EHLO');
+        if ($port !== 465 && stripos($ehlo, 'STARTTLS') !== false) {
+            instructor_smtp_command($socket, 'STARTTLS', [220], 'STARTTLS');
+            if (!@stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                throw new RuntimeException('STARTTLS negotiation failed');
+            }
+            instructor_smtp_command($socket, 'EHLO ' . $domain, [250], 'EHLO after STARTTLS');
+        }
+
+        if ($user !== '') {
+            instructor_smtp_command($socket, 'AUTH LOGIN', [334], 'AUTH LOGIN');
+            instructor_smtp_command($socket, base64_encode($user), [334], 'SMTP username');
+            instructor_smtp_command($socket, base64_encode($pass), [235], 'SMTP password');
+        }
+
+        instructor_smtp_command($socket, 'MAIL FROM:<' . $fromEmail . '>', [250], 'MAIL FROM');
+        instructor_smtp_command($socket, 'RCPT TO:<' . $to . '>', [250, 251], 'RCPT TO');
+        instructor_smtp_command($socket, 'DATA', [354], 'DATA');
+        instructor_smtp_command($socket, $message . "\r\n.", [250], 'Message body');
+        instructor_smtp_command($socket, 'QUIT', [221, 250], 'QUIT');
+        fclose($socket);
+        return true;
+    } catch (Throwable $e) {
+        fclose($socket);
+        error_log('Instructor OTP SMTP failed: ' . $e->getMessage());
+        return false;
+    }
 }
 
 function instructor_send_html_mail(string $to, string $subject, string $html, string $text): bool
@@ -185,7 +326,12 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
         }
     }
 
-    if ($hasSmtpConfig && strtolower((string) envv('EMAIL_ALLOW_PHP_MAIL_FALLBACK', 'false')) !== 'true') {
+    if ($hasSmtpConfig && instructor_send_smtp_mail($to, $subject, $html, $text, $fromEmail, $fromName, $host, $port, $user, $pass, $timeout)) {
+        return true;
+    }
+
+    if (strtolower((string) envv('EMAIL_ALLOW_PHP_MAIL_FALLBACK', 'false')) !== 'true') {
+        error_log('Instructor OTP email failed: no working Brevo API/SMTP transport configured');
         return false;
     }
 
@@ -194,10 +340,12 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
         'Content-Type: text/html; charset=UTF-8',
         'From: ' . $fromRaw,
         'Reply-To: ' . $fromEmail,
+        'X-Mailer: PHP/' . phpversion(),
     ];
     $previousTimeout = ini_get('default_socket_timeout');
     @ini_set('default_socket_timeout', (string) $timeout);
-    $sent = @mail($to, $subject, $html, implode("\r\n", $headers));
+    $envelope = filter_var($fromEmail, FILTER_VALIDATE_EMAIL) ? '-f' . $fromEmail : '';
+    $sent = @mail($to, $subject, $html, implode("\r\n", $headers), $envelope);
     if ($previousTimeout !== false) {
         @ini_set('default_socket_timeout', (string) $previousTimeout);
     }
