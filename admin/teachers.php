@@ -98,6 +98,57 @@ function admin_teacher_profile_picture_url(?string $url): string
     return $url;
 }
 
+function admin_teachers_sync_approved_instructors(PDO $teacherPdo, PDO $instructorPdo): void
+{
+    $stmt = $instructorPdo->query(
+        "SELECT full_name, email, mobile, course_type, qualification, career_started, students_trained, address, profile_picture, created_at
+         FROM instructors
+         WHERE status = 'approved' AND is_verified = 1"
+    );
+    $approvedInstructors = $stmt->fetchAll();
+    if (!$approvedInstructors) {
+        return;
+    }
+
+    $syncStmt = $teacherPdo->prepare(
+        'INSERT INTO teachers (name, email, phone, expertise, joining_date, status, qualification, experience, location, specialization, image, description)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           name = VALUES(name),
+           phone = VALUES(phone),
+           expertise = VALUES(expertise),
+           qualification = VALUES(qualification),
+           experience = VALUES(experience),
+           location = VALUES(location),
+           specialization = VALUES(specialization),
+           image = VALUES(image),
+           description = VALUES(description),
+           status = VALUES(status)'
+    );
+
+    foreach ($approvedInstructors as $instructor) {
+        $careerStarted = trim((string) ($instructor['career_started'] ?? ''));
+        $studentsTrained = trim((string) ($instructor['students_trained'] ?? ''));
+        $specialization = admin_teacher_course_label($instructor['course_type'] ?? null);
+        $syncStmt->execute([
+            (string) ($instructor['full_name'] ?? ''),
+            (string) ($instructor['email'] ?? ''),
+            (string) (($instructor['mobile'] ?? '') ?: 'Not added'),
+            $specialization,
+            substr((string) (($instructor['created_at'] ?? '') ?: date('Y-m-d')), 0, 10),
+            'active',
+            (string) (($instructor['qualification'] ?? '') ?: 'Certified Abacus Trainer'),
+            $careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer',
+            (string) (($instructor['address'] ?? '') ?: 'Online'),
+            $specialization,
+            admin_teacher_profile_picture_url($instructor['profile_picture'] ?? ''),
+            $studentsTrained !== ''
+                ? 'Approved tutor with experience training ' . $studentsTrained . ' students.'
+                : 'Approved tutor from instructor registrations.',
+        ]);
+    }
+}
+
 try {
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS teachers (
@@ -232,6 +283,12 @@ try {
     }
 } catch (Throwable $e) {
     $errors[] = 'Default teacher setup failed: ' . $e->getMessage();
+}
+
+try {
+    admin_teachers_sync_approved_instructors($pdo, admin_teachers_backend_pdo($pdo));
+} catch (Throwable $e) {
+    $errors[] = 'Approved instructors could not be synced to teachers: ' . $e->getMessage();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
