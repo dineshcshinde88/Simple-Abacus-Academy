@@ -30,7 +30,7 @@ const spring = {
 } as const;
 
 const beadClass =
-  "absolute left-1/2 z-20 h-7 w-11 touch-none bg-gradient-to-br from-orange-300 via-[#ff5b35] to-[#e6361e] shadow-[inset_3px_3px_5px_rgba(255,255,255,0.32),inset_-4px_-4px_7px_rgba(120,22,12,0.28),0_4px_8px_rgba(127,29,29,0.18)] outline-none [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)] focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-100";
+  "absolute left-1/2 z-20 h-[clamp(0.6rem,3.4vw,1rem)] w-[clamp(0.75rem,4.7vw,1.55rem)] touch-none bg-gradient-to-br from-orange-300 via-[#ff5b35] to-[#e6361e] shadow-[inset_3px_3px_5px_rgba(255,255,255,0.32),inset_-4px_-4px_7px_rgba(120,22,12,0.28),0_4px_8px_rgba(127,29,29,0.18)] outline-none [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)] focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-100 sm:h-[clamp(0.9rem,3.2vw,1.5rem)] sm:w-[clamp(1.4rem,5.2vw,2.35rem)] lg:h-[1.75rem] lg:w-[2.75rem]";
 
 const getPlaceLabel = (index: number, totalRods: number) => {
   const unitRodIndex = Math.floor(totalRods / 2);
@@ -55,11 +55,15 @@ const AbacusRod = ({
   const isCenterDot = index === Math.floor(totalRods / 2);
 
   return (
-    <div className="relative h-[250px] min-w-[60px] flex-1" role="group" aria-label={`Rod ${index + 1}, ${placeLabel}`}>
-      <div className="absolute left-1/2 top-2 z-0 h-[240px] w-1 -translate-x-1/2 bg-gradient-to-b from-zinc-500 via-zinc-800 to-zinc-500 shadow-[0_0_0_1px_rgba(255,255,255,0.18)]" />
+    <div
+      className="relative h-[clamp(9rem,56vw,15.625rem)] min-w-0 flex-1 md:min-w-[60px]"
+      role="group"
+      aria-label={`Rod ${index + 1}, ${placeLabel}`}
+    >
+      <div className="absolute left-1/2 top-[3%] z-0 h-[94%] w-[3px] -translate-x-1/2 bg-gradient-to-b from-zinc-500 via-zinc-800 to-zinc-500 shadow-[0_0_0_1px_rgba(255,255,255,0.18)] md:w-1" />
       {showDividerDot && (
         <span
-          className={`absolute left-1/2 top-16 z-30 h-2 w-2 -translate-x-1/2 rounded-full ${
+          className={`absolute left-1/2 top-[25%] z-30 h-1.5 w-1.5 -translate-x-1/2 rounded-full md:top-16 md:h-2 md:w-2 ${
             isCenterDot
               ? "bg-[#ffd400] shadow-[0_0_0_1px_rgba(94,78,0,0.7),0_0_8px_rgba(255,212,0,0.85)]"
               : "bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"

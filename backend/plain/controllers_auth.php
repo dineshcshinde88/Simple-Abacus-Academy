@@ -119,22 +119,64 @@ function controller_auth_login(array $data): void
         json_response(['message' => 'Invalid email or password'], 401);
     }
 
+    if ($role !== '' && !in_array($role, ['student', 'tutor', 'admin'], true)) {
+        json_response(['message' => 'Invalid role'], 401);
+    }
+
     $user = db_one('SELECT * FROM users WHERE email = :email LIMIT 1', ['email' => $email]);
+
+    if ($role === 'tutor' && function_exists('ensure_instructor_auth_schema')) {
+        ensure_instructor_auth_schema();
+        $instructor = db_one('SELECT * FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
+        if ($instructor) {
+            $status = (string) ($instructor['status'] ?? 'pending');
+            if ((int) ($instructor['is_verified'] ?? 0) === 1 && $status === 'pending') {
+                $status = 'approved';
+            }
+            if (!password_verify($password, (string) ($instructor['password'] ?? ''))) {
+                json_response(['message' => 'Invalid email or password'], 401);
+            }
+            if ($status === 'pending') {
+                json_response(['message' => 'Your account is waiting for admin approval.'], 403);
+            }
+            if ($status === 'rejected') {
+                json_response(['message' => 'Your registration was rejected. Contact admin.'], 403);
+            }
+            if ($status !== 'approved') {
+                json_response(['message' => 'Your account is waiting for admin approval.'], 403);
+            }
+
+            if (function_exists('instructor_ensure_approved_user')) {
+                instructor_ensure_approved_user($instructor);
+            }
+            $user = db_one('SELECT * FROM users WHERE email = :email AND role = \'tutor\' LIMIT 1', ['email' => $email]);
+        }
+    }
+
     if (!$user || !password_verify($password, (string) $user['password'])) {
         json_response(['message' => 'Invalid email or password'], 401);
     }
 
-    if ($role !== '' && !in_array($role, ['student', 'tutor', 'admin'], true)) {
-        json_response(['message' => 'Invalid role'], 401);
-    }
     if ($role !== '' && $user['role'] !== $role) {
         json_response(['message' => 'Invalid role'], 401);
     }
     if ($user['role'] === 'tutor' && function_exists('ensure_instructor_auth_schema')) {
         ensure_instructor_auth_schema();
-        $instructor = db_one('SELECT is_verified, password FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
-        if (!$instructor || (int) ($instructor['is_verified'] ?? 0) !== 1 || empty($instructor['password'])) {
-            json_response(['message' => 'Please verify your instructor email before login'], 403);
+        $instructor = db_one('SELECT status, is_verified, password FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
+        if ($instructor) {
+            $status = (string) ($instructor['status'] ?? 'pending');
+            if ((int) ($instructor['is_verified'] ?? 0) === 1 && $status === 'pending') {
+                $status = 'approved';
+            }
+            if ($status === 'pending') {
+                json_response(['message' => 'Your account is waiting for admin approval.'], 403);
+            }
+            if ($status === 'rejected') {
+                json_response(['message' => 'Your registration was rejected. Contact admin.'], 403);
+            }
+            if ($status !== 'approved') {
+                json_response(['message' => 'Your account is waiting for admin approval.'], 403);
+            }
         }
     }
 

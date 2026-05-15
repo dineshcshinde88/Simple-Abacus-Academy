@@ -4,6 +4,7 @@ $menuItems = [
   ['label' => 'Students', 'href' => 'students.php', 'key' => 'students'],
   ['label' => 'Subscriptions', 'href' => 'subscriptions.php', 'key' => 'subscriptions'],
   ['label' => 'Demo Bookings', 'href' => 'demo_bookings.php', 'key' => 'demo_bookings'],
+  ['label' => 'Instructors', 'href' => 'instructors.php', 'key' => 'instructors'],
   ['label' => 'Teachers', 'href' => 'teachers.php', 'key' => 'teachers'],
   ['label' => 'Profile', 'href' => 'profile.php', 'key' => 'profile'],
 ];

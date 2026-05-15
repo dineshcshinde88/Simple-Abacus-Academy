@@ -13,10 +13,9 @@ export class ApiError extends Error {
   }
 }
 
-export type InstructorOtpResponse = {
+export type InstructorRegistrationResponse = {
   message: string;
   email?: string;
-  devOtp?: string;
 };
 
 async function request<T>(path: string, body: unknown): Promise<T> {
@@ -33,7 +32,7 @@ async function request<T>(path: string, body: unknown): Promise<T> {
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ApiError("OTP email is taking too long to send. Please check the live backend email settings and try again.", 0);
+      throw new ApiError("The instructor request is taking too long. Please try again.", 0);
     }
     throw new ApiError("Unable to reach the instructor registration server. Please try again.", 0);
   } finally {
@@ -53,14 +52,16 @@ async function request<T>(path: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-export const startInstructorRegistration = (payload: { fullName: string; mobile: string; email: string }) =>
-  request<InstructorOtpResponse & { email: string }>("/api/instructor/register/start", payload);
+export const registerInstructor = (payload: {
+  fullName: string;
+  mobile: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}) => request<{ message: string; email: string }>("/api/instructor/register/start", payload);
 
-export const verifyInstructorOtp = (payload: { email: string; otp: string }) =>
-  request<{ message: string; email: string }>("/api/instructor/register/verify-otp", payload);
+export const forgotInstructorPassword = (payload: { email: string }) =>
+  request<{ message: string }>("/api/instructor/forgot-password", payload);
 
-export const resendInstructorOtp = (payload: { email: string }) =>
-  request<InstructorOtpResponse>("/api/instructor/register/resend-otp", payload);
-
-export const setInstructorPassword = (payload: { email: string; password: string; confirmPassword: string }) =>
-  request<{ message: string }>("/api/instructor/register/set-password", payload);
+export const resetInstructorPassword = (payload: { email: string; token: string; password: string; confirmPassword: string }) =>
+  request<{ message: string }>("/api/instructor/reset-password", payload);

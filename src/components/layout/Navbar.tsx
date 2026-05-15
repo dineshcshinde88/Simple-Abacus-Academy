@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Facebook, Instagram, Mail, Menu, Phone, X, Youtube } from "lucide-react";
+import { ChevronDown, Facebook, Instagram, Mail, Menu, Phone, X, Youtube } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LoginDialog from "@/components/auth/LoginDialog";
 import { useAuth } from "@/context/AuthContext";
@@ -40,10 +40,12 @@ const navLinks = [
 
 const Navbar = () => {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [mobileOpenMenu, setMobileOpenMenu] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -75,6 +77,12 @@ const Navbar = () => {
       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    setIsOpen(false);
+    setOpenMenu(null);
+    setMobileOpenMenu(null);
+  }, [location.pathname]);
 
   const openDropdown = (label: string) => {
     if (closeTimeoutRef.current) {
@@ -145,7 +153,14 @@ const Navbar = () => {
       {/* Main Bar */}
       <div className="bg-white transition-all duration-300 relative z-20 overflow-visible">
         <div className="container mx-auto flex items-center justify-between px-4 h-16">
-          <Link to="/" className="flex items-center">
+          <Link
+            to="/"
+            className="flex items-center"
+            onClick={() => {
+              setIsOpen(false);
+              setMobileOpenMenu(null);
+            }}
+          >
             <img
               src="/abacus_logo.svg"
               alt="Simple Abacus logo"
@@ -276,7 +291,16 @@ const Navbar = () => {
           </div>
 
           {/* Mobile toggle */}
-          <button className="md:hidden p-2" onClick={() => setIsOpen(!isOpen)}>
+          <button
+            type="button"
+            className="md:hidden p-2"
+            aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={isOpen}
+            onClick={() => {
+              setIsOpen((current) => !current);
+              setOpenMenu(null);
+            }}
+          >
             {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
@@ -289,30 +313,39 @@ const Navbar = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-white border-b border-border overflow-hidden"
+            className="md:hidden bg-white border-b border-border shadow-sm overflow-hidden"
           >
-            <div className="flex flex-col p-4 gap-3">
+            <div className="flex max-h-[calc(100vh-7rem)] flex-col gap-2 overflow-y-auto p-4">
               {navLinks.map((link) => (
-                <div key={link.label} className="flex flex-col">
+                <div key={link.label} className="flex flex-col border-b border-slate-100 last:border-b-0">
                   {link.to ? (
                     <Link
                       to={link.to}
-                      onClick={() => setIsOpen(false)}
-                      className="text-sm font-medium text-black hover:text-black/80 py-2"
+                      onClick={() => {
+                        setIsOpen(false);
+                        setMobileOpenMenu(null);
+                      }}
+                      className="py-3 text-sm font-semibold text-slate-900 hover:text-[#4b1e83]"
                     >
                       {link.label}
                     </Link>
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setOpenMenu(openMenu === link.label ? null : link.label)}
-                      className="text-left text-sm font-medium text-black hover:text-black/80 py-2"
+                      onClick={() => setMobileOpenMenu(mobileOpenMenu === link.label ? null : link.label)}
+                      className="flex items-center justify-between py-3 text-left text-sm font-semibold text-slate-900 hover:text-[#4b1e83]"
+                      aria-expanded={mobileOpenMenu === link.label}
                     >
-                      {link.label}
+                      <span>{link.label}</span>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${
+                          mobileOpenMenu === link.label ? "rotate-180" : ""
+                        }`}
+                      />
                     </button>
                   )}
-                  {link.children?.length && openMenu === link.label ? (
-                    <div className="pl-4 space-y-1">
+                  {link.children?.length && mobileOpenMenu === link.label ? (
+                    <div className="mb-2 ml-3 border-l border-[#f97316]/40 pl-3">
                       {link.children.map((child) => {
                         if (child.action === "login") {
                           return (
@@ -323,7 +356,7 @@ const Navbar = () => {
                               onClick={() => {
                                 setLoginOpen(true);
                                 setIsOpen(false);
-                                setOpenMenu(null);
+                                setMobileOpenMenu(null);
                               }}
                             >
                               {child.label}
@@ -337,7 +370,7 @@ const Navbar = () => {
                             className="block text-left text-sm text-slate-600 py-2 leading-snug whitespace-normal"
                             onClick={() => {
                               setIsOpen(false);
-                              setOpenMenu(null);
+                              setMobileOpenMenu(null);
                             }}
                           >
                             {child.label}
@@ -369,6 +402,7 @@ const Navbar = () => {
                       onClick={() => {
                         logout();
                         setIsOpen(false);
+                        setMobileOpenMenu(null);
                       }}
                     >
                       Logout
@@ -381,13 +415,22 @@ const Navbar = () => {
                     className="flex-1"
                     onClick={() => {
                       setIsOpen(false);
+                      setMobileOpenMenu(null);
                       setLoginOpen(true);
                     }}
                   >
                     Login
                   </Button>
                 )}
-                <Button size="sm" className="flex-1 gradient-accent text-accent-foreground font-semibold" asChild>
+                <Button
+                  size="sm"
+                  className="flex-1 gradient-accent text-accent-foreground font-semibold"
+                  asChild
+                  onClick={() => {
+                    setIsOpen(false);
+                    setMobileOpenMenu(null);
+                  }}
+                >
                   <Link to="/book-demo">Free Demo</Link>
                 </Button>
               </div>

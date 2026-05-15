@@ -121,27 +121,27 @@ const VirtualAbacusTool = () => {
   };
 
   return (
-    <section className="bg-[#f3f3f3] py-10 sm:py-14">
-      <div ref={toolRef} className="mx-auto max-w-[1160px] px-0 text-zinc-950">
+    <section className="bg-[#f3f3f3] py-6 sm:py-14">
+      <div ref={toolRef} className="mx-auto max-w-[1160px] px-3 text-zinc-950 sm:px-4">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className="rounded-[28px] border border-zinc-200 bg-white px-4 py-12 shadow-[0_22px_60px_rgba(15,23,42,0.10)] sm:px-8"
+          className="rounded-2xl border border-zinc-200 bg-white px-2 py-7 shadow-[0_22px_60px_rgba(15,23,42,0.10)] sm:rounded-[28px] sm:px-8 sm:py-12"
         >
           <h1 className="sr-only">Virtual Abacus Tool</h1>
 
           <div
             tabIndex={0}
             onKeyDown={handleKeyboardControl}
-            className="overflow-x-auto pb-2 outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+            className="overflow-hidden pb-2 outline-none focus-visible:ring-2 focus-visible:ring-orange-500 md:overflow-x-auto"
             aria-label="Virtual abacus. Use left and right arrows to choose a rod, up and down arrows for lower beads, and space for upper bead."
           >
             <motion.div
-              className="mx-auto min-w-[980px] max-w-[1040px] origin-top rounded-[12px] border-[5px] border-black bg-[#111] p-[10px] shadow-[inset_0_2px_0_rgba(255,255,255,0.14),inset_0_-8px_18px_rgba(0,0,0,0.72),0_18px_34px_rgba(15,23,42,0.16)]"
+              className="mx-auto w-full max-w-[1040px] origin-top rounded-[8px] border-[5px] border-black bg-[#111] p-1 shadow-[inset_0_2px_0_rgba(255,255,255,0.14),inset_0_-8px_18px_rgba(0,0,0,0.72),0_18px_34px_rgba(15,23,42,0.16)] sm:rounded-[12px] sm:p-[10px] md:min-w-[980px]"
             >
-              <div className="relative bg-gradient-to-b from-[#efefef] via-[#f8f8f8] to-[#e5e5e5] px-2 py-2 shadow-[inset_0_0_18px_rgba(0,0,0,0.24)]">
-                <div className="absolute left-2 right-2 top-[70px] z-10 h-3 bg-black shadow-[0_2px_4px_rgba(0,0,0,0.28)]" />
+              <div className="relative bg-gradient-to-b from-[#efefef] via-[#f8f8f8] to-[#e5e5e5] px-1 py-1 shadow-[inset_0_0_18px_rgba(0,0,0,0.24)] sm:px-2 sm:py-2">
+                <div className="absolute left-1 right-1 top-[26%] z-10 h-2 bg-black shadow-[0_2px_4px_rgba(0,0,0,0.28)] sm:left-2 sm:right-2 sm:h-3 md:top-[70px]" />
                 <div className="grid gap-0" style={{ gridTemplateColumns: `repeat(${ROD_COUNT}, minmax(0, 1fr))` }}>
                   {rods.map((rod, index) => (
                     <AbacusRod
@@ -160,9 +160,9 @@ const VirtualAbacusTool = () => {
             </motion.div>
           </div>
 
-          <div className="mx-auto mt-10 flex max-w-[1040px] flex-col items-center justify-between gap-5 rounded-2xl border border-[#dce5ef] bg-[#f8fbff] px-8 py-5 shadow-[0_12px_28px_rgba(15,23,42,0.06)] sm:flex-row">
-            <div className="flex min-h-10 items-center gap-4">
-              <span className="text-sm font-black uppercase tracking-[0.18em] text-[#58708f]">
+          <div className="mx-auto mt-5 flex max-w-[1040px] flex-col items-stretch justify-between gap-4 rounded-2xl border border-[#dce5ef] bg-[#f8fbff] px-4 py-5 shadow-[0_12px_28px_rgba(15,23,42,0.06)] sm:mt-10 sm:flex-row sm:items-center sm:px-8">
+            <div className="flex min-h-10 flex-wrap items-center justify-center gap-3 sm:justify-start sm:gap-4">
+              <span className="text-xs font-black uppercase tracking-[0.16em] text-[#58708f] sm:text-sm">
                 Current Value:
               </span>
               <AnimatePresence mode="wait">
@@ -172,7 +172,7 @@ const VirtualAbacusTool = () => {
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 6 }}
-                    className="font-heading text-4xl font-black leading-none text-[#1267f1]"
+                    className="font-heading text-3xl font-black leading-none text-[#1267f1] sm:text-4xl"
                   >
                     {formatAbacusValue(currentValue)}
                   </motion.span>
@@ -182,7 +182,7 @@ const VirtualAbacusTool = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="text-2xl font-black tracking-[0.2em] text-[#1267f1]"
+                    className="text-xl font-black tracking-[0.2em] text-[#1267f1] sm:text-2xl"
                   >
                     ---
                   </motion.span>
@@ -190,12 +190,12 @@ const VirtualAbacusTool = () => {
               </AnimatePresence>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setShowCount((value) => !value)}
-                className="h-11 rounded-full border-[#ff3150] bg-white px-6 font-heading font-bold text-[#ff3150] hover:bg-[#fff1f3] hover:text-[#ff3150]"
+                className="h-11 rounded-full border-[#ff3150] bg-white px-4 font-heading font-bold text-[#ff3150] hover:bg-[#fff1f3] hover:text-[#ff3150] sm:px-6"
               >
                 {showCount ? (
                   <EyeOff className="mr-2 h-4 w-4" />
@@ -207,7 +207,7 @@ const VirtualAbacusTool = () => {
               <Button
                 type="button"
                 onClick={refreshAbacus}
-                className="h-11 rounded-full bg-[#181e25] px-7 font-heading font-bold text-white hover:bg-black"
+                className="h-11 rounded-full bg-[#181e25] px-4 font-heading font-bold text-white hover:bg-black sm:px-7"
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Zoom

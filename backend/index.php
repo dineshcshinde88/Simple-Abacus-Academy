@@ -336,14 +336,11 @@ if ($method === 'POST' && $path === '/api/instructor/apply') {
 if ($method === 'POST' && $path === '/api/instructor/register/start') {
     controller_instructor_register_start($data);
 }
-if ($method === 'POST' && $path === '/api/instructor/register/verify-otp') {
-    controller_instructor_verify_otp($data);
+if ($method === 'POST' && $path === '/api/instructor/forgot-password') {
+    controller_instructor_forgot_password($data);
 }
-if ($method === 'POST' && $path === '/api/instructor/register/resend-otp') {
-    controller_instructor_resend_otp($data);
-}
-if ($method === 'POST' && $path === '/api/instructor/register/set-password') {
-    controller_instructor_set_password($data);
+if ($method === 'POST' && $path === '/api/instructor/reset-password') {
+    controller_instructor_reset_password($data);
 }
 if ($method === 'POST' && $path === '/api/payments/webhook') {
     controller_payments_webhook($data);

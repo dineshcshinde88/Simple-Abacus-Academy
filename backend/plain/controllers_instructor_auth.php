@@ -10,38 +10,29 @@ function ensure_instructor_auth_schema(): void
             email VARCHAR(255) NOT NULL UNIQUE,
             password VARCHAR(255) NULL,
             is_verified TINYINT(1) NOT NULL DEFAULT 0,
+            role VARCHAR(30) NOT NULL DEFAULT \'instructor\',
+            status VARCHAR(30) NOT NULL DEFAULT \'pending\',
+            reset_token VARCHAR(64) NULL,
+            reset_expiry DATETIME NULL,
             created_at DATETIME NOT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
 
-    db_exec_sql(
-        'CREATE TABLE IF NOT EXISTS otp_verifications (
-            id CHAR(36) PRIMARY KEY,
-            email VARCHAR(255) NOT NULL UNIQUE,
-            otp VARCHAR(255) NOT NULL,
-            previous_otp VARCHAR(255) NULL,
-            previous_expiry_time DATETIME NULL,
-            expiry_time DATETIME NOT NULL,
-            attempts INT NOT NULL DEFAULT 0,
-            last_sent_at DATETIME NOT NULL,
-            created_at DATETIME NOT NULL,
-            INDEX idx_otp_email (email),
-            INDEX idx_otp_expiry (expiry_time)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
-    );
+    $instructorColumns = [
+        'role' => "VARCHAR(30) NOT NULL DEFAULT 'instructor'",
+        'status' => "VARCHAR(30) NOT NULL DEFAULT 'pending'",
+        'reset_token' => 'VARCHAR(64) NULL',
+        'reset_expiry' => 'DATETIME NULL',
+    ];
+    foreach ($instructorColumns as $column => $definition) {
+        if (!billing_table_has_column('instructors', $column)) {
+            db_exec_sql("ALTER TABLE instructors ADD COLUMN {$column} {$definition}");
+        }
+    }
 
-    if (!billing_table_has_column('otp_verifications', 'last_sent_at')) {
-        db_exec_sql('ALTER TABLE otp_verifications ADD COLUMN last_sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER attempts');
-    }
-    if (!billing_table_has_column('otp_verifications', 'previous_otp')) {
-        db_exec_sql('ALTER TABLE otp_verifications ADD COLUMN previous_otp VARCHAR(255) NULL AFTER otp');
-    }
-    if (!billing_table_has_column('otp_verifications', 'previous_expiry_time')) {
-        db_exec_sql('ALTER TABLE otp_verifications ADD COLUMN previous_expiry_time DATETIME NULL AFTER previous_otp');
-    }
-    if (!billing_table_has_column('otp_verifications', 'created_at')) {
-        db_exec_sql('ALTER TABLE otp_verifications ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER last_sent_at');
-    }
+    db_exec_sql("UPDATE instructors SET role = 'instructor' WHERE role IS NULL OR role = ''");
+    db_exec_sql("UPDATE instructors SET status = CASE WHEN is_verified = 1 THEN 'approved' ELSE 'pending' END WHERE status IS NULL OR status = ''");
+    db_exec_sql("UPDATE instructors SET status = 'approved' WHERE is_verified = 1 AND status = 'pending'");
 }
 
 function instructor_normalize_email(array $data): string
@@ -54,9 +45,15 @@ function instructor_validate_mobile(string $mobile): bool
     return preg_match('/^[0-9+\-\s()]{7,20}$/', $mobile) === 1;
 }
 
-function instructor_otp_hash(string $otp): string
+function instructor_validate_password(string $password): ?string
 {
-    return password_hash($otp, PASSWORD_BCRYPT);
+    if (strlen($password) < 8) {
+        return 'Password must be at least 8 characters.';
+    }
+    if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
+        return 'Password must include uppercase, lowercase, and number characters.';
+    }
+    return null;
 }
 
 function instructor_utc_timestamp(string $value): int
@@ -65,22 +62,10 @@ function instructor_utc_timestamp(string $value): int
     return $timestamp === false ? 0 : $timestamp;
 }
 
-function instructor_is_dev_email_mode(): bool
+function instructor_is_email_disabled(): bool
 {
-    $mode = strtolower((string) envv('INSTRUCTOR_OTP_EMAIL_MODE', ''));
-    if (in_array($mode, ['smtp', 'mail', 'live'], true)) {
-        return false;
-    }
-    if (in_array($mode, ['dev', 'mock', 'log'], true)) {
-        return true;
-    }
-
     $enabled = strtolower((string) envv('EMAIL_ENABLED', 'true'));
-    if (in_array($enabled, ['0', 'false', 'no', 'off'], true)) {
-        return true;
-    }
-
-    return false;
+    return in_array($enabled, ['0', 'false', 'no', 'off'], true);
 }
 
 function instructor_parse_mail_address(string $raw, string $defaultName): array
@@ -220,7 +205,7 @@ function instructor_send_smtp_mail(
     int $timeout
 ): bool {
     if (!function_exists('stream_socket_client')) {
-        error_log('Instructor OTP SMTP failed: stream_socket_client is not available');
+        error_log('Instructor email SMTP failed: stream_socket_client is not available');
         return false;
     }
 
@@ -229,12 +214,12 @@ function instructor_send_smtp_mail(
     $errstr = '';
     $socket = @stream_socket_client($remote, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT);
     if (!$socket) {
-        error_log('Instructor OTP SMTP failed: connection error ' . $errno . ' ' . $errstr);
+        error_log('Instructor email SMTP failed: connection error ' . $errno . ' ' . $errstr);
         return false;
     }
 
     stream_set_timeout($socket, $timeout);
-    $boundary = 'abacus_otp_' . bin2hex(random_bytes(12));
+    $boundary = 'abacus_mail_' . bin2hex(random_bytes(12));
     $domain = preg_match('/@([^@]+)$/', $fromEmail, $m) === 1 ? $m[1] : 'abacustrainer.com';
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
     $headers = [
@@ -279,16 +264,16 @@ function instructor_send_smtp_mail(
         return true;
     } catch (Throwable $e) {
         fclose($socket);
-        error_log('Instructor OTP SMTP failed: ' . $e->getMessage());
+        error_log('Instructor email SMTP failed: ' . $e->getMessage());
         return false;
     }
 }
 
 function instructor_send_html_mail(string $to, string $subject, string $html, string $text): bool
 {
-    if (instructor_is_dev_email_mode()) {
-        error_log('Instructor OTP email skipped in development mode for ' . $to);
-        return true;
+    if (instructor_is_email_disabled()) {
+        error_log('Instructor email skipped because EMAIL_ENABLED is disabled for ' . $to);
+        return false;
     }
 
     $timeout = max(3, (int) envv('EMAIL_TIMEOUT_SECONDS', '10'));
@@ -327,12 +312,12 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
                 return true;
             }
         } catch (Throwable $e) {
-            error_log('Instructor OTP SMTP failed: ' . $e->getMessage());
+            error_log('Instructor email SMTP failed: ' . $e->getMessage());
         }
     }
 
     if (strtolower((string) envv('EMAIL_ALLOW_PHP_MAIL_FALLBACK', 'false')) !== 'true') {
-        error_log('Instructor OTP email failed: no working Brevo API/SMTP transport configured');
+        error_log('Instructor email failed: no working Brevo API/SMTP transport configured');
         return false;
     }
 
@@ -353,74 +338,108 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
     return $sent;
 }
 
-function instructor_send_otp_email(string $name, string $email, string $otp): bool
+function instructor_frontend_url(): string
 {
-    $siteUrl = rtrim((string) envv('SITE_URL', 'https://abacustrainer.com'), '/');
-    $logoUrl = $siteUrl . '/abacus_logo.png';
-    $subject = 'Instructor Registration Verification - Abacus Trainer';
-    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-    $safeOtp = htmlspecialchars($otp, ENT_QUOTES, 'UTF-8');
+    $configured = trim((string) envv('FRONTEND_URL', (string) envv('SITE_URL', '')));
+    if ($configured !== '') {
+        return rtrim($configured, '/');
+    }
 
-    $html = '<div style="margin:0;padding:0;background:#f6f3fb;font-family:Arial,sans-serif;color:#1f2937">'
-        . '<div style="max-width:560px;margin:0 auto;padding:28px 16px">'
-        . '<div style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #eadff7">'
-        . '<div style="padding:24px;text-align:center;border-bottom:4px solid #f97316">'
-        . '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8') . '" alt="Abacus Trainer" style="max-height:64px;max-width:220px" />'
-        . '</div><div style="padding:28px">'
-        . '<h2 style="margin:0 0 12px;color:#4b1e83">Hello ' . $safeName . ',</h2>'
-        . '<p style="font-size:15px;line-height:1.6;margin:0 0 10px">Thank you for registering as an instructor with Abacus Trainer.</p>'
-        . '<p style="font-size:15px;line-height:1.6;margin:0 0 22px">Please use the OTP below to verify your email.</p>'
-        . '<div style="text-align:center;margin:24px 0"><div style="display:inline-block;background:#4b1e83;color:#ffffff;font-size:34px;font-weight:700;letter-spacing:8px;padding:16px 24px;border-radius:12px">' . $safeOtp . '</div></div>'
-        . '<p style="font-size:14px;color:#6b7280;margin:0">This OTP expires in <strong>5 minutes</strong>.</p>'
-        . '</div><div style="background:#faf7ff;padding:16px 24px;text-align:center;color:#6b7280;font-size:13px">Abacus Trainer</div>'
-        . '</div></div></div>';
-
-    $text = "Hello {$name},\n\nThank you for registering as an instructor with Abacus Trainer.\nPlease use the OTP below to verify your email.\n\nOTP: {$otp}\n\nThis OTP expires in 5 minutes.\n\nAbacus Trainer";
-    return instructor_send_html_mail($email, $subject, $html, $text);
+    $origin = request_header('Origin');
+    return rtrim($origin ?: get_base_url(), '/');
 }
 
-function instructor_issue_otp(string $name, string $email): ?string
+function instructor_send_password_reset_email(string $name, string $email, string $resetUrl): bool
 {
-    $cooldownSeconds = max(10, (int) envv('INSTRUCTOR_OTP_COOLDOWN_SECONDS', '60'));
-    $existingOtp = db_one('SELECT * FROM otp_verifications WHERE email = :email LIMIT 1', ['email' => $email]);
-    if ($existingOtp && !empty($existingOtp['last_sent_at'])) {
-        $elapsed = time() - instructor_utc_timestamp((string) $existingOtp['last_sent_at']);
-        if ($elapsed < $cooldownSeconds) {
-            $retryAfter = max(1, $cooldownSeconds - $elapsed);
-            json_response([
-                'message' => "Please wait {$retryAfter} seconds before requesting another OTP",
-                'retryAfter' => $retryAfter,
-            ], 429);
+    $subject = 'Reset your Simple Abacus instructor password';
+    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $safeUrl = htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8');
+    $html = '<div style="font-family:Arial,sans-serif;color:#1f2937;line-height:1.6">'
+        . '<h2 style="color:#4b1e83">Hello ' . $safeName . ',</h2>'
+        . '<p>We received a request to reset your instructor password.</p>'
+        . '<p><a href="' . $safeUrl . '" style="display:inline-block;background:#4b1e83;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px">Reset Password</a></p>'
+        . '<p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>'
+        . '<p style="font-size:13px;color:#6b7280">If the button does not work, copy this link: ' . $safeUrl . '</p>'
+        . '</div>';
+    $text = "Hello {$name},\n\nReset your instructor password using this link:\n{$resetUrl}\n\nThis link expires in 1 hour.";
+
+    if (class_exists('\\PHPMailer\\PHPMailer\\PHPMailer')) {
+        try {
+            $fromRaw = (string) envv('EMAIL_FROM', (string) envv('MAIL_FROM_ADDRESS', 'Simple Abacus <no-reply@simpleabacus.com>'));
+            [$fromEmail, $fromName] = instructor_parse_mail_address($fromRaw, 'Simple Abacus');
+            $mailer = new \PHPMailer\PHPMailer\PHPMailer(true);
+            $host = (string) envv('EMAIL_HOST', (string) envv('MAIL_HOST', ''));
+            $user = (string) envv('EMAIL_USER', (string) envv('MAIL_USERNAME', ''));
+            if ($host !== '' && $user !== '') {
+                $mailer->isSMTP();
+                $mailer->Host = $host;
+                $mailer->Port = (int) envv('EMAIL_PORT', (string) envv('MAIL_PORT', '587'));
+                $mailer->SMTPAuth = true;
+                $mailer->Username = $user;
+                $mailer->Password = (string) envv('EMAIL_PASS', (string) envv('MAIL_PASSWORD', ''));
+                $mailer->SMTPSecure = $mailer->Port === 465
+                    ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS
+                    : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            }
+            $mailer->setFrom($fromEmail, $fromName);
+            $mailer->addAddress($email, $name);
+            $mailer->Subject = $subject;
+            $mailer->isHTML(true);
+            $mailer->Body = $html;
+            $mailer->AltBody = $text;
+            $mailer->send();
+            return true;
+        } catch (Throwable $e) {
+            error_log('Instructor reset PHPMailer failed: ' . $e->getMessage());
         }
     }
 
-    $otp = (string) random_int(100000, 999999);
+    return instructor_send_html_mail($email, $subject, $html, $text);
+}
+
+function instructor_ensure_approved_user(array $instructor): string
+{
+    $email = strtolower((string) $instructor['email']);
+    $user = db_one('SELECT * FROM users WHERE email = :email LIMIT 1', ['email' => $email]);
     $now = now_sql();
-    $unsentTimestamp = gmdate('Y-m-d H:i:s', time() - $cooldownSeconds - 1);
-    $expiry = gmdate('Y-m-d H:i:s', time() + 300);
-    if ($existingOtp) {
+    if ($user) {
         db_exec_sql(
-            'UPDATE otp_verifications
-             SET previous_otp = otp, previous_expiry_time = expiry_time, otp = :otp, expiry_time = :expiry_time,
-                 attempts = 0, last_sent_at = :last_sent_at
-             WHERE email = :email',
-            ['otp' => instructor_otp_hash($otp), 'expiry_time' => $expiry, 'last_sent_at' => $unsentTimestamp, 'email' => $email]
+            'UPDATE users SET name = :name, password = :password, role = :role, updated_at = :updated_at WHERE id = :id',
+            [
+                'name' => $instructor['full_name'],
+                'password' => $instructor['password'],
+                'role' => 'tutor',
+                'updated_at' => $now,
+                'id' => $user['id'],
+            ]
         );
+        $userId = (string) $user['id'];
     } else {
+        $userId = uuid_v4();
         db_exec_sql(
-            'INSERT INTO otp_verifications (id, email, otp, expiry_time, attempts, last_sent_at, created_at)
-             VALUES (:id, :email, :otp, :expiry_time, 0, :last_sent_at, :created_at)',
-            ['id' => uuid_v4(), 'email' => $email, 'otp' => instructor_otp_hash($otp), 'expiry_time' => $expiry, 'last_sent_at' => $unsentTimestamp, 'created_at' => $now]
+            'INSERT INTO users (id, name, email, password, role, created_at, updated_at)
+             VALUES (:id, :name, :email, :password, :role, :created_at, :updated_at)',
+            [
+                'id' => $userId,
+                'name' => $instructor['full_name'],
+                'email' => $email,
+                'password' => $instructor['password'],
+                'role' => 'tutor',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]
         );
     }
 
-    if (!instructor_send_otp_email($name, $email, $otp)) {
-        json_response(['message' => 'Unable to send OTP email. Please check SMTP settings on the live backend.'], 500);
+    $tutor = db_one('SELECT id FROM tutors WHERE user_id = :user_id LIMIT 1', ['user_id' => $userId]);
+    if (!$tutor) {
+        db_exec_sql(
+            'INSERT INTO tutors (id, user_id, created_at, updated_at) VALUES (:id, :user_id, :created_at, :updated_at)',
+            ['id' => uuid_v4(), 'user_id' => $userId, 'created_at' => $now, 'updated_at' => $now]
+        );
     }
 
-    db_exec_sql('UPDATE otp_verifications SET last_sent_at = :last_sent_at WHERE email = :email', ['last_sent_at' => $now, 'email' => $email]);
-
-    return instructor_is_dev_email_mode() ? $otp : null;
+    return $userId;
 }
 
 function controller_instructor_register_start(array $data): void
@@ -429,149 +448,115 @@ function controller_instructor_register_start(array $data): void
     $name = trim((string) ($data['fullName'] ?? $data['name'] ?? ''));
     $mobile = trim((string) ($data['mobile'] ?? ''));
     $email = instructor_normalize_email($data);
+    $password = (string) ($data['password'] ?? '');
+    $confirm = (string) ($data['confirmPassword'] ?? '');
 
     if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !instructor_validate_mobile($mobile)) {
         json_response(['message' => 'Please enter a valid name, mobile number, and email address'], 422);
     }
+    if ($password !== $confirm) {
+        json_response(['message' => 'Passwords do not match.'], 422);
+    }
+    $passwordError = instructor_validate_password($password);
+    if ($passwordError !== null) {
+        json_response(['message' => $passwordError], 422);
+    }
 
     $instructor = db_one('SELECT * FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
-    if ($instructor && (int) ($instructor['is_verified'] ?? 0) === 1 && !empty($instructor['password'])) {
-        json_response(['message' => 'This email is already registered. Please login.'], 409);
+    if ($instructor) {
+        json_response(['message' => 'Already registered. Please login.'], 409);
+    }
+
+    $mobileExists = db_one('SELECT id FROM instructors WHERE mobile = :mobile LIMIT 1', ['mobile' => $mobile]);
+    if ($mobileExists) {
+        json_response(['message' => 'Already registered. Please login.'], 409);
     }
 
     $now = now_sql();
-    if ($instructor) {
-        db_exec_sql(
-            'UPDATE instructors SET full_name = :full_name, mobile = :mobile WHERE email = :email',
-            ['full_name' => $name, 'mobile' => $mobile, 'email' => $email]
-        );
-    } else {
-        db_exec_sql(
-            'INSERT INTO instructors (id, full_name, mobile, email, password, is_verified, created_at)
-             VALUES (:id, :full_name, :mobile, :email, NULL, 0, :created_at)',
-            ['id' => uuid_v4(), 'full_name' => $name, 'mobile' => $mobile, 'email' => $email, 'created_at' => $now]
-        );
-    }
+    db_exec_sql(
+        'INSERT INTO instructors (id, full_name, mobile, email, password, is_verified, role, status, created_at)
+         VALUES (:id, :full_name, :mobile, :email, :password, 0, :role, :status, :created_at)',
+        [
+            'id' => uuid_v4(),
+            'full_name' => $name,
+            'mobile' => $mobile,
+            'email' => $email,
+            'password' => password_hash($password, PASSWORD_BCRYPT),
+            'role' => 'instructor',
+            'status' => 'pending',
+            'created_at' => $now,
+        ]
+    );
 
-    $devOtp = instructor_issue_otp($name, $email);
-    $payload = ['message' => 'OTP sent to your email', 'email' => $email];
-    if ($devOtp !== null) {
-        $payload['devOtp'] = $devOtp;
-        $payload['message'] = 'Development OTP generated. Use the code shown on the next screen.';
-    }
-    json_response($payload);
+    json_response(['message' => 'Registration submitted successfully. Wait for admin approval.', 'email' => $email], 201);
 }
 
-function controller_instructor_verify_otp(array $data): void
-{
-    ensure_instructor_auth_schema();
-    $email = instructor_normalize_email($data);
-    $otp = trim((string) ($data['otp'] ?? ''));
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !preg_match('/^[0-9]{6}$/', $otp)) {
-        json_response(['message' => 'Invalid OTP request'], 422);
-    }
-
-    $row = db_one('SELECT * FROM otp_verifications WHERE email = :email LIMIT 1', ['email' => $email]);
-    if (!$row) {
-        $instructor = db_one('SELECT id FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
-        if ($instructor) {
-            json_response(['message' => 'OTP not found. A new OTP is required.', 'resendRequired' => true], 404);
-        }
-        json_response(['message' => 'Instructor registration not found. Please register again.'], 404);
-    }
-    if ((int) ($row['attempts'] ?? 0) >= 3) {
-        json_response(['message' => 'Maximum OTP attempts reached. Please resend OTP.'], 429);
-    }
-    if (instructor_utc_timestamp((string) $row['expiry_time']) < time()) {
-        json_response(['message' => 'OTP expired. Please resend OTP.', 'expired' => true], 410);
-    }
-    $matchesCurrent = password_verify($otp, (string) $row['otp']);
-    $matchesPrevious = !empty($row['previous_otp'])
-        && !empty($row['previous_expiry_time'])
-        && instructor_utc_timestamp((string) $row['previous_expiry_time']) >= time()
-        && password_verify($otp, (string) $row['previous_otp']);
-
-    if (!$matchesCurrent && !$matchesPrevious) {
-        db_exec_sql('UPDATE otp_verifications SET attempts = attempts + 1 WHERE email = :email', ['email' => $email]);
-        json_response(['message' => 'Incorrect OTP. Please try again.'], 401);
-    }
-
-    db_exec_sql('UPDATE instructors SET is_verified = 1 WHERE email = :email', ['email' => $email]);
-    json_response(['message' => 'Email verified successfully', 'email' => $email]);
-}
-
-function controller_instructor_resend_otp(array $data): void
+function controller_instructor_forgot_password(array $data): void
 {
     ensure_instructor_auth_schema();
     $email = instructor_normalize_email($data);
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        json_response(['message' => 'Invalid email address'], 422);
+        json_response(['message' => 'Please enter a valid email address'], 422);
     }
+
+    $message = 'If an approved instructor account exists for this email, a password reset link has been sent.';
     $instructor = db_one('SELECT * FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
-    if (!$instructor) {
-        json_response(['message' => 'Instructor registration not found'], 404);
+    if (!$instructor || ($instructor['status'] ?? '') !== 'approved') {
+        json_response(['message' => $message]);
     }
-    $devOtp = instructor_issue_otp((string) $instructor['full_name'], $email);
-    $payload = ['message' => 'A new OTP has been sent'];
-    if ($devOtp !== null) {
-        $payload['devOtp'] = $devOtp;
-        $payload['message'] = 'Development OTP regenerated. Use the code shown on this screen.';
+
+    $token = bin2hex(random_bytes(32));
+    $tokenHash = hash('sha256', $token);
+    $expiry = gmdate('Y-m-d H:i:s', time() + 3600);
+    db_exec_sql(
+        'UPDATE instructors SET reset_token = :reset_token, reset_expiry = :reset_expiry WHERE email = :email',
+        ['reset_token' => $tokenHash, 'reset_expiry' => $expiry, 'email' => $email]
+    );
+
+    $resetUrl = instructor_frontend_url() . '/instructor-reset-password?email=' . rawurlencode($email) . '&token=' . rawurlencode($token);
+    if (!instructor_send_password_reset_email((string) $instructor['full_name'], $email, $resetUrl)) {
+        json_response(['message' => 'Unable to send reset email. Please try again later.'], 500);
     }
-    json_response($payload);
+
+    json_response(['message' => $message]);
 }
 
-function controller_instructor_set_password(array $data): void
+function controller_instructor_reset_password(array $data): void
 {
     ensure_instructor_auth_schema();
     $email = instructor_normalize_email($data);
+    $token = (string) ($data['token'] ?? '');
     $password = (string) ($data['password'] ?? '');
     $confirm = (string) ($data['confirmPassword'] ?? '');
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 6 || $password !== $confirm) {
-        json_response(['message' => 'Please enter matching passwords with at least 6 characters'], 422);
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $token === '' || $password !== $confirm) {
+        json_response(['message' => 'Invalid reset request.'], 422);
+    }
+    $passwordError = instructor_validate_password($password);
+    if ($passwordError !== null) {
+        json_response(['message' => $passwordError], 422);
     }
 
-    $instructor = db_one('SELECT * FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
-    if (!$instructor || (int) ($instructor['is_verified'] ?? 0) !== 1) {
-        json_response(['message' => 'Please verify your email before setting password'], 403);
+    $tokenHash = hash('sha256', $token);
+    $instructor = db_one(
+        'SELECT * FROM instructors WHERE email = :email AND reset_token = :reset_token LIMIT 1',
+        ['email' => $email, 'reset_token' => $tokenHash]
+    );
+    if (!$instructor) {
+        json_response(['message' => 'This reset link is invalid or expired.'], 400);
+    }
+    if (empty($instructor['reset_expiry']) || instructor_utc_timestamp((string) $instructor['reset_expiry']) < time()) {
+        json_response(['message' => 'This reset link has expired. Please request a new one.'], 410);
     }
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
-    $now = now_sql();
-    db_exec_sql('UPDATE instructors SET password = :password WHERE email = :email', ['password' => $hash, 'email' => $email]);
-
-    $pdo = db_conn();
-    $pdo->beginTransaction();
-    try {
-        $user = db_one('SELECT * FROM users WHERE email = :email LIMIT 1', ['email' => $email]);
-        if ($user) {
-            db_exec_sql(
-                'UPDATE users SET name = :name, password = :password, role = :role, updated_at = :updated_at WHERE id = :id',
-                ['name' => $instructor['full_name'], 'password' => $hash, 'role' => 'tutor', 'updated_at' => $now, 'id' => $user['id']]
-            );
-            $userId = (string) $user['id'];
-        } else {
-            $userId = uuid_v4();
-            db_exec_sql(
-                'INSERT INTO users (id, name, email, password, role, created_at, updated_at)
-                 VALUES (:id, :name, :email, :password, :role, :created_at, :updated_at)',
-                ['id' => $userId, 'name' => $instructor['full_name'], 'email' => $email, 'password' => $hash, 'role' => 'tutor', 'created_at' => $now, 'updated_at' => $now]
-            );
-        }
-
-        $tutor = db_one('SELECT id FROM tutors WHERE user_id = :user_id LIMIT 1', ['user_id' => $userId]);
-        if (!$tutor) {
-            db_exec_sql(
-                'INSERT INTO tutors (id, user_id, created_at, updated_at) VALUES (:id, :user_id, :created_at, :updated_at)',
-                ['id' => uuid_v4(), 'user_id' => $userId, 'created_at' => $now, 'updated_at' => $now]
-            );
-        }
-        db_exec_sql('DELETE FROM otp_verifications WHERE email = :email', ['email' => $email]);
-        $pdo->commit();
-    } catch (Throwable $e) {
-        $pdo->rollBack();
-        error_log('Instructor password setup failed: ' . $e->getMessage());
-        json_response(['message' => 'Unable to complete registration'], 500);
+    db_exec_sql(
+        'UPDATE instructors SET password = :password, reset_token = NULL, reset_expiry = NULL WHERE email = :email',
+        ['password' => $hash, 'email' => $email]
+    );
+    if (($instructor['status'] ?? '') === 'approved') {
+        $instructor['password'] = $hash;
+        instructor_ensure_approved_user($instructor);
     }
 
-    json_response(['message' => 'Password set successfully. You can now login.']);
+    json_response(['message' => 'Password reset successfully. You can now login.']);
 }

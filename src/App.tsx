@@ -42,7 +42,7 @@ import BlogDetail from "./pages/BlogDetail";
 import DigitalFrame from "./pages/DigitalFrame";
 import InstructorLogin from "./pages/InstructorLogin";
 import InstructorRegistration from "./pages/InstructorRegistration";
-import InstructorOtpVerification from "./pages/InstructorOtpVerification";
+import InstructorResetPassword from "./pages/InstructorResetPassword";
 import StudentLogin from "./pages/StudentLogin";
 import StudentRegistration from "./pages/StudentRegistration";
 import StudentResetPassword from "./pages/StudentResetPassword";
@@ -97,7 +97,7 @@ const App = () => (
             <Route path="/digital-frame" element={<DigitalFrame />} />
             <Route path="/instructor-login" element={<InstructorLogin />} />
             <Route path="/instructor-registration" element={<InstructorRegistration />} />
-            <Route path="/instructor-verify-otp" element={<InstructorOtpVerification />} />
+            <Route path="/instructor-reset-password" element={<InstructorResetPassword />} />
             <Route path="/student-login" element={<StudentLogin />} />
             <Route path="/student-registration" element={<StudentRegistration />} />
             <Route path="/student-reset-password" element={<StudentResetPassword />} />
