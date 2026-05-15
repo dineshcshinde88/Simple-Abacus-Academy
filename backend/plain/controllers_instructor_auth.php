@@ -305,7 +305,12 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
     $pass = (string) envv('EMAIL_PASS', (string) envv('MAIL_PASSWORD', ''));
     $hasSmtpConfig = $host !== '' && $user !== '';
 
-    if (class_exists('\\Symfony\\Component\\Mailer\\Transport') && class_exists('\\Symfony\\Component\\Mime\\Email')) {
+    if ($hasSmtpConfig && instructor_send_smtp_mail($to, $subject, $html, $text, $fromEmail, $fromName, $host, $port, $user, $pass, $timeout)) {
+        return true;
+    }
+
+    $allowSymfonyMailer = strtolower((string) envv('EMAIL_ALLOW_SYMFONY_MAILER', 'false')) === 'true';
+    if ($allowSymfonyMailer && class_exists('\\Symfony\\Component\\Mailer\\Transport') && class_exists('\\Symfony\\Component\\Mime\\Email')) {
         try {
             if ($hasSmtpConfig) {
                 $scheme = $port === 465 ? 'smtps' : 'smtp';
@@ -324,10 +329,6 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
         } catch (Throwable $e) {
             error_log('Instructor OTP SMTP failed: ' . $e->getMessage());
         }
-    }
-
-    if ($hasSmtpConfig && instructor_send_smtp_mail($to, $subject, $html, $text, $fromEmail, $fromName, $host, $port, $user, $pass, $timeout)) {
-        return true;
     }
 
     if (strtolower((string) envv('EMAIL_ALLOW_PHP_MAIL_FALLBACK', 'false')) !== 'true') {
