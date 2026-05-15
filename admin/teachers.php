@@ -158,8 +158,15 @@ function admin_teachers_sync_approved_instructors(PDO $teacherPdo, PDO $instruct
     }
 }
 
+$teacherPdo = $pdo;
 try {
-    $pdo->exec(
+    $teacherPdo = admin_teachers_backend_pdo($pdo);
+} catch (Throwable $e) {
+    $errors[] = 'Teacher database connection failed: ' . $e->getMessage();
+}
+
+try {
+    $teacherPdo->exec(
         "CREATE TABLE IF NOT EXISTS teachers (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(120) NOT NULL,
@@ -187,13 +194,13 @@ try {
     ];
 
     foreach ($teacherColumns as $column => $definition) {
-        $stmt = $pdo->prepare(
+        $stmt = $teacherPdo->prepare(
             'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
         );
         $stmt->execute(['teachers', $column]);
 
         if ((int) $stmt->fetchColumn() === 0) {
-            $pdo->exec("ALTER TABLE teachers ADD COLUMN {$column} {$definition}");
+            $teacherPdo->exec("ALTER TABLE teachers ADD COLUMN {$column} {$definition}");
         }
     }
 } catch (Throwable $e) {
@@ -260,9 +267,9 @@ $defaultTeachers = [
 ];
 
 try {
-    $teacherCount = (int) $pdo->query('SELECT COUNT(*) FROM teachers')->fetchColumn();
+    $teacherCount = (int) $teacherPdo->query('SELECT COUNT(*) FROM teachers')->fetchColumn();
     if ($teacherCount === 0) {
-        $seedStmt = $pdo->prepare(
+        $seedStmt = $teacherPdo->prepare(
             'INSERT INTO teachers (name, email, phone, expertise, joining_date, status, qualification, experience, location, specialization, image, description)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
@@ -287,12 +294,6 @@ try {
     $errors[] = 'Default teacher setup failed: ' . $e->getMessage();
 }
 
-try {
-    admin_teachers_sync_approved_instructors($pdo, admin_teachers_backend_pdo($pdo));
-} catch (Throwable $e) {
-    $errors[] = 'Approved instructors could not be synced to teachers: ' . $e->getMessage();
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $name = trim($_POST['name'] ?? '');
@@ -315,14 +316,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors && $action === 'add') {
-        $stmt = $pdo->prepare('INSERT INTO teachers (name, email, phone, expertise, joining_date, status, qualification, experience, location, specialization, image, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt = $teacherPdo->prepare('INSERT INTO teachers (name, email, phone, expertise, joining_date, status, qualification, experience, location, specialization, image, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([$name, $email, $phone, $expertise, $joiningDate, $status, $qualification, $experience, $location, $specialization, $image, $description]);
         $success = 'Teacher added successfully.';
     }
 
     if (!$errors && $action === 'edit') {
         $id = (int) ($_POST['id'] ?? 0);
-        $stmt = $pdo->prepare('UPDATE teachers SET name = ?, email = ?, phone = ?, expertise = ?, joining_date = ?, status = ?, qualification = ?, experience = ?, location = ?, specialization = ?, image = ?, description = ? WHERE id = ?');
+        $stmt = $teacherPdo->prepare('UPDATE teachers SET name = ?, email = ?, phone = ?, expertise = ?, joining_date = ?, status = ?, qualification = ?, experience = ?, location = ?, specialization = ?, image = ?, description = ? WHERE id = ?');
         $stmt->execute([$name, $email, $phone, $expertise, $joiningDate, $status, $qualification, $experience, $location, $specialization, $image, $description, $id]);
         $success = 'Teacher updated successfully.';
     }
@@ -330,66 +331,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (isset($_GET['delete'])) {
     $id = (int) $_GET['delete'];
-    $stmt = $pdo->prepare('DELETE FROM teachers WHERE id = ?');
+    $stmt = $teacherPdo->prepare('DELETE FROM teachers WHERE id = ?');
     $stmt->execute([$id]);
     $success = 'Teacher deleted successfully.';
 }
 
 $teachers = [];
 try {
-    $teachers = $pdo->query('SELECT * FROM teachers ORDER BY joining_date DESC, id DESC')->fetchAll();
+    $teachers = $teacherPdo->query('SELECT * FROM teachers ORDER BY joining_date DESC, id DESC')->fetchAll();
 } catch (Throwable $e) {
     $errors[] = 'Teacher list could not be loaded: ' . $e->getMessage();
-}
-
-try {
-    $teacherBackendPdo = admin_teachers_backend_pdo($pdo);
-    $experienceSelect = admin_teachers_column_exists($teacherBackendPdo, 'instructors', 'experience') ? 'experience' : "'' AS experience";
-    $stmt = $teacherBackendPdo->query(
-        "SELECT id, full_name, email, mobile, course_type, qualification, {$experienceSelect}, career_started, students_trained, address, profile_picture, created_at, status
-         FROM instructors
-         WHERE status = 'approved' AND is_verified = 1
-         ORDER BY created_at DESC"
-    );
-    $approvedInstructors = $stmt->fetchAll();
-    $existingTeacherEmails = array_flip(array_map(static fn (array $teacher): string => strtolower((string) ($teacher['email'] ?? '')), $teachers));
-
-    foreach ($approvedInstructors as $instructor) {
-        $email = strtolower((string) ($instructor['email'] ?? ''));
-        if ($email !== '' && isset($existingTeacherEmails[$email])) {
-            continue;
-        }
-
-        $careerStarted = trim((string) ($instructor['career_started'] ?? ''));
-        $experience = trim((string) ($instructor['experience'] ?? ''));
-        $studentsTrained = trim((string) ($instructor['students_trained'] ?? ''));
-        $teachers[] = [
-            'id' => 'instructor-' . (string) ($instructor['id'] ?? $email),
-            'name' => (string) ($instructor['full_name'] ?? ''),
-            'email' => (string) ($instructor['email'] ?? ''),
-            'phone' => (string) ($instructor['mobile'] ?? ''),
-            'expertise' => admin_teacher_course_label($instructor['course_type'] ?? null),
-            'qualification' => (string) (($instructor['qualification'] ?? '') ?: 'Certified Abacus Trainer'),
-            'experience' => $experience !== '' ? $experience : ($careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer'),
-            'location' => (string) (($instructor['address'] ?? '') ?: 'Online'),
-            'specialization' => admin_teacher_course_label($instructor['course_type'] ?? null),
-            'image' => admin_teacher_profile_picture_url($instructor['profile_picture'] ?? ''),
-            'description' => $studentsTrained !== ''
-                ? 'Approved tutor with experience training ' . $studentsTrained . ' students.'
-                : 'Approved tutor from instructor registrations.',
-            'joining_date' => substr((string) ($instructor['created_at'] ?? ''), 0, 10),
-            'status' => 'active',
-            'source' => 'approved_instructor',
-        ];
-    }
-} catch (Throwable $e) {
-    $errors[] = 'Approved instructors could not be added to teacher list: ' . $e->getMessage();
 }
 
 $editTeacher = null;
 if (isset($_GET['edit'])) {
     $editId = (int) $_GET['edit'];
-    $stmt = $pdo->prepare('SELECT * FROM teachers WHERE id = ?');
+    $stmt = $teacherPdo->prepare('SELECT * FROM teachers WHERE id = ?');
     $stmt->execute([$editId]);
     $editTeacher = $stmt->fetch();
 }
