@@ -15,6 +15,15 @@ function admin_students_table_exists(PDO $pdo, string $table): bool
     return (int) $stmt->fetchColumn() > 0;
 }
 
+function admin_students_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+    );
+    $stmt->execute([$table, $column]);
+    return (int) $stmt->fetchColumn() > 0;
+}
+
 function admin_students_env_value(string $path, string $key): string
 {
     if (!is_file($path)) {
@@ -79,6 +88,12 @@ function admin_students_backend_pdo(): ?PDO
     }
 }
 
+$adminStudentsHasLegacyColumns = admin_students_table_exists($pdo, 'students')
+    && admin_students_column_exists($pdo, 'students', 'name')
+    && admin_students_column_exists($pdo, 'students', 'email')
+    && admin_students_column_exists($pdo, 'students', 'phone')
+    && admin_students_column_exists($pdo, 'students', 'course');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $name = trim($_POST['name'] ?? '');
@@ -87,7 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $course = trim($_POST['course'] ?? '');
     $status = $_POST['status'] ?? 'active';
 
-    if ($action === 'add' || $action === 'edit') {
+    if (!$adminStudentsHasLegacyColumns) {
+        $errors[] = 'Manual student editing is unavailable because this database uses the website student schema.';
+    } elseif ($action === 'add' || $action === 'edit') {
         if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $phone === '' || $course === '') {
             $errors[] = 'Please fill all required fields with valid values.';
         }
@@ -107,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-if (isset($_GET['delete'])) {
+if ($adminStudentsHasLegacyColumns && isset($_GET['delete'])) {
     $id = (int) $_GET['delete'];
     $stmt = $pdo->prepare('DELETE FROM students WHERE id = ?');
     $stmt->execute([$id]);
@@ -136,14 +153,21 @@ if (in_array($statusFilter, ['active', 'inactive'], true)) {
 
 $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
 
-$countStmt = $pdo->prepare("SELECT COUNT(*) FROM students {$whereSql}");
-$countStmt->execute($params);
-$totalRows = (int) $countStmt->fetchColumn();
-$totalPages = (int) ceil($totalRows / $limit);
+$hasLegacyStudentColumns = $adminStudentsHasLegacyColumns;
 
-$listStmt = $pdo->prepare("SELECT * FROM students {$whereSql} ORDER BY created_at DESC LIMIT {$limit} OFFSET {$offset}");
-$listStmt->execute($params);
-$students = $listStmt->fetchAll();
+$students = [];
+$totalRows = 0;
+$totalPages = 0;
+if ($hasLegacyStudentColumns) {
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM students {$whereSql}");
+    $countStmt->execute($params);
+    $totalRows = (int) $countStmt->fetchColumn();
+    $totalPages = (int) ceil($totalRows / $limit);
+
+    $listStmt = $pdo->prepare("SELECT * FROM students {$whereSql} ORDER BY created_at DESC LIMIT {$limit} OFFSET {$offset}");
+    $listStmt->execute($params);
+    $students = $listStmt->fetchAll();
+}
 
 $websiteStudents = [];
 $backendPdo = admin_students_backend_pdo();
@@ -151,18 +175,28 @@ if ($backendPdo
     && admin_students_table_exists($backendPdo, 'users')
     && admin_students_table_exists($backendPdo, 'students')
 ) {
+    $hasStudentLevel = admin_students_column_exists($backendPdo, 'students', 'level_id');
+    $hasStudentSubscriptionStatus = admin_students_column_exists($backendPdo, 'students', 'subscription_status');
+    $hasStudentCreatedAt = admin_students_column_exists($backendPdo, 'students', 'created_at');
+    $hasLevels = $hasStudentLevel && admin_students_table_exists($backendPdo, 'levels') && admin_students_column_exists($backendPdo, 'levels', 'level_name');
+    $levelJoin = $hasLevels ? 'LEFT JOIN levels l ON l.id = s.level_id' : '';
+    $courseSelect = $hasLevels ? "COALESCE(l.level_name, 'Not assigned')" : "'Not assigned'";
+    $statusSelect = $hasStudentSubscriptionStatus ? "COALESCE(s.subscription_status, 'registered')" : "'registered'";
+    $createdSelect = $hasStudentCreatedAt ? 's.created_at' : 'u.created_at';
+
     $websiteWhere = ["u.role = 'student'"];
     $websiteParams = [];
     if ($search !== '') {
-        $websiteWhere[] = '(u.name LIKE ? OR u.email LIKE ? OR l.level_name LIKE ? OR c.name LIKE ?)';
+        $websiteWhere[] = $hasLevels ? '(u.name LIKE ? OR u.email LIKE ? OR l.level_name LIKE ?)' : '(u.name LIKE ? OR u.email LIKE ?)';
         $websiteParams[] = "%{$search}%";
         $websiteParams[] = "%{$search}%";
-        $websiteParams[] = "%{$search}%";
-        $websiteParams[] = "%{$search}%";
+        if ($hasLevels) {
+            $websiteParams[] = "%{$search}%";
+        }
     }
-    if ($statusFilter === 'active') {
+    if ($hasStudentSubscriptionStatus && $statusFilter === 'active') {
         $websiteWhere[] = "s.subscription_status = 'active'";
-    } elseif ($statusFilter === 'inactive') {
+    } elseif ($hasStudentSubscriptionStatus && $statusFilter === 'inactive') {
         $websiteWhere[] = "s.subscription_status <> 'active'";
     }
 
@@ -172,24 +206,27 @@ if ($backendPdo
           u.name,
           u.email,
           '-' AS phone,
-          COALESCE(l.level_name, c.name, 'Not assigned') AS course,
-          s.subscription_status AS status,
-          s.created_at
+          {$courseSelect} AS course,
+          {$statusSelect} AS status,
+          {$createdSelect} AS created_at
         FROM students s
         INNER JOIN users u ON u.id = s.user_id
-        LEFT JOIN levels l ON l.id = s.level_id
-        LEFT JOIN courses c ON c.id = l.course_id
+        {$levelJoin}
         WHERE " . implode(' AND ', $websiteWhere) . "
-        ORDER BY s.created_at DESC
+        ORDER BY {$createdSelect} DESC
         LIMIT 100
     ";
-    $websiteStmt = $backendPdo->prepare($websiteSql);
-    $websiteStmt->execute($websiteParams);
-    $websiteStudents = $websiteStmt->fetchAll();
+    try {
+        $websiteStmt = $backendPdo->prepare($websiteSql);
+        $websiteStmt->execute($websiteParams);
+        $websiteStudents = $websiteStmt->fetchAll();
+    } catch (Throwable $e) {
+        $errors[] = 'Website students could not be loaded: ' . $e->getMessage();
+    }
 }
 
 $editStudent = null;
-if (isset($_GET['edit'])) {
+if ($hasLegacyStudentColumns && isset($_GET['edit'])) {
     $editId = (int) $_GET['edit'];
     $stmt = $pdo->prepare('SELECT * FROM students WHERE id = ?');
     $stmt->execute([$editId]);
@@ -197,7 +234,7 @@ if (isset($_GET['edit'])) {
 }
 
 $viewStudent = null;
-if (isset($_GET['view'])) {
+if ($hasLegacyStudentColumns && isset($_GET['view'])) {
     $viewId = (int) $_GET['view'];
     $stmt = $pdo->prepare('SELECT * FROM students WHERE id = ?');
     $stmt->execute([$viewId]);
@@ -217,47 +254,49 @@ if (isset($_GET['view'])) {
 <?php endif; ?>
 
 <div class="row g-4">
-  <div class="col-lg-4">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <h5 class="card-title"><?php echo $editStudent ? 'Edit Student' : 'Add Student'; ?></h5>
-        <form method="post">
-          <input type="hidden" name="action" value="<?php echo $editStudent ? 'edit' : 'add'; ?>" />
-          <?php if ($editStudent): ?>
-            <input type="hidden" name="id" value="<?php echo (int) $editStudent['id']; ?>" />
-          <?php endif; ?>
-          <div class="mb-3">
-            <label class="form-label">Name</label>
-            <input type="text" name="name" class="form-control" value="<?php echo htmlspecialchars($editStudent['name'] ?? ''); ?>" required />
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($editStudent['email'] ?? ''); ?>" required />
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Phone</label>
-            <input type="text" name="phone" class="form-control" value="<?php echo htmlspecialchars($editStudent['phone'] ?? ''); ?>" required />
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Course</label>
-            <input type="text" name="course" class="form-control" value="<?php echo htmlspecialchars($editStudent['course'] ?? ''); ?>" required />
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Status</label>
-            <select name="status" class="form-select">
-              <option value="active" <?php echo (($editStudent['status'] ?? '') === 'active') ? 'selected' : ''; ?>>Active</option>
-              <option value="inactive" <?php echo (($editStudent['status'] ?? '') === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
-            </select>
-          </div>
-          <button class="btn btn-primary w-100" type="submit"><?php echo $editStudent ? 'Update Student' : 'Add Student'; ?></button>
-          <?php if ($editStudent): ?>
-            <a href="students.php" class="btn btn-link w-100">Cancel Edit</a>
-          <?php endif; ?>
-        </form>
+  <?php if ($hasLegacyStudentColumns): ?>
+    <div class="col-lg-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <h5 class="card-title"><?php echo $editStudent ? 'Edit Student' : 'Add Student'; ?></h5>
+          <form method="post">
+            <input type="hidden" name="action" value="<?php echo $editStudent ? 'edit' : 'add'; ?>" />
+            <?php if ($editStudent): ?>
+              <input type="hidden" name="id" value="<?php echo (int) $editStudent['id']; ?>" />
+            <?php endif; ?>
+            <div class="mb-3">
+              <label class="form-label">Name</label>
+              <input type="text" name="name" class="form-control" value="<?php echo htmlspecialchars($editStudent['name'] ?? ''); ?>" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($editStudent['email'] ?? ''); ?>" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Phone</label>
+              <input type="text" name="phone" class="form-control" value="<?php echo htmlspecialchars($editStudent['phone'] ?? ''); ?>" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Course</label>
+              <input type="text" name="course" class="form-control" value="<?php echo htmlspecialchars($editStudent['course'] ?? ''); ?>" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-select">
+                <option value="active" <?php echo (($editStudent['status'] ?? '') === 'active') ? 'selected' : ''; ?>>Active</option>
+                <option value="inactive" <?php echo (($editStudent['status'] ?? '') === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+              </select>
+            </div>
+            <button class="btn btn-primary w-100" type="submit"><?php echo $editStudent ? 'Update Student' : 'Add Student'; ?></button>
+            <?php if ($editStudent): ?>
+              <a href="students.php" class="btn btn-link w-100">Cancel Edit</a>
+            <?php endif; ?>
+          </form>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-lg-8">
+  <?php endif; ?>
+  <div class="<?php echo $hasLegacyStudentColumns ? 'col-lg-8' : 'col-12'; ?>">
     <?php if ($viewStudent): ?>
       <div class="card shadow-sm border-0 mb-4">
         <div class="card-body">
@@ -327,6 +366,9 @@ if (isset($_GET['view'])) {
           </form>
         </div>
 
+        <?php if (!$hasLegacyStudentColumns): ?>
+          <div class="alert alert-info py-2">Showing website/app students from the backend database.</div>
+        <?php endif; ?>
         <div class="table-responsive">
           <table class="table align-middle">
             <thead>
@@ -342,13 +384,13 @@ if (isset($_GET['view'])) {
             <tbody>
               <?php foreach ($students as $student): ?>
                 <tr>
-                  <td><?php echo htmlspecialchars($student['name']); ?></td>
-                  <td><?php echo htmlspecialchars($student['email']); ?></td>
-                  <td><?php echo htmlspecialchars($student['phone']); ?></td>
-                  <td><?php echo htmlspecialchars($student['course']); ?></td>
+                  <td><?php echo htmlspecialchars($student['name'] ?? 'Not added'); ?></td>
+                  <td><?php echo htmlspecialchars($student['email'] ?? 'Not added'); ?></td>
+                  <td><?php echo htmlspecialchars($student['phone'] ?? 'Not added'); ?></td>
+                  <td><?php echo htmlspecialchars($student['course'] ?? 'Not assigned'); ?></td>
                   <td>
-                    <span class="badge bg-<?php echo $student['status'] === 'active' ? 'success' : 'secondary'; ?>">
-                      <?php echo htmlspecialchars($student['status']); ?>
+                    <span class="badge bg-<?php echo ($student['status'] ?? '') === 'active' ? 'success' : 'secondary'; ?>">
+                      <?php echo htmlspecialchars($student['status'] ?? 'inactive'); ?>
                     </span>
                   </td>
                   <td class="d-flex gap-2">
@@ -359,7 +401,11 @@ if (isset($_GET['view'])) {
                 </tr>
               <?php endforeach; ?>
               <?php if (!$students): ?>
-                <tr><td colspan="6" class="text-center text-muted">No students found.</td></tr>
+                <tr>
+                  <td colspan="6" class="text-center text-muted">
+                    <?php echo $websiteStudents ? 'Manual admin students not found. Website students are shown above.' : 'No students found.'; ?>
+                  </td>
+                </tr>
               <?php endif; ?>
             </tbody>
           </table>
