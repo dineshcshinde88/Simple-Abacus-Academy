@@ -170,6 +170,9 @@ function approve_instructor(PDO $pdo, string $id): void
     if (!$instructor) {
         throw new RuntimeException('Instructor not found.');
     }
+    if (trim((string) ($instructor['password'] ?? '')) === '') {
+        throw new RuntimeException('This instructor application has no password. Ask the instructor to submit the tutor registration form again, then approve the new pending entry.');
+    }
 
     $now = gmdate('Y-m-d H:i:s');
     $pdo->beginTransaction();
@@ -343,11 +346,15 @@ foreach ($instructors as $instructor) {
                     <td>
                       <div class="d-flex flex-wrap gap-2">
                         <?php if ($instructor['status'] !== 'approved'): ?>
-                          <form method="post">
-                            <input type="hidden" name="id" value="<?php echo htmlspecialchars($instructor['id']); ?>" />
-                            <input type="hidden" name="action" value="approve" />
-                            <button class="btn btn-sm btn-success" type="submit">Approve</button>
-                          </form>
+                          <?php if (trim((string) ($instructor['password'] ?? '')) === ''): ?>
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Password missing</span>
+                          <?php else: ?>
+                            <form method="post">
+                              <input type="hidden" name="id" value="<?php echo htmlspecialchars($instructor['id']); ?>" />
+                              <input type="hidden" name="action" value="approve" />
+                              <button class="btn btn-sm btn-success" type="submit">Approve</button>
+                            </form>
+                          <?php endif; ?>
                         <?php endif; ?>
                         <?php if ($instructor['status'] !== 'rejected'): ?>
                           <form method="post">
