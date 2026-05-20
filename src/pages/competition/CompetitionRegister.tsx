@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ const CompetitionRegister = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [registrationSubmitted, setRegistrationSubmitted] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -60,7 +62,7 @@ const CompetitionRegister = () => {
         title: "Competition registration submitted",
         description: "Admin approval is required. Login credentials will be shared after approval.",
       });
-      navigate("/online-competition");
+      setRegistrationSubmitted(true);
     } catch (error) {
       toast({ title: "Registration failed", description: error instanceof Error ? error.message : "Please try again." });
     } finally {
@@ -163,6 +165,21 @@ const CompetitionRegister = () => {
           </Link>
         </p>
       </div>
+
+      {registrationSubmitted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-xl">
+            <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+            <h2 className="mt-4 text-xl font-bold text-slate-950">Registration Submitted Successfully</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Your online competition registration has been sent for admin approval. After approval, login credentials will be shared with you.
+            </p>
+            <Button className="mt-6 w-full bg-blue-600 hover:bg-blue-700" onClick={() => navigate("/online-competition")}>
+              Go to Sign in
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
