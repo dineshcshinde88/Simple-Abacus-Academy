@@ -34,6 +34,8 @@ const titleMap: Record<string, string> = {
   "/testimonials": "Testimonials",
   "/student/dashboard": "Student Dashboard",
   "/teacher-dashboard": "Teacher Dashboard",
+  "/online-competition": "Online Competition",
+  "/competition-register": "Online Competition Registration",
 };
 
 const getTitleFromPath = (pathname: string) => {
@@ -48,7 +50,14 @@ const BreadcrumbBanner = () => {
   const { pathname } = useLocation();
   const title = useMemo(() => getTitleFromPath(pathname), [pathname]);
 
-  if (pathname === "/" || pathname.startsWith("/student/") || pathname.startsWith("/tutor/")) {
+  if (
+    pathname === "/" ||
+    pathname.startsWith("/student/") ||
+    pathname.startsWith("/tutor/") ||
+    pathname.startsWith("/competition/") ||
+    pathname === "/online-competition" ||
+    pathname === "/competition-register"
+  ) {
     return null;
   }
 

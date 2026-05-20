@@ -95,6 +95,15 @@ const StudentDashboard = () => {
         button: null,
         to: "/student/courses",
       },
+      {
+        title: "Completed",
+        subtitle: "Practice Papers",
+        count: data?.practice?.completedPapers ?? 0,
+        color: "bg-emerald-600",
+        button: "Start Practice",
+        to: "/student/practice",
+        disabledWhenExpired: false,
+      },
     ],
     [data],
   );
@@ -171,7 +180,7 @@ const StudentDashboard = () => {
           </div>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-5">
           {summaryCards.map((card) => (
             <div key={card.subtitle} className="bg-white rounded-2xl shadow-card p-5">
               <div className="flex items-center justify-between">
@@ -197,6 +206,21 @@ const StudentDashboard = () => {
               )}
             </div>
           ))}
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl bg-white p-5 shadow-card">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Purchased Levels</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{data?.practice?.purchasedLevels ?? 0}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-5 shadow-card">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Pending Practice Papers</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{data?.practice?.pendingPapers ?? 0}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-5 shadow-card">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Practice Accuracy</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{data?.practice?.averageAccuracy ?? 0}%</p>
+          </div>
         </div>
 
         <Dialog>

@@ -15,6 +15,8 @@ require_once __DIR__ . '/plain/controllers_subscriptions.php';
 require_once __DIR__ . '/plain/controllers_instructor_auth.php';
 require_once __DIR__ . '/plain/controllers_worksheet_sub.php';
 require_once __DIR__ . '/plain/controllers_training.php';
+require_once __DIR__ . '/plain/controllers_practice.php';
+require_once __DIR__ . '/plain/controllers_competition.php';
 
 load_env_file(__DIR__ . '/.env');
 apply_cors_headers();
@@ -38,6 +40,24 @@ if ($method === 'GET' && $path === '/api/teachers/public') {
 
 if ($method === 'GET' && $path === '/api/subscriptions/plans/public') {
     controller_public_subscription_plans();
+}
+if ($method === 'POST' && $path === '/api/competition/register') {
+    controller_competition_register($data);
+}
+if ($method === 'POST' && $path === '/api/competition/login') {
+    controller_competition_login($data);
+}
+if ($method === 'GET' && $path === '/api/competition/categories') {
+    controller_competition_categories();
+}
+if ($method === 'GET' && $path === '/api/competition/list') {
+    controller_competition_list();
+}
+if ($method === 'GET' && $path === '/api/competition/leaderboard') {
+    controller_competition_leaderboard();
+}
+if ($method === 'GET' && $path === '/api/competition/student/dashboard') {
+    controller_competition_student_dashboard(require_competition_user());
 }
 
 if ($method === 'POST' && $path === '/api/training/auth/register') {
@@ -167,6 +187,21 @@ if ($method === 'POST' && $path === '/api/student/video-history') {
 }
 if ($method === 'POST' && $path === '/api/student/worksheet-completions') {
     controller_student_worksheet_completion_save(require_role(['student']), $data);
+}
+if ($method === 'GET' && $path === '/api/student/practice/levels') {
+    controller_student_practice_levels(require_role(['student']));
+}
+if ($method === 'GET' && preg_match('#^/api/student/practice/papers/([^/]+)$#', $path, $m)) {
+    controller_student_practice_paper(require_role(['student']), $m[1]);
+}
+if ($method === 'POST' && $path === '/api/student/practice/progress') {
+    controller_student_practice_save_progress(require_role(['student']), $data);
+}
+if ($method === 'POST' && $path === '/api/student/practice/submit') {
+    controller_student_practice_submit(require_role(['student']), $data);
+}
+if ($method === 'GET' && preg_match('#^/api/student/practice/results/([^/]+)$#', $path, $m)) {
+    controller_student_practice_result(require_role(['student']), $m[1]);
 }
 
 if ($method === 'GET' && $path === '/api/tutor/profile') {
@@ -322,6 +357,42 @@ if ($method === 'PUT' && preg_match('#^/api/admin/assign-subscription/([a-f0-9-]
 if ($method === 'PUT' && preg_match('#^/api/admin/subscriptions/([a-f0-9-]+)$#i', $path, $m)) {
     require_role(['admin']);
     controller_admin_update_subscription($m[1], $data);
+}
+if ($method === 'GET' && $path === '/api/admin/practice/overview') {
+    require_role(['admin']);
+    controller_admin_practice_overview();
+}
+if ($method === 'POST' && $path === '/api/admin/practice/import-defaults') {
+    require_role(['admin']);
+    controller_admin_practice_import_defaults();
+}
+if ($method === 'POST' && $path === '/api/admin/practice/upload-docx') {
+    require_role(['admin']);
+    controller_admin_practice_upload_docx();
+}
+if ($method === 'PUT' && preg_match('#^/api/admin/practice/levels/([^/]+)$#', $path, $m)) {
+    require_role(['admin']);
+    controller_admin_practice_update_level($m[1], $data);
+}
+if ($method === 'GET' && $path === '/api/admin/competition/overview') {
+    require_role(['admin']);
+    controller_competition_admin_overview();
+}
+if ($method === 'PUT' && preg_match('#^/api/admin/competition/registrations/([^/]+)/approve$#', $path, $m)) {
+    $ctx = require_role(['admin']);
+    controller_competition_admin_approve($m[1], $ctx);
+}
+if ($method === 'POST' && $path === '/api/admin/competition/categories') {
+    require_role(['admin']);
+    controller_competition_admin_category($data);
+}
+if ($method === 'POST' && $path === '/api/admin/competition/subcategories') {
+    require_role(['admin']);
+    controller_competition_admin_subcategory($data);
+}
+if ($method === 'POST' && $path === '/api/admin/competition/competitions') {
+    $ctx = require_role(['admin']);
+    controller_competition_admin_create_competition($data, $ctx);
 }
 if ($method === 'POST' && $path === '/api/admin/levels') {
     require_role(['admin']);

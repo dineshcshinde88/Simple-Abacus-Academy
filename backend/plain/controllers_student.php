@@ -26,6 +26,38 @@ function controller_student_dashboard(array $ctx): void
 
     $worksheetsCount = !empty($student['level_id']) ? (int) db_value('SELECT COUNT(*) FROM worksheets WHERE level_id = :id', ['id' => $student['level_id']]) : 0;
     $videosCount = !empty($student['level_id']) ? (int) db_value('SELECT COUNT(*) FROM videos WHERE level_id = :id', ['id' => $student['level_id']]) : 0;
+    $practice = ['purchasedLevels' => 0, 'completedPapers' => 0, 'pendingPapers' => 0, 'averageAccuracy' => 0.0];
+    if (function_exists('ensure_practice_schema')) {
+        ensure_practice_schema();
+        $practiceRow = db_one(
+            'SELECT COUNT(DISTINCT sr.paper_id) AS completed_papers, AVG(sr.accuracy) AS average_accuracy
+             FROM student_results sr
+             WHERE sr.student_id = :student_id',
+            ['student_id' => $student['id']]
+        ) ?: [];
+        $purchased = (int) db_value(
+            'SELECT COUNT(DISTINCT level_id)
+             FROM student_subscriptions
+             WHERE student_id = :student_id AND status = "active" AND payment_status = "paid" AND expiry_date >= :now_ts',
+            ['student_id' => $student['id'], 'now_ts' => now_sql()]
+        );
+        $totalUnlockedPapers = (int) db_value(
+            'SELECT COUNT(*)
+             FROM practice_papers p
+             WHERE p.is_active = 1 AND p.level_id IN (
+               SELECT DISTINCT level_id FROM student_subscriptions
+               WHERE student_id = :student_id AND status = "active" AND payment_status = "paid" AND expiry_date >= :now_ts
+             )',
+            ['student_id' => $student['id'], 'now_ts' => now_sql()]
+        );
+        $completed = (int) ($practiceRow['completed_papers'] ?? 0);
+        $practice = [
+            'purchasedLevels' => $purchased,
+            'completedPapers' => $completed,
+            'pendingPapers' => max(0, $totalUnlockedPapers - $completed),
+            'averageAccuracy' => round((float) ($practiceRow['average_accuracy'] ?? 0), 2),
+        ];
+    }
 
     $batches = [];
     if (!empty($student['batches'])) {
@@ -44,6 +76,7 @@ function controller_student_dashboard(array $ctx): void
         'subscriptionStatus' => $status,
         'startDate' => $student['subscription_start'] ?? null,
         'expiryDate' => $student['subscription_end'] ?? null,
+        'practice' => $practice,
     ]);
 }
 

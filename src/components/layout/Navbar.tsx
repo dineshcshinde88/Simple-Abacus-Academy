@@ -16,6 +16,7 @@ const navLinks = [
       { label: "Vedic Maths Classes", to: "/vedic-maths-classes" },
     ],
   },
+  { label: "Online Competition", to: "/online-competition" },
   { label: "Teachers", to: "/teachers" },
   {
     label: "Worksheets",
@@ -173,10 +174,10 @@ const Navbar = () => {
           {/* Desktop Nav */}
           <div
             ref={navRef}
-            className={`hidden md:flex items-center gap-8 text-sm font-semibold text-[#0f5132] relative z-20 overflow-visible ${
+            className={`hidden md:flex items-center gap-5 text-sm font-semibold text-[#0f5132] relative z-20 overflow-visible ${
               isScrolled
                 ? ""
-                : "bg-white px-10 py-4 rounded-md -mb-2"
+                : "bg-white px-6 py-4 rounded-md -mb-2"
             }`}
           >
             {navLinks.map((link) => {

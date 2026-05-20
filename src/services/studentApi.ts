@@ -9,6 +9,12 @@ export type StudentDashboardData = {
   subscriptionStatus: "active" | "expired";
   startDate: string | null;
   expiryDate: string | null;
+  practice?: {
+    purchasedLevels: number;
+    completedPapers: number;
+    pendingPapers: number;
+    averageAccuracy: number;
+  };
 };
 
 const API_BASE = getApiBase();
