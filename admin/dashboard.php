@@ -296,10 +296,23 @@ function admin_competition_slug(string $value): string
 function admin_competition_seed_default_categories(PDO $pdo): void
 {
     $defaults = [
-        'KG' => ['KG1'],
+        'KG' => ['KG1', 'KG2'],
         'A' => ['A1', 'A2', 'A3', 'A4'],
         'B' => ['B1', 'B2', 'B3', 'B4'],
         'C' => ['C1', 'C2', 'C3', 'C4'],
+        'D' => ['D1', 'D2', 'D3', 'D4'],
+        'E' => ['E1', 'E2', 'E3', 'E4'],
+        'F' => ['F1', 'F2', 'F3', 'F4'],
+        'G' => ['G1', 'G2', 'G3', 'G4'],
+        'H' => ['H1', 'H2', 'H3', 'H4'],
+        'I' => ['I1', 'I2', 'I3', 'I4'],
+        'J' => ['J1', 'J2', 'J3', 'J4'],
+        'K' => ['K1', 'K2', 'K3', 'K4'],
+        'L' => ['L1', 'L2', 'L3', 'L4'],
+        'M' => ['M1', 'M2', 'M3', 'M4'],
+        'N' => ['N1', 'N2', 'N3', 'N4'],
+        'O' => ['O1', 'O2', 'O3', 'O4'],
+        'P' => ['P1', 'P2', 'P3', 'P4'],
     ];
 
     foreach ($defaults as $categoryName => $subcategories) {
@@ -311,6 +324,29 @@ function admin_competition_seed_default_categories(PDO $pdo): void
             admin_competition_get_or_create_subcategory($pdo, (string) $category['id'], $subcategoryName);
         }
     }
+}
+
+function admin_competition_default_category_rows(): array
+{
+    return [
+        ['category_name' => 'KG', 'subcategory_names' => 'KG1, KG2'],
+        ['category_name' => 'A', 'subcategory_names' => 'A1, A2, A3, A4'],
+        ['category_name' => 'B', 'subcategory_names' => 'B1, B2, B3, B4'],
+        ['category_name' => 'C', 'subcategory_names' => 'C1, C2, C3, C4'],
+        ['category_name' => 'D', 'subcategory_names' => 'D1, D2, D3, D4'],
+        ['category_name' => 'E', 'subcategory_names' => 'E1, E2, E3, E4'],
+        ['category_name' => 'F', 'subcategory_names' => 'F1, F2, F3, F4'],
+        ['category_name' => 'G', 'subcategory_names' => 'G1, G2, G3, G4'],
+        ['category_name' => 'H', 'subcategory_names' => 'H1, H2, H3, H4'],
+        ['category_name' => 'I', 'subcategory_names' => 'I1, I2, I3, I4'],
+        ['category_name' => 'J', 'subcategory_names' => 'J1, J2, J3, J4'],
+        ['category_name' => 'K', 'subcategory_names' => 'K1, K2, K3, K4'],
+        ['category_name' => 'L', 'subcategory_names' => 'L1, L2, L3, L4'],
+        ['category_name' => 'M', 'subcategory_names' => 'M1, M2, M3, M4'],
+        ['category_name' => 'N', 'subcategory_names' => 'N1, N2, N3, N4'],
+        ['category_name' => 'O', 'subcategory_names' => 'O1, O2, O3, O4'],
+        ['category_name' => 'P', 'subcategory_names' => 'P1, P2, P3, P4'],
+    ];
 }
 
 function admin_competition_get_or_create_category(PDO $pdo, string $name): ?array
@@ -559,11 +595,14 @@ $competitionCategoryRows = $backendPdo
         SELECT c.id, c.name AS category_name, GROUP_CONCAT(s.name ORDER BY s.name SEPARATOR ', ') AS subcategory_names
         FROM categories c
         LEFT JOIN subcategories s ON s.category_id = c.id
-        WHERE c.name IN ('KG', 'A', 'B', 'C')
+        WHERE c.name IN ('KG', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P')
         GROUP BY c.id, c.name
-        ORDER BY FIELD(c.name, 'KG', 'A', 'B', 'C'), c.name
+        ORDER BY FIELD(c.name, 'KG', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'), c.name
     ")
     : [];
+if (empty($competitionCategoryRows)) {
+    $competitionCategoryRows = admin_competition_default_category_rows();
+}
 
 ?>
 <div class="row g-4 mb-4">
