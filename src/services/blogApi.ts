@@ -41,7 +41,7 @@ function blogApiUrl(params: Record<string, string | number | undefined>) {
       search.set(key, String(value));
     }
   });
-  return `${origin}/abacus-spark-learn-main/admin/blog_api.php?${search.toString()}`;
+  return `${origin}/admin/blog_api.php?${search.toString()}`;
 }
 
 export async function fetchBlogs(params: { search?: string; category?: string; page?: number; limit?: number } = {}) {
