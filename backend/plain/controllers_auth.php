@@ -46,12 +46,91 @@ function auth_frontend_url(): string
     return rtrim($origin ?: get_base_url(), '/');
 }
 
+function auth_table_has_column(string $table, string $column): bool
+{
+    return (int) db_value(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column',
+        ['table' => $table, 'column' => $column]
+    ) > 0;
+}
+
+function auth_table_type(string $table): string
+{
+    return (string) db_value(
+        'SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table LIMIT 1',
+        ['table' => $table]
+    );
+}
+
+function auth_table_exists(string $table): bool
+{
+    return auth_table_type($table) !== '';
+}
+
+function auth_ensure_column(string $table, string $column, string $definition): void
+{
+    if (auth_table_exists($table) && !auth_table_has_column($table, $column)) {
+        db_exec_sql("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
+    }
+}
+
+function ensure_student_registration_schema(): void
+{
+    if (auth_table_type('students') === 'BASE TABLE') {
+        auth_ensure_column('students', 'course', "VARCHAR(120) NOT NULL DEFAULT '' AFTER user_id");
+        auth_ensure_column('students', 'phone_country', "VARCHAR(10) NOT NULL DEFAULT '+91' AFTER course");
+        auth_ensure_column('students', 'phone', "VARCHAR(40) NOT NULL DEFAULT '' AFTER phone_country");
+        auth_ensure_column('students', 'gender', "VARCHAR(30) NOT NULL DEFAULT '' AFTER phone");
+        auth_ensure_column('students', 'mother_tongue', "VARCHAR(120) NOT NULL DEFAULT '' AFTER gender");
+        auth_ensure_column('students', 'dob', 'DATE NULL AFTER mother_tongue');
+        return;
+    }
+
+    if (auth_table_type('students') === 'VIEW' && auth_table_exists('student')) {
+        auth_ensure_column('student', 'course', "VARCHAR(120) NOT NULL DEFAULT '' AFTER userId");
+        auth_ensure_column('student', 'phoneCountry', "VARCHAR(10) NOT NULL DEFAULT '+91' AFTER course");
+        auth_ensure_column('student', 'phone', "VARCHAR(40) NOT NULL DEFAULT '' AFTER phoneCountry");
+        auth_ensure_column('student', 'gender', "VARCHAR(30) NOT NULL DEFAULT '' AFTER phone");
+        auth_ensure_column('student', 'motherTongue', "VARCHAR(120) NOT NULL DEFAULT '' AFTER gender");
+        auth_ensure_column('student', 'dob', 'DATE NULL AFTER motherTongue');
+        db_exec_sql(
+            'CREATE OR REPLACE VIEW students AS
+             SELECT
+               student.id AS id,
+               student.userId AS user_id,
+               student.course AS course,
+               student.phoneCountry AS phone_country,
+               student.phone AS phone,
+               student.gender AS gender,
+               student.motherTongue AS mother_tongue,
+               student.dob AS dob,
+               student.tutorId AS tutor_id,
+               student.levelId AS level_id,
+               student.batches AS batches,
+               student.subscriptionPlan AS subscription_plan,
+               student.subscriptionStart AS subscription_start,
+               student.subscriptionEnd AS subscription_end,
+               student.subscriptionStatus AS subscription_status,
+               student.createdAt AS created_at,
+               student.updatedAt AS updated_at
+             FROM student'
+        );
+    }
+}
+
 function controller_auth_register(array $data): void
 {
     $name = trim((string) ($data['name'] ?? ''));
     $email = strtolower(trim((string) ($data['email'] ?? '')));
     $password = (string) ($data['password'] ?? '');
     $role = (string) ($data['role'] ?? '');
+    $course = trim((string) ($data['course'] ?? ''));
+    $phoneCountry = trim((string) ($data['phoneCountry'] ?? '+91'));
+    $phone = trim((string) ($data['phone'] ?? ''));
+    $gender = trim((string) ($data['gender'] ?? ''));
+    $motherTongue = trim((string) ($data['motherTongue'] ?? ''));
+    $dob = trim((string) ($data['dob'] ?? ''));
+    $dobValue = $dob !== '' ? $dob : null;
 
     if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 6 || !in_array($role, ['student', 'tutor'], true)) {
         json_response(['message' => 'Invalid request data'], 422);
@@ -83,9 +162,22 @@ function controller_auth_register(array $data): void
         );
 
         if ($role === 'student') {
+            ensure_student_registration_schema();
             db_exec_sql(
-                'INSERT INTO students (id, user_id, created_at, updated_at) VALUES (:id, :user_id, :created_at, :updated_at)',
-                ['id' => uuid_v4(), 'user_id' => $userId, 'created_at' => $now, 'updated_at' => $now]
+                'INSERT INTO students (id, user_id, course, phone_country, phone, gender, mother_tongue, dob, created_at, updated_at)
+                 VALUES (:id, :user_id, :course, :phone_country, :phone, :gender, :mother_tongue, :dob, :created_at, :updated_at)',
+                [
+                    'id' => uuid_v4(),
+                    'user_id' => $userId,
+                    'course' => $course,
+                    'phone_country' => $phoneCountry !== '' ? $phoneCountry : '+91',
+                    'phone' => $phone,
+                    'gender' => $gender,
+                    'mother_tongue' => $motherTongue,
+                    'dob' => $dobValue,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
             );
         } else {
             db_exec_sql(
@@ -207,6 +299,39 @@ function controller_auth_me(array $ctx): void
             'role' => $ctx['user']['role'],
         ],
     ]);
+}
+
+function controller_auth_change_password(array $ctx, array $data): void
+{
+    $currentPassword = (string) ($data['currentPassword'] ?? '');
+    $newPassword = (string) ($data['newPassword'] ?? '');
+    $confirmPassword = (string) ($data['confirmPassword'] ?? '');
+
+    if ($currentPassword === '' || $newPassword === '' || $confirmPassword === '') {
+        json_response(['message' => 'All password fields are required'], 422);
+    }
+    if (strlen($newPassword) < 6) {
+        json_response(['message' => 'New password must be at least 6 characters'], 422);
+    }
+    if ($newPassword !== $confirmPassword) {
+        json_response(['message' => 'New password and confirm password do not match'], 422);
+    }
+
+    $user = db_one('SELECT id, password FROM users WHERE id = :id LIMIT 1', ['id' => $ctx['user']['id']]);
+    if (!$user || !password_verify($currentPassword, (string) ($user['password'] ?? ''))) {
+        json_response(['message' => 'Current password is incorrect'], 401);
+    }
+
+    db_exec_sql(
+        'UPDATE users SET password = :password, updated_at = :updated_at WHERE id = :id',
+        [
+            'password' => password_hash($newPassword, PASSWORD_BCRYPT),
+            'updated_at' => now_sql(),
+            'id' => $ctx['user']['id'],
+        ]
+    );
+
+    json_response(['message' => 'Password changed successfully']);
 }
 
 function controller_auth_forgot_password(array $data): void

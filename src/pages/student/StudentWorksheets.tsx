@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   BarChart3,
+  BookOpen,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -23,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import StudentLayout from "@/layouts/StudentLayout";
 import { useAuth } from "@/context/AuthContext";
+import { fetchStudentDashboard, StudentDashboardData } from "@/services/studentApi";
 import {
   fetchWorksheetDashboard,
   fetchWorksheetPractices,
@@ -36,6 +39,9 @@ import {
 
 const PAGE_SIZE = 16;
 const PRACTICE_LIMIT = 10;
+const TOKEN_KEY = "abacus_auth_token";
+
+type StudentSubscription = NonNullable<StudentDashboardData["subscriptions"]>[number];
 
 const formatTime = (seconds: number) => {
   const mins = Math.floor(seconds / 60).toString().padStart(2, "0");
@@ -82,7 +88,7 @@ const Breadcrumbs = ({ items }: { items: { label: string; to?: string }[] }) => 
 const LevelBox = ({ level, onBack }: { level?: WorksheetLevel; onBack?: () => void }) => (
   <Card className="mx-auto max-w-5xl rounded-xl border-0 bg-white p-4 shadow-md">
     <div className="flex items-center justify-between rounded-lg bg-[#551896] px-4 py-3 text-white">
-      <h2 className="text-sm font-semibold sm:text-base">{level?.level_name || "Abacus Senior - Level 6"}</h2>
+      <h2 className="text-sm font-semibold sm:text-base">{level?.level_name || "Worksheet Subscription"}</h2>
       {onBack ? (
         <Button type="button" size="icon" variant="secondary" className="h-8 w-10 rounded-md bg-white text-[#551896] hover:bg-white/90" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
@@ -100,20 +106,192 @@ const LoadingGrid = () => (
   </div>
 );
 
+const formatShortDate = (value?: string | null) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB").replace(/\//g, "-");
+};
+
+const normalizeCourseTitle = (subscription: StudentSubscription) => {
+  const plan = subscription.planName || "Worksheet Subscription";
+  if (/vedic/i.test(plan)) return "Vedic Maths";
+  if (/abacus/i.test(plan)) return "Abacus Senior";
+  return plan.replace(/\s*worksheet\s*subscription\s*/gi, " ").replace(/\s+/g, " ").trim();
+};
+
+const sortByLevelName = <T extends { levelName?: string | null }>(items: T[]) =>
+  [...items].sort((a, b) => {
+    const aLevel = Number((a.levelName || "").match(/\d+/)?.[0] || 0);
+    const bLevel = Number((b.levelName || "").match(/\d+/)?.[0] || 0);
+    return aLevel - bLevel;
+  });
+
+const groupSubscriptions = (subscriptions: StudentSubscription[]) => {
+  const groups = new Map<string, StudentSubscription[]>();
+  subscriptions.forEach((subscription) => {
+    const title = normalizeCourseTitle(subscription);
+    groups.set(title, [...(groups.get(title) || []), subscription]);
+  });
+  return Array.from(groups.entries()).map(([title, items]) => ({ title, items: sortByLevelName(items) }));
+};
+
+const WorksheetCourseGroup = ({
+  title,
+  items,
+  currentLevel,
+  disabled = false,
+}: {
+  title: string;
+  items: StudentSubscription[];
+  currentLevel?: WorksheetLevel;
+  disabled?: boolean;
+}) => (
+  <div className="rounded-xl bg-slate-100 p-4">
+    <div className="flex items-start gap-3">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[#551896] text-white">
+        <BookOpen className="h-5 w-5" />
+      </div>
+      <div>
+        <h3 className="text-sm font-bold text-[#551896]">{title}</h3>
+        <p className="text-xs text-slate-500">Learn and practice the concepts in this course</p>
+      </div>
+    </div>
+    <p className="mt-4 text-xs font-semibold text-slate-700">Course Levels</p>
+    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {items.map((item) => {
+        const levelName = item.levelName || currentLevel?.level_name || "Level";
+        const card = (
+          <div
+            className={`min-h-24 rounded-md border bg-white p-4 text-center transition ${
+              disabled
+                ? "border-slate-300 opacity-75"
+                : "border-[#ff6500] hover:-translate-y-0.5 hover:shadow-md"
+            }`}
+          >
+            <h4 className="text-lg font-bold text-slate-950">{levelName}</h4>
+            <div className="mt-2 flex items-center justify-center gap-1 text-[11px] font-semibold text-slate-600">
+              <CalendarDays className="h-3 w-3" />
+              <span>Exp Date: {formatShortDate(item.expiryDate)}</span>
+            </div>
+            <p className="mt-3 text-[11px] font-semibold text-slate-400">0% completed</p>
+          </div>
+        );
+
+        if (disabled) return <div key={item.id}>{card}</div>;
+        return (
+          <Link key={item.id} to="/student/worksheets?view=topics" aria-label={`Open ${levelName} worksheet topics`}>
+            {card}
+          </Link>
+        );
+      })}
+    </div>
+  </div>
+);
+
+const WorksheetOverviewPage = ({
+  level,
+  dashboard,
+}: {
+  level?: WorksheetLevel;
+  dashboard?: StudentDashboardData | null;
+}) => {
+  const subscriptions = dashboard?.subscriptions || [];
+  const activeSubscriptions = subscriptions.filter((item) => item.status === "active" && item.paymentStatus === "paid");
+  const expiredSubscriptions = subscriptions.filter((item) => item.status === "expired" || item.status === "cancelled");
+  const fallbackActive: StudentSubscription[] =
+    activeSubscriptions.length || !level
+      ? []
+      : [{
+          id: level.id,
+          planName: "Abacus Worksheet Subscription",
+          levelName: level.level_name,
+          amount: 0,
+          currency: "INR",
+          startDate: null,
+          expiryDate: dashboard?.expiryDate || null,
+          status: "active",
+          paymentStatus: "paid",
+        }];
+  const activeGroups = groupSubscriptions(activeSubscriptions.length ? activeSubscriptions : fallbackActive);
+  const expiredGroups = groupSubscriptions(expiredSubscriptions);
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-6">
+      <Breadcrumbs items={[{ label: "Dashboard", to: "/student/dashboard" }, { label: "Worksheet Subscription" }]} />
+
+      <section className="rounded-xl bg-white p-5 shadow-md">
+        <div className="mb-4 flex items-center gap-2">
+          <BookOpen className="h-5 w-5 text-[#551896]" />
+          <h2 className="text-lg font-bold text-[#551896]">Active Worksheet Subscriptions</h2>
+        </div>
+        {activeGroups.length ? (
+          <div className="space-y-4">
+            {activeGroups.map((group) => (
+              <WorksheetCourseGroup key={group.title} title={group.title} items={group.items} currentLevel={level} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+            <p className="font-semibold text-slate-800">No active worksheet subscription found.</p>
+            <Button asChild className="mt-4 bg-[#551896] hover:bg-[#421173]">
+              <Link to="/student/shop">Go to Shop</Link>
+            </Button>
+          </div>
+        )}
+      </section>
+
+      {expiredGroups.length ? (
+        <section className="rounded-xl bg-white p-5 shadow-md">
+          <div className="mb-4 flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-[#551896]" />
+            <h2 className="text-lg font-bold text-[#551896]">Expired Worksheet Subscriptions</h2>
+          </div>
+          <div className="space-y-4">
+            {expiredGroups.map((group) => (
+              <WorksheetCourseGroup key={group.title} title={group.title} items={group.items} currentLevel={level} disabled />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+};
+
 const StudentWorksheets = () => {
   const navigate = useNavigate();
   const { topicId, view } = useParams<{ topicId?: string; view?: string }>();
+  const [searchParams] = useSearchParams();
   const [level, setLevel] = useState<WorksheetLevel>();
   const [topics, setTopics] = useState<WorksheetTopic[]>([]);
+  const [dashboard, setDashboard] = useState<StudentDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let alive = true;
+    const token = window.localStorage.getItem(TOKEN_KEY);
+    if (token) {
+      fetchStudentDashboard(token)
+        .then((payload) => {
+          if (alive) setDashboard(payload);
+        })
+        .catch(() => {
+          if (alive) setDashboard(null);
+        });
+    }
+
     fetchWorksheetDashboard()
       .then((payload) => {
         if (!alive) return;
         setLevel(payload.level);
         setTopics(payload.topics);
+      })
+      .catch((err) => {
+        if (!alive) return;
+        setError(err instanceof Error ? err.message : "Unable to load worksheet subscription.");
+        setLevel(undefined);
+        setTopics([]);
       })
       .finally(() => alive && setLoading(false));
     return () => {
@@ -127,8 +305,29 @@ const StudentWorksheets = () => {
     if (loading) {
       return (
         <div className="space-y-6">
-          <LevelBox level={level} />
           <LoadingGrid />
+        </div>
+      );
+    }
+
+    if (error) {
+      if (dashboard?.subscriptions?.length) {
+        return <WorksheetOverviewPage level={level} dashboard={dashboard} />;
+      }
+
+      return (
+        <div className="mx-auto max-w-3xl">
+          <Card className="rounded-xl border border-amber-200 bg-white p-8 text-center shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900">Worksheet Subscription Required</h2>
+            <p className="mt-3 text-sm text-slate-600">
+              {error.includes("expired") || error.includes("renew")
+                ? error
+                : "Please purchase an active worksheet subscription to access worksheet topics and practice questions."}
+            </p>
+            <Button className="mt-5 bg-[#551896] hover:bg-[#421173]" onClick={() => navigate("/student/shop")}>
+              Go to Shop
+            </Button>
+          </Card>
         </div>
       );
     }
@@ -138,7 +337,7 @@ const StudentWorksheets = () => {
         <Card className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
           <p className="font-semibold text-slate-800">Topic not found</p>
           <Button className="mt-4 bg-[#551896] hover:bg-[#421173]" onClick={() => navigate("/student/worksheets")}>
-            Back to Worksheet Sub
+            Back to Worksheet Subscription
           </Button>
         </Card>
       );
@@ -149,11 +348,15 @@ const StudentWorksheets = () => {
     if (selectedTopic && view === "visualization") return <VisualizationPage level={level} topic={selectedTopic} />;
     if (selectedTopic && view === "practices") return <PracticesPage level={level} topic={selectedTopic} />;
 
+    if (searchParams.get("view") !== "topics") {
+      return <WorksheetOverviewPage level={level} dashboard={dashboard} />;
+    }
+
     return <TopicListPage level={level} topics={topics} />;
   };
 
   return (
-    <StudentLayout header={<Header title="Worksheet Sub" subtitle="Practice, visualize and review your abacus worksheet progress." />}>
+    <StudentLayout header={<Header title="Worksheet Subscription" subtitle="Practice, visualize and review your abacus worksheet progress." />}>
       {content()}
     </StudentLayout>
   );
@@ -168,7 +371,7 @@ const TopicListPage = ({ level, topics }: { level?: WorksheetLevel; topics: Work
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <Breadcrumbs items={[{ label: "Dashboard", to: "/student/dashboard" }, { label: "Worksheet Sub" }]} />
+      <Breadcrumbs items={[{ label: "Dashboard", to: "/student/dashboard" }, { label: "Worksheet Subscription" }]} />
       <LevelBox level={level} />
 
       <div className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
@@ -183,6 +386,11 @@ const TopicListPage = ({ level, topics }: { level?: WorksheetLevel; topics: Work
       </div>
 
       <div className="space-y-4">
+        {filtered.length === 0 && (
+          <Card className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
+            <p className="font-semibold text-slate-800">No worksheet topics are available for this subscription yet.</p>
+          </Card>
+        )}
         {filtered.map((topic, index) => (
           <Card key={topic.id} className="group rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -230,7 +438,7 @@ const QuestionsPage = ({ level, topic }: { level?: WorksheetLevel; topic: Worksh
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <Breadcrumbs items={[{ label: "Worksheet Sub", to: "/student/worksheets" }, { label: "View Questions" }]} />
+      <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "View Questions" }]} />
       <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
       <h2 className="text-lg font-bold text-slate-900">{topic.topic_name}</h2>
 
@@ -312,7 +520,7 @@ const PracticePage = ({ level, topic }: { level?: WorksheetLevel; topic: Workshe
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <Breadcrumbs items={[{ label: "Worksheet Sub", to: "/student/worksheets" }, { label: "Practice Now" }]} />
+      <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Practice Now" }]} />
       <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
 
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
@@ -507,7 +715,7 @@ const VisualizationPage = ({ level, topic }: { level?: WorksheetLevel; topic: Wo
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <Breadcrumbs items={[{ label: "Worksheet Sub", to: "/student/worksheets" }, { label: "Visualization" }]} />
+      <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Visualization" }]} />
       <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
 
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
@@ -647,7 +855,7 @@ const PracticesPage = ({ level, topic }: { level?: WorksheetLevel; topic: Worksh
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <Breadcrumbs items={[{ label: "Worksheet Sub", to: "/student/worksheets" }, { label: "View Practices" }]} />
+      <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "View Practices" }]} />
       <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

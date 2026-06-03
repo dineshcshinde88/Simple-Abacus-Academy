@@ -69,7 +69,7 @@ const Teachers = () => {
             Meet Our Expert Teachers
           </h1>
           <p className="mt-4 text-base md:text-lg text-slate-600 max-w-2xl mx-auto">
-            Certified Abacus Trainers Dedicated to Your Child’s Growth
+            Certified Abacus and Vedic Maths Trainers Dedicated to Your Child’s Growth
           </p>
         </div>
       </section>

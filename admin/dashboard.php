@@ -12,6 +12,15 @@ function admin_dashboard_table_exists(PDO $pdo, string $table): bool
     return (int) $stmt->fetchColumn() > 0;
 }
 
+function admin_dashboard_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+    );
+    $stmt->execute([$table, $column]);
+    return (int) $stmt->fetchColumn() > 0;
+}
+
 function admin_dashboard_database_name(PDO $pdo): string
 {
     return (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
@@ -284,6 +293,26 @@ function admin_competition_slug(string $value): string
     return trim($slug, '-');
 }
 
+function admin_competition_seed_default_categories(PDO $pdo): void
+{
+    $defaults = [
+        'KG' => ['KG1'],
+        'A' => ['A1', 'A2', 'A3', 'A4'],
+        'B' => ['B1', 'B2', 'B3', 'B4'],
+        'C' => ['C1', 'C2', 'C3', 'C4'],
+    ];
+
+    foreach ($defaults as $categoryName => $subcategories) {
+        $category = admin_competition_get_or_create_category($pdo, $categoryName);
+        if (!$category || empty($category['id'])) {
+            continue;
+        }
+        foreach ($subcategories as $subcategoryName) {
+            admin_competition_get_or_create_subcategory($pdo, (string) $category['id'], $subcategoryName);
+        }
+    }
+}
+
 function admin_competition_get_or_create_category(PDO $pdo, string $name): ?array
 {
     $name = trim($name);
@@ -315,6 +344,7 @@ function admin_competition_get_or_create_subcategory(PDO $pdo, string $categoryI
 $backendPdo = admin_dashboard_backend_pdo($pdo);
 if ($backendPdo) {
     admin_competition_ensure_schema($backendPdo);
+    admin_competition_seed_default_categories($backendPdo);
 }
 
 $competitionMessage = '';
@@ -522,86 +552,19 @@ $scheduledCompetitions = $backendPdo && admin_dashboard_table_exists($backendPdo
     LEFT JOIN competition_schedule cs ON cs.competition_id = c.id
     ORDER BY COALESCE(cs.starts_at, c.created_at) DESC
 ") : [];
+$competitionCategoryRows = $backendPdo
+  && admin_dashboard_table_exists($backendPdo, 'categories')
+  && admin_dashboard_table_exists($backendPdo, 'subcategories')
+    ? admin_dashboard_rows($backendPdo, "
+        SELECT c.id, c.name AS category_name, GROUP_CONCAT(s.name ORDER BY s.name SEPARATOR ', ') AS subcategory_names
+        FROM categories c
+        LEFT JOIN subcategories s ON s.category_id = c.id
+        WHERE c.name IN ('KG', 'A', 'B', 'C')
+        GROUP BY c.id, c.name
+        ORDER BY FIELD(c.name, 'KG', 'A', 'B', 'C'), c.name
+    ")
+    : [];
 
-$recentActivities = [];
-
-foreach (admin_dashboard_rows($pdo, "SELECT 'Student Enrolled' AS type, name AS title, CONCAT('Course: ', course) AS details, created_at FROM students") as $row) {
-    $recentActivities[] = $row;
-}
-
-if ($hasLegacySubscriptions) {
-    foreach (admin_dashboard_rows($pdo, "
-        SELECT
-          'Level Subscription' AS type,
-          COALESCE(st.name, s.plan_name) AS title,
-          CONCAT(s.plan_name, ' • ', UPPER(s.payment_status), ' • ', s.start_date, ' to ', s.end_date) AS details,
-          s.start_date AS created_at
-        FROM subscriptions s
-        LEFT JOIN students st ON st.id = s.student_id
-    ") as $row) {
-        $recentActivities[] = $row;
-    }
-}
-
-if ($hasAppStudents) {
-    foreach (admin_dashboard_rows($backendPdo, "
-        SELECT
-          'Student Enrolled' AS type,
-          u.name AS title,
-          CONCAT('Website registration • ', u.email) AS details,
-          COALESCE(s.created_at, u.created_at) AS created_at
-        FROM students s
-        INNER JOIN users u ON u.id = s.user_id
-        WHERE u.role = 'student'
-    ") as $row) {
-        $recentActivities[] = $row;
-    }
-}
-
-if ($hasAppSubscriptions) {
-    foreach (admin_dashboard_rows($backendPdo, "
-        SELECT
-          'Level Subscription' AS type,
-          u.name AS title,
-          CONCAT(COALESCE(l.level_name, ss.plan_name), ' • ', ss.plan_name, ' • ', UPPER(ss.payment_status), ' • ', DATE(ss.start_date), ' to ', DATE(ss.expiry_date)) AS details,
-          ss.created_at
-        FROM student_subscriptions ss
-        INNER JOIN students st ON st.id = ss.student_id
-        INNER JOIN users u ON u.id = st.user_id
-        LEFT JOIN levels l ON l.id = ss.level_id
-    ") as $row) {
-        $recentActivities[] = $row;
-    }
-}
-
-foreach (admin_dashboard_rows($pdo, "SELECT 'Demo Booking' AS type, name AS title, email AS details, preferred_date AS created_at FROM demo_bookings") as $row) {
-    $recentActivities[] = $row;
-}
-if ($hasAppDemoBookings) {
-    foreach (admin_dashboard_rows($backendPdo, "SELECT 'Demo Booking' AS type, name AS title, CONCAT(email, ' • ', phone) AS details, COALESCE(created_at, preferred_date) AS created_at FROM demo_bookings") as $row) {
-        $recentActivities[] = $row;
-    }
-}
-foreach (admin_dashboard_rows($pdo, "SELECT 'Teacher' AS type, name AS title, expertise AS details, joining_date AS created_at FROM teachers") as $row) {
-    $recentActivities[] = $row;
-}
-if ($hasAppInstructors) {
-    foreach (admin_dashboard_rows($backendPdo, "
-        SELECT
-          'Tutor Application' AS type,
-          full_name AS title,
-          CONCAT(email, ' • ', mobile, ' • ', COALESCE(course_type, '')) AS details,
-          created_at
-        FROM instructors
-    ") as $row) {
-        $recentActivities[] = $row;
-    }
-}
-
-usort($recentActivities, static function (array $a, array $b): int {
-    return strtotime((string) ($b['created_at'] ?? '')) <=> strtotime((string) ($a['created_at'] ?? ''));
-});
-$recentActivities = array_slice($recentActivities, 0, 25);
 ?>
 <div class="row g-4 mb-4">
   <div class="col-md-6 col-xl-3">
@@ -676,6 +639,9 @@ $recentActivities = array_slice($recentActivities, 0, 25);
         <button class="nav-link active" id="registrations-tab" data-bs-toggle="tab" data-bs-target="#registrations-pane" type="button" role="tab">Registrations</button>
       </li>
       <li class="nav-item" role="presentation">
+        <button class="nav-link" id="categories-tab" data-bs-toggle="tab" data-bs-target="#categories-pane" type="button" role="tab">Categories</button>
+      </li>
+      <li class="nav-item" role="presentation">
         <button class="nav-link" id="provide-tab" data-bs-toggle="tab" data-bs-target="#provide-pane" type="button" role="tab">Provide Details</button>
       </li>
       <li class="nav-item" role="presentation">
@@ -721,6 +687,35 @@ $recentActivities = array_slice($recentActivities, 0, 25);
                     </td>
                     <td><span class="badge <?php echo ($registration['status'] ?? '') === 'approved' ? 'text-bg-success' : 'text-bg-warning'; ?>"><?php echo htmlspecialchars(ucfirst($registration['status'] ?? 'pending')); ?></span></td>
                     <td><?php echo htmlspecialchars(admin_dashboard_format_datetime($registration['created_at'] ?? null)); ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-pane fade" id="categories-pane" role="tabpanel" tabindex="0">
+        <div class="alert alert-light border mb-3">
+          <div class="fw-semibold">Practice Papers Category Structure</div>
+          <div class="small text-muted">These categories are available for Online Competition practice papers and scheduling.</div>
+        </div>
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Subcategory</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (empty($competitionCategoryRows)): ?>
+                <tr><td colspan="2" class="text-muted">No categories found.</td></tr>
+              <?php else: ?>
+                <?php foreach ($competitionCategoryRows as $row): ?>
+                  <tr>
+                    <td class="fw-semibold"><?php echo htmlspecialchars($row['category_name'] ?? '-'); ?></td>
+                    <td><?php echo htmlspecialchars($row['subcategory_names'] ?? '-'); ?></td>
                   </tr>
                 <?php endforeach; ?>
               <?php endif; ?>
@@ -921,36 +916,7 @@ $recentActivities = array_slice($recentActivities, 0, 25);
 </div>
 
 <div class="row g-4">
-  <div class="col-lg-7">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <h5 class="card-title">Recent Enrollments & Level Subscriptions</h5>
-        <div class="list-group list-group-flush">
-          <?php if (empty($recentActivities)): ?>
-            <div class="text-muted">No recent activity found.</div>
-          <?php else: ?>
-            <?php foreach ($recentActivities as $activity): ?>
-              <div class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                  <div class="fw-semibold"><?php echo htmlspecialchars($activity['title']); ?></div>
-                  <div class="text-muted small">
-                    <?php echo htmlspecialchars($activity['type']); ?>
-                    <?php if (!empty($activity['details'])): ?>
-                      · <?php echo htmlspecialchars($activity['details']); ?>
-                    <?php endif; ?>
-                  </div>
-                </div>
-                <div class="text-muted small">
-                  <?php echo htmlspecialchars(admin_dashboard_format_datetime($activity['created_at'] ?? null)); ?>
-                </div>
-              </div>
-            <?php endforeach; ?>
-          <?php endif; ?>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-5">
+  <div class="col-12">
     <div class="card shadow-sm border-0">
       <div class="card-body">
         <h5 class="card-title">Overview Chart</h5>

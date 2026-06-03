@@ -32,6 +32,7 @@ const StudentRegistration = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const [form, setForm] = useState({
+    courseTypes: ["Abacus"],
     fullName: "",
     email: "",
     phoneCountry: "+91",
@@ -47,15 +48,24 @@ const StudentRegistration = () => {
     setCaptchaInput("");
   };
 
-  const updateField = (field: keyof typeof form, value: string) => {
+  const updateField = (field: keyof typeof form, value: string | string[]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const toggleCourse = (course: string, checked: boolean) => {
+    setForm((prev) => {
+      const courseTypes = checked
+        ? Array.from(new Set([...prev.courseTypes, course]))
+        : prev.courseTypes.filter((item) => item !== course);
+      return { ...prev, courseTypes };
+    });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!form.fullName.trim() || !form.email.trim() || !form.password.trim()) {
-      toast({ title: "Missing details", description: "Name, email and password are required." });
+    if (!form.fullName.trim() || !form.email.trim() || !form.password.trim() || form.courseTypes.length === 0) {
+      toast({ title: "Missing details", description: "Course, name, email and password are required." });
       return;
     }
 
@@ -66,9 +76,17 @@ const StudentRegistration = () => {
 
     try {
       setIsSubmitting(true);
-      await register(form.fullName.trim(), form.email.trim(), form.password.trim(), "student");
+      await register(form.fullName.trim(), form.email.trim(), form.password.trim(), "student", {
+        course: form.courseTypes.join(", "),
+        phoneCountry: form.phoneCountry,
+        phone: form.phone.trim(),
+        gender: form.gender,
+        motherTongue: form.motherTongue.trim(),
+        dob: form.dob,
+      });
       toast({ title: "Registration successful", description: "You can continue with your subscription." });
       setForm({
+        courseTypes: ["Abacus"],
         fullName: "",
         email: "",
         phoneCountry: "+91",
@@ -100,11 +118,19 @@ const StudentRegistration = () => {
             >
               <div className="flex flex-wrap items-center justify-center gap-10 mb-6">
                 <div className="flex items-center gap-3">
-                  <Checkbox id="student-abacus" defaultChecked />
+                  <Checkbox
+                    id="student-abacus"
+                    checked={form.courseTypes.includes("Abacus")}
+                    onCheckedChange={(checked) => toggleCourse("Abacus", checked === true)}
+                  />
                   <Label htmlFor="student-abacus" className="font-semibold">Abacus</Label>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Checkbox id="student-vedic" />
+                  <Checkbox
+                    id="student-vedic"
+                    checked={form.courseTypes.includes("Vedic Maths")}
+                    onCheckedChange={(checked) => toggleCourse("Vedic Maths", checked === true)}
+                  />
                   <Label htmlFor="student-vedic" className="font-semibold">Vedic Maths</Label>
                 </div>
               </div>

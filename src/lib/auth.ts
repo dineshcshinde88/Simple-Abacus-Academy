@@ -22,6 +22,15 @@ type AuthResponse = {
   user: AuthUser;
 };
 
+export type RegisterDetails = {
+  course?: string;
+  phoneCountry?: string;
+  phone?: string;
+  gender?: string;
+  motherTongue?: string;
+  dob?: string;
+};
+
 const API_BASE = getApiBase();
 
 async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
@@ -55,10 +64,16 @@ export async function login(email: string, password: string, role: "student" | "
   });
 }
 
-export async function register(name: string, email: string, password: string, role: "student" | "tutor"): Promise<AuthResponse> {
+export async function register(
+  name: string,
+  email: string,
+  password: string,
+  role: "student" | "tutor",
+  details: RegisterDetails = {},
+): Promise<AuthResponse> {
   return apiRequest<AuthResponse>("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({ name, email, password, role }),
+    body: JSON.stringify({ name, email, password, role, ...details }),
   });
 }
 

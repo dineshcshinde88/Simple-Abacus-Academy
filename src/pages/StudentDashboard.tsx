@@ -23,6 +23,9 @@ const daysUntil = (value?: string | null) => {
   return Math.ceil((expiry - Date.now()) / 86400000);
 };
 
+const formatMoney = (amount?: number, currency = "INR") =>
+  `${currency} ${Number(amount || 0).toFixed(2)}`;
+
 const StudentDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -52,6 +55,7 @@ const StudentDashboard = () => {
   }, [navigate, toast]);
 
   const isExpired = data?.subscriptionStatus === "expired";
+  const activeSubscriptions = data?.subscriptions || [];
   const currentLevelNumber = Number((data?.level || "").match(/\d+/)?.[0] || 0);
   const remainingDays = daysUntil(data?.expiryDate);
 
@@ -79,30 +83,12 @@ const StudentDashboard = () => {
         disabledWhenExpired: true,
       },
       {
-        title: "Subscribed",
-        subtitle: "Video Tutorials",
-        count: data?.videosCount ?? 0,
-        color: "bg-orange-500",
-        button: "View More Details",
-        to: "/student/videos",
-        disabledWhenExpired: true,
-      },
-      {
         title: "Allocated",
         subtitle: "Courses",
         count: data?.level ? 1 : 0,
         color: "bg-purple-600",
         button: null,
         to: "/student/courses",
-      },
-      {
-        title: "Completed",
-        subtitle: "Practice Papers",
-        count: data?.practice?.completedPapers ?? 0,
-        color: "bg-emerald-600",
-        button: "Start Practice",
-        to: "/student/practice",
-        disabledWhenExpired: false,
       },
     ],
     [data],
@@ -123,7 +109,7 @@ const StudentDashboard = () => {
               Welcome, {data?.name || "Student"}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Current Level: {data?.level || "Not Assigned"}
+              Subscribed Levels: {data?.level || "Not Assigned"}
             </p>
           </div>
           <div className="flex items-center gap-3 rounded-full bg-slate-100 px-3 py-2">
@@ -146,7 +132,7 @@ const StudentDashboard = () => {
         {isExpired && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 font-medium flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>Your subscription has expired.</span>
-            <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={() => navigate("/student/orders")}>
+            <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={() => navigate("/student/shop")}>
               Renew Subscription
             </Button>
           </div>
@@ -157,7 +143,7 @@ const StudentDashboard = () => {
             <span>
               Your level subscription ends on {formatDate(data?.expiryDate)}. Renew or upgrade your level to continue learning.
             </span>
-            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => navigate("/student/orders")}>
+            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => navigate("/student/shop")}>
               Renew / Upgrade
             </Button>
           </div>
@@ -180,7 +166,7 @@ const StudentDashboard = () => {
           </div>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card) => (
             <div key={card.subtitle} className="bg-white rounded-2xl shadow-card p-5">
               <div className="flex items-center justify-between">
@@ -208,20 +194,51 @@ const StudentDashboard = () => {
           ))}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl bg-white p-5 shadow-card">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Purchased Levels</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{data?.practice?.purchasedLevels ?? 0}</p>
+        <section className="rounded-2xl bg-white p-5 shadow-card">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-heading font-bold text-slate-900">Active Worksheet Subscriptions</h3>
+              <p className="text-sm text-slate-500">Purchased Abacus and Vedic Maths level subscriptions appear here.</p>
+            </div>
+            <Button variant="outline" onClick={() => navigate("/student/orders")}>View Orders</Button>
           </div>
-          <div className="rounded-2xl bg-white p-5 shadow-card">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Pending Practice Papers</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{data?.practice?.pendingPapers ?? 0}</p>
-          </div>
-          <div className="rounded-2xl bg-white p-5 shadow-card">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Practice Accuracy</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{data?.practice?.averageAccuracy ?? 0}%</p>
-          </div>
-        </div>
+          {activeSubscriptions.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
+              No active worksheet subscription found.
+            </div>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-slate-500">
+                    <th className="py-3 pr-4">Plan</th>
+                    <th className="py-3 pr-4">Level</th>
+                    <th className="py-3 pr-4">Start</th>
+                    <th className="py-3 pr-4">End</th>
+                    <th className="py-3 pr-4">Amount</th>
+                    <th className="py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeSubscriptions.map((subscription) => (
+                    <tr key={subscription.id} className="border-b last:border-0 text-slate-700">
+                      <td className="py-3 pr-4 font-semibold text-slate-900">{subscription.planName}</td>
+                      <td className="py-3 pr-4">{subscription.levelName || "-"}</td>
+                      <td className="py-3 pr-4">{formatDate(subscription.startDate)}</td>
+                      <td className="py-3 pr-4">{formatDate(subscription.expiryDate)}</td>
+                      <td className="py-3 pr-4">{formatMoney(subscription.amount, subscription.currency)}</td>
+                      <td className="py-3">
+                        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
+                          Active
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
         <Dialog>
           <DialogTrigger asChild>

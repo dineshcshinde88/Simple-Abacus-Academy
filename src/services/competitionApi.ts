@@ -51,6 +51,18 @@ export const competitionLogin = (email: string, password: string) =>
     body: JSON.stringify({ email, password }),
   });
 
+export const competitionForgotPassword = (email: string) =>
+  request<{ message: string }>("/api/competition/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+
+export const competitionResetPassword = (email: string, token: string, password: string, confirmPassword: string) =>
+  request<{ message: string }>("/api/competition/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ email, token, password, confirmPassword }),
+  });
+
 export type CompetitionDashboardData = {
   profile: {
     id: string;
@@ -160,6 +172,22 @@ export type CompetitionAdminOverview = {
     school: string | null;
     status: "pending" | "approved" | "inactive";
     created_at: string;
+  }[];
+  categories: {
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    is_active: number;
+  }[];
+  subcategories: {
+    id: string;
+    category_id: string;
+    category_name: string | null;
+    name: string;
+    slug: string;
+    description: string | null;
+    is_active: number;
   }[];
   competitions: {
     id: string;

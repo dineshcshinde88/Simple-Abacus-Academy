@@ -47,6 +47,12 @@ if ($method === 'POST' && $path === '/api/competition/register') {
 if ($method === 'POST' && $path === '/api/competition/login') {
     controller_competition_login($data);
 }
+if ($method === 'POST' && $path === '/api/competition/forgot-password') {
+    controller_competition_forgot_password($data);
+}
+if ($method === 'POST' && $path === '/api/competition/reset-password') {
+    controller_competition_reset_password($data);
+}
 if ($method === 'GET' && $path === '/api/competition/categories') {
     controller_competition_categories();
 }
@@ -115,9 +121,15 @@ if ($method === 'POST' && $path === '/api/auth/reset-password') {
 if ($method === 'GET' && $path === '/api/auth/me') {
     controller_auth_me(require_auth());
 }
+if ($method === 'POST' && $path === '/api/auth/change-password') {
+    controller_auth_change_password(require_auth(), $data);
+}
 
 if ($method === 'GET' && $path === '/api/student/dashboard') {
     controller_student_dashboard(require_role(['student']));
+}
+if ($method === 'GET' && $path === '/api/student/profile') {
+    controller_student_profile(require_role(['student']));
 }
 if ($method === 'GET' && $path === '/api/student/subscriptions/plans') {
     controller_student_subscription_plans(require_role(['student']));

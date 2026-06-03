@@ -11,23 +11,77 @@ function worksheet_sub_status(float $accuracy): string
     return 'Needs Practice';
 }
 
-function controller_student_worksheet_sub_dashboard(array $ctx): void
+function worksheet_sub_level_number(?string $name): ?string
+{
+    if (!is_string($name) || trim($name) === '') {
+        return null;
+    }
+    if (preg_match('/level\s*0|foundation/i', $name)) {
+        return '0';
+    }
+    if (preg_match('/level\s*(\d+)/i', $name, $m)) {
+        return (string) ((int) $m[1]);
+    }
+    return null;
+}
+
+function worksheet_sub_student_level(array $student): ?array
+{
+    if (!empty($student['level_id'])) {
+        $level = db_one('SELECT id, level_name FROM worksheet_levels WHERE id = :id LIMIT 1', ['id' => $student['level_id']]);
+        if ($level) {
+            return $level;
+        }
+    }
+
+    $studentLevelName = (string) ($student['level_name'] ?? '');
+    $studentLevelNumber = worksheet_sub_level_number($studentLevelName);
+    if ($studentLevelNumber === null) {
+        return null;
+    }
+
+    $levels = db_all('SELECT id, level_name FROM worksheet_levels ORDER BY id ASC');
+    foreach ($levels as $level) {
+        if (worksheet_sub_level_number((string) ($level['level_name'] ?? '')) === $studentLevelNumber) {
+            return $level;
+        }
+    }
+
+    return null;
+}
+
+function worksheet_sub_require_student_level(array $ctx): array
 {
     $student = current_student($ctx['user']['id']);
     if (!$student) {
         json_response(['message' => 'Student not found'], 404);
     }
 
-    $level = null;
-    if (!empty($student['level_id'])) {
-        $level = db_one('SELECT id, level_name FROM worksheet_levels WHERE id = :id LIMIT 1', ['id' => $student['level_id']]);
-    }
+    $level = worksheet_sub_student_level($student);
     if (!$level) {
-        $level = db_one('SELECT id, level_name FROM worksheet_levels ORDER BY id ASC LIMIT 1');
+        json_response(['message' => 'No worksheet subscription level is assigned to this student. Please purchase a worksheet subscription.'], 403);
     }
-    if (!$level) {
-        json_response(['message' => 'No worksheet level found'], 404);
+
+    return [$student, $level];
+}
+
+function worksheet_sub_require_topic_access(array $ctx, string $topicId): array
+{
+    [$student, $level] = worksheet_sub_require_student_level($ctx);
+    $topic = db_one(
+        'SELECT id, level_id, topic_name, total_questions FROM worksheet_topics WHERE id = :id AND level_id = :level_id LIMIT 1',
+        ['id' => $topicId, 'level_id' => $level['id']]
+    );
+    if (!$topic) {
+        json_response(['message' => 'Topic not found for your worksheet subscription'], 404);
     }
+
+    return [$student, $level, $topic];
+}
+
+function controller_student_worksheet_sub_dashboard(array $ctx): void
+{
+    [, $level] = worksheet_sub_require_student_level($ctx);
 
     $topics = db_all(
         'SELECT id, level_id, topic_name, total_questions
@@ -42,11 +96,7 @@ function controller_student_worksheet_sub_dashboard(array $ctx): void
 
 function controller_student_worksheet_sub_questions(array $ctx, string $topicId): void
 {
-    current_student($ctx['user']['id']) ?: json_response(['message' => 'Student not found'], 404);
-    $topic = db_one('SELECT id FROM worksheet_topics WHERE id = :id LIMIT 1', ['id' => $topicId]);
-    if (!$topic) {
-        json_response(['message' => 'Topic not found'], 404);
-    }
+    worksheet_sub_require_topic_access($ctx, $topicId);
 
     $questions = db_all(
         'SELECT id, topic_id, question, answer
@@ -61,10 +111,7 @@ function controller_student_worksheet_sub_questions(array $ctx, string $topicId)
 
 function controller_student_worksheet_sub_practices(array $ctx, string $topicId): void
 {
-    $student = current_student($ctx['user']['id']);
-    if (!$student) {
-        json_response(['message' => 'Student not found'], 404);
-    }
+    [$student] = worksheet_sub_require_topic_access($ctx, $topicId);
 
     $rows = db_all(
         'SELECT id, student_id, topic_id, score, accuracy, total_questions, correct_answers, time_taken, status, created_at
@@ -95,10 +142,7 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
         json_response(['message' => 'topicId and totalQuestions are required'], 422);
     }
 
-    $topic = db_one('SELECT id FROM worksheet_topics WHERE id = :id LIMIT 1', ['id' => $topicId]);
-    if (!$topic) {
-        json_response(['message' => 'Topic not found'], 404);
-    }
+    worksheet_sub_require_topic_access($ctx, $topicId);
 
     $id = uuid_v4();
     $now = now_sql();

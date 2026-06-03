@@ -50,61 +50,6 @@ const API_BASE = getApiBase();
 const TOKEN_KEY = "abacus_auth_token";
 const LOCAL_PRACTICES_KEY = "worksheet_sub_practices_v2";
 
-const fallbackLevel: WorksheetLevel = {
-  id: "abacus-senior-level-6",
-  level_name: "Abacus Senior - Level 6",
-};
-
-const fallbackTopics: WorksheetTopic[] = [
-  { id: "single-double-anzan", level_id: fallbackLevel.id, topic_name: "Multiplication - Single x Double digit (Anzan)", total_questions: 60 },
-  { id: "four-digit-add-sub-1", level_id: fallbackLevel.id, topic_name: "Four digits - Addition / Subtraction (Anzan) - 1", total_questions: 40 },
-  { id: "four-digit-add-sub-2", level_id: fallbackLevel.id, topic_name: "Four digits - Addition / Subtraction (Anzan) - 2", total_questions: 40 },
-  { id: "four-digit-add-sub-3", level_id: fallbackLevel.id, topic_name: "Four digits - Addition / Subtraction (Anzan) - 3", total_questions: 50 },
-  { id: "speed-addition-mixed", level_id: fallbackLevel.id, topic_name: "Speed Addition - Mixed Practice", total_questions: 35 },
-  { id: "division-basic", level_id: fallbackLevel.id, topic_name: "Division - Double digit by Single digit", total_questions: 30 },
-];
-
-export function getFallbackDashboard(): WorksheetDashboardPayload {
-  return { level: fallbackLevel, topics: fallbackTopics };
-}
-
-export function makeFallbackQuestions(topic: WorksheetTopic): WorksheetQuestion[] {
-  return Array.from({ length: topic.total_questions }, (_, index) => {
-    const number = index + 1;
-    if (topic.topic_name.toLowerCase().includes("multiplication")) {
-      const left = (index % 9) + 2;
-      const right = 18 + ((index * 7) % 82);
-      return {
-        id: `${topic.id}-q-${number}`,
-        topic_id: topic.id,
-        question: `${left} x ${right}`,
-        answer: String(left * right),
-      };
-    }
-
-    if (topic.topic_name.toLowerCase().includes("division")) {
-      const divisor = (index % 8) + 2;
-      const answer = 11 + ((index * 5) % 60);
-      return {
-        id: `${topic.id}-q-${number}`,
-        topic_id: topic.id,
-        question: `${divisor * answer} / ${divisor}`,
-        answer: String(answer),
-      };
-    }
-
-    const first = 1200 + index * 23;
-    const second = 185 + ((index * 31) % 720);
-    const subtraction = index % 3 === 1;
-    return {
-      id: `${topic.id}-q-${number}`,
-      topic_id: topic.id,
-      question: subtraction ? `${first} - ${second}` : `${first} + ${second}`,
-      answer: String(subtraction ? first - second : first + second),
-    };
-  });
-}
-
 function authHeaders(): HeadersInit {
   const token = typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_KEY) : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -120,20 +65,12 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 export async function fetchWorksheetDashboard(): Promise<WorksheetDashboardPayload> {
-  try {
-    return await apiGet<WorksheetDashboardPayload>("/api/student/worksheet-sub");
-  } catch {
-    return getFallbackDashboard();
-  }
+  return apiGet<WorksheetDashboardPayload>("/api/student/worksheet-sub");
 }
 
 export async function fetchWorksheetQuestions(topic: WorksheetTopic): Promise<WorksheetQuestion[]> {
-  try {
-    const data = await apiGet<{ questions: WorksheetQuestion[] }>(`/api/student/worksheet-sub/topics/${topic.id}/questions`);
-    return data.questions;
-  } catch {
-    return makeFallbackQuestions(topic);
-  }
+  const data = await apiGet<{ questions: WorksheetQuestion[] }>(`/api/student/worksheet-sub/topics/${topic.id}/questions`);
+  return data.questions;
 }
 
 export function loadLocalPractices(topicId: string): WorksheetPractice[] {

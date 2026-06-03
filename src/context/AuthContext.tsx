@@ -1,12 +1,12 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
-import { AuthUser, forgotPassword as forgotPasswordApi, getMe, login as loginApi, register as registerApi } from "@/lib/auth";
+import { AuthUser, RegisterDetails, forgotPassword as forgotPasswordApi, getMe, login as loginApi, register as registerApi } from "@/lib/auth";
 
 type AuthContextType = {
   user: AuthUser | null;
   loading: boolean;
   token: string | null;
   login: (email: string, password: string, role: "student" | "tutor") => Promise<void>;
-  register: (name: string, email: string, password: string, role: "student" | "tutor") => Promise<void>;
+  register: (name: string, email: string, password: string, role: "student" | "tutor", details?: RegisterDetails) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   logout: () => void;
 };
@@ -52,8 +52,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setToken(response.token);
         localStorage.setItem(TOKEN_KEY, response.token);
       },
-      register: async (name: string, email: string, password: string, role: "student" | "tutor") => {
-        const response = await registerApi(name, email, password, role);
+      register: async (name: string, email: string, password: string, role: "student" | "tutor", details: RegisterDetails = {}) => {
+        const response = await registerApi(name, email, password, role, details);
         setUser(response.user);
         setToken(response.token);
         localStorage.setItem(TOKEN_KEY, response.token);

@@ -88,6 +88,7 @@ export type RazorpayOrderResponse = {
     price: number;
     currency: string;
   };
+  plans?: RazorpayOrderResponse["plan"][];
 };
 
 export const getSubscriptionPlans = (token: string) =>
@@ -105,11 +106,11 @@ export const getPublicSubscriptionPlans = async () => {
 export const getSubscriptionSummary = (token: string) =>
   apiRequest<SubscriptionSummaryResponse>("/api/student/subscriptions/summary", { token });
 
-export const createRazorpayOrder = (token: string, planId: string) =>
+export const createRazorpayOrder = (token: string, planId: string | string[]) =>
   apiRequest<RazorpayOrderResponse>("/api/student/subscriptions/create-order", {
     method: "POST",
     token,
-    body: { planId },
+    body: Array.isArray(planId) ? { planIds: planId } : { planId },
   });
 
 export const verifyRazorpayPayment = (

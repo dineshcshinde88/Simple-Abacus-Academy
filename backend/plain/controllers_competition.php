@@ -10,6 +10,64 @@ function competition_table_has_column(string $table, string $column): bool
     return ((int) ($row['c'] ?? 0)) > 0;
 }
 
+function competition_seed_default_categories(): void
+{
+    $defaults = [
+        'KG' => ['KG1'],
+        'A' => ['A1', 'A2', 'A3', 'A4'],
+        'B' => ['B1', 'B2', 'B3', 'B4'],
+        'C' => ['C1', 'C2', 'C3', 'C4'],
+    ];
+    $now = now_sql();
+
+    foreach ($defaults as $categoryName => $subcategoryNames) {
+        $categorySlug = competition_slug($categoryName);
+        $category = db_one('SELECT id FROM categories WHERE slug = :slug LIMIT 1', ['slug' => $categorySlug]);
+        if (!$category) {
+            $categoryId = uuid_v4();
+            db_exec_sql(
+                'INSERT INTO categories (id, name, slug, description, is_active, created_at, updated_at)
+                 VALUES (:id, :name, :slug, :description, 1, :created_at, :updated_at)',
+                [
+                    'id' => $categoryId,
+                    'name' => $categoryName,
+                    'slug' => $categorySlug,
+                    'description' => 'Default online competition category',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+        } else {
+            $categoryId = (string) $category['id'];
+        }
+
+        foreach ($subcategoryNames as $subcategoryName) {
+            $subcategorySlug = competition_slug($subcategoryName);
+            $exists = db_one(
+                'SELECT id FROM subcategories WHERE category_id = :category_id AND slug = :slug LIMIT 1',
+                ['category_id' => $categoryId, 'slug' => $subcategorySlug]
+            );
+            if ($exists) {
+                continue;
+            }
+
+            db_exec_sql(
+                'INSERT INTO subcategories (id, category_id, name, slug, description, is_active, created_at, updated_at)
+                 VALUES (:id, :category_id, :name, :slug, :description, 1, :created_at, :updated_at)',
+                [
+                    'id' => uuid_v4(),
+                    'category_id' => $categoryId,
+                    'name' => $subcategoryName,
+                    'slug' => $subcategorySlug,
+                    'description' => 'Default online competition subcategory',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+        }
+    }
+}
+
 function ensure_competition_schema(): void
 {
     static $done = false;
@@ -61,6 +119,8 @@ function ensure_competition_schema(): void
             country VARCHAR(120) NULL,
             password VARCHAR(255) NULL,
             status VARCHAR(20) NOT NULL DEFAULT "pending",
+            reset_token VARCHAR(64) NULL,
+            reset_expiry DATETIME NULL,
             approved_at DATETIME NULL,
             approved_by CHAR(36) NULL,
             credentials_sent_at DATETIME NULL,
@@ -80,6 +140,8 @@ function ensure_competition_schema(): void
         'state' => 'VARCHAR(120) NULL',
         'pin_code' => 'VARCHAR(20) NULL',
         'country' => 'VARCHAR(120) NULL',
+        'reset_token' => 'VARCHAR(64) NULL',
+        'reset_expiry' => 'DATETIME NULL',
     ];
     foreach ($profileColumns as $column => $definition) {
         if (!competition_table_has_column('competition_users', $column)) {
@@ -219,6 +281,7 @@ function ensure_competition_schema(): void
     );
 
     competition_run_automation();
+    competition_seed_default_categories();
     $done = true;
 }
 
@@ -232,6 +295,49 @@ function competition_slug(string $value): string
 function competition_temp_password(): string
 {
     return substr(str_shuffle('ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'), 0, 10);
+}
+
+function competition_frontend_url(): string
+{
+    $configured = trim((string) envv('FRONTEND_URL', (string) envv('SITE_URL', '')));
+    if ($configured !== '') {
+        return rtrim($configured, '/');
+    }
+
+    $origin = request_header('Origin');
+    return rtrim($origin ?: get_base_url(), '/');
+}
+
+function competition_validate_password(string $password): ?string
+{
+    if (strlen($password) < 8) {
+        return 'Password must be at least 8 characters.';
+    }
+    if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
+        return 'Password must include uppercase, lowercase, and number characters.';
+    }
+    return null;
+}
+
+function competition_send_password_reset_email(string $name, string $email, string $resetUrl): bool
+{
+    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $safeUrl = htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8');
+    $subject = 'Reset your Simple Abacus competition password';
+    $html = '<div style="font-family:Arial,sans-serif;color:#1f2937;line-height:1.6">'
+        . '<h2 style="color:#2563eb">Hello ' . $safeName . ',</h2>'
+        . '<p>Use the button below to create a strong new password for your Simple Abacus competition account.</p>'
+        . '<p><a href="' . $safeUrl . '" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px">Create New Password</a></p>'
+        . '<p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>'
+        . '<p style="font-size:13px;color:#6b7280">If the button does not work, copy this link: ' . $safeUrl . '</p>'
+        . '</div>';
+    $text = "Hello {$name},\n\nCreate a new Simple Abacus competition password using this link:\n{$resetUrl}\n\nThis link expires in 1 hour.";
+
+    if (function_exists('instructor_send_html_mail')) {
+        return instructor_send_html_mail($email, $subject, $html, $text);
+    }
+
+    return false;
 }
 
 function competition_run_automation(): void
@@ -338,6 +444,73 @@ function controller_competition_login(array $data): void
     }
     $safe = ['id' => $user['id'], 'name' => $user['name'], 'email' => $user['email'], 'role' => 'competition_student'];
     json_response(['token' => jwt_create($safe), 'user' => $safe]);
+}
+
+function controller_competition_forgot_password(array $data): void
+{
+    ensure_competition_schema();
+    $email = strtolower(trim((string) ($data['email'] ?? '')));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        json_response(['message' => 'Please enter a valid registered email address.'], 422);
+    }
+
+    $message = 'If a competition account exists for this email, a password reset link has been sent.';
+    $user = db_one('SELECT * FROM competition_users WHERE email = :email LIMIT 1', ['email' => $email]);
+    if (!$user || ($user['status'] ?? '') !== 'approved') {
+        json_response(['message' => $message]);
+    }
+
+    $token = bin2hex(random_bytes(32));
+    $tokenHash = hash('sha256', $token);
+    $expiry = gmdate('Y-m-d H:i:s', time() + 3600);
+    db_exec_sql(
+        'UPDATE competition_users SET reset_token = :reset_token, reset_expiry = :reset_expiry, updated_at = :updated_at WHERE email = :email',
+        ['reset_token' => $tokenHash, 'reset_expiry' => $expiry, 'updated_at' => now_sql(), 'email' => $email]
+    );
+
+    $resetUrl = competition_frontend_url() . '/competition-reset-password?email=' . rawurlencode($email) . '&token=' . rawurlencode($token);
+    if (!competition_send_password_reset_email((string) $user['name'], $email, $resetUrl)) {
+        json_response(['message' => 'Unable to send reset email. Please try again later.'], 500);
+    }
+
+    json_response(['message' => $message]);
+}
+
+function controller_competition_reset_password(array $data): void
+{
+    ensure_competition_schema();
+    $email = strtolower(trim((string) ($data['email'] ?? '')));
+    $token = (string) ($data['token'] ?? '');
+    $password = (string) ($data['password'] ?? '');
+    $confirm = (string) ($data['confirmPassword'] ?? '');
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $token === '' || $password !== $confirm) {
+        json_response(['message' => 'Invalid reset request.'], 422);
+    }
+
+    $passwordError = competition_validate_password($password);
+    if ($passwordError !== null) {
+        json_response(['message' => $passwordError], 422);
+    }
+
+    $tokenHash = hash('sha256', $token);
+    $user = db_one(
+        'SELECT * FROM competition_users WHERE email = :email AND reset_token = :reset_token LIMIT 1',
+        ['email' => $email, 'reset_token' => $tokenHash]
+    );
+    if (!$user) {
+        json_response(['message' => 'This reset link is invalid or expired.'], 400);
+    }
+    if (empty($user['reset_expiry']) || strtotime((string) $user['reset_expiry'] . ' UTC') < time()) {
+        json_response(['message' => 'This reset link has expired. Please request a new one.'], 410);
+    }
+
+    db_exec_sql(
+        'UPDATE competition_users SET password = :password, reset_token = NULL, reset_expiry = NULL, updated_at = :updated_at WHERE email = :email',
+        ['password' => password_hash($password, PASSWORD_BCRYPT), 'updated_at' => now_sql(), 'email' => $email]
+    );
+
+    json_response(['message' => 'Password reset successfully. You can now sign in.']);
 }
 
 function require_competition_user(): array

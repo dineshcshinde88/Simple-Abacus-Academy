@@ -733,7 +733,7 @@ const StudentDetailPanel = ({ student, onClose }: { student: Student | null; onC
   );
 };
 const BatchesSection = () => {
-  const { batches, students, classes, addBatch, assignStudentToBatch, scheduleClass, toggleAttendance } =
+  const { batches, students, classes, addBatch, deleteBatch, assignStudentToBatch, scheduleClass, toggleAttendance } =
     useInstructorDashboard();
   const [batchForm, setBatchForm] = useState<BatchFormState>({ name: "", level: "" });
   const [classForm, setClassForm] = useState<ClassFormState>({
@@ -760,6 +760,14 @@ const BatchesSection = () => {
       meetingLink: classForm.meetingLink,
     });
     setClassForm({ batchId: batches[0]?.id || "", topic: "", date: "", time: "", meetingLink: "" });
+  };
+
+  const handleDeleteBatch = (batchId: string, batchName: string) => {
+    const confirmed = window.confirm(`Delete "${batchName}"? Students will be unassigned and scheduled classes for this batch will be removed.`);
+    if (!confirmed) return;
+    deleteBatch(batchId);
+    setClassForm((prev) => ({ ...prev, batchId: prev.batchId === batchId ? "" : prev.batchId }));
+    toast.success("Batch removed");
   };
 
   return (
@@ -848,7 +856,9 @@ const BatchesSection = () => {
       <div className="grid gap-4 lg:grid-cols-2">
         {batches.map((batch) => {
           const batchStudents = students.filter((student) => student.batchId === batch.id);
-          const upcoming = classes.filter((session) => session.batchId === batch.id).slice(0, 2);
+          const batchClasses = classes.filter((session) => session.batchId === batch.id);
+          const upcoming = batchClasses.slice(0, 2);
+          const latestClass = batchClasses[0];
           return (
             <Card key={batch.id} className="p-5 shadow-card space-y-4">
               <div className="flex items-start justify-between">
@@ -858,7 +868,19 @@ const BatchesSection = () => {
                     {batch.level} • {batchStudents.length} students
                   </p>
                 </div>
-                <Badge variant="outline">Active</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">Active</Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    onClick={() => handleDeleteBatch(batch.id, batch.name)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Assign students</p>
@@ -898,23 +920,46 @@ const BatchesSection = () => {
                 {!upcoming.length && <p className="text-sm text-muted-foreground">No classes scheduled.</p>}
               </div>
               <div>
-                <p className="text-sm font-medium mb-2">Attendance</p>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Attendance</p>
+                  {latestClass ? (
+                    <span className="text-xs text-muted-foreground">
+                      For {latestClass.topic} {latestClass.date ? `on ${formatDate(latestClass.date)}` : ""}
+                    </span>
+                  ) : null}
+                </div>
+                {!latestClass && <p className="mb-2 text-xs text-amber-700">Schedule a class first to mark attendance.</p>}
                 <div className="space-y-2">
-                  {batchStudents.map((student) => (
-                    <div key={student.id} className="flex items-center justify-between text-sm">
-                      <span>{student.name}</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const latestClass = classes.find((session) => session.batchId === batch.id);
-                          if (latestClass) toggleAttendance(latestClass.id, student.id);
-                        }}
-                      >
-                        Mark
-                      </Button>
-                    </div>
-                  ))}
+                  {batchStudents.map((student) => {
+                    const isPresent = latestClass ? Boolean(latestClass.attendance[student.id]) : false;
+                    return (
+                      <div key={student.id} className="flex items-center justify-between text-sm">
+                        <span>{student.name}</span>
+                        <div className="flex items-center gap-2">
+                          {latestClass ? (
+                            <Badge variant="outline" className={isPresent ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"}>
+                              {isPresent ? "Present" : "Absent"}
+                            </Badge>
+                          ) : null}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!latestClass}
+                            onClick={() => {
+                              if (!latestClass) {
+                                toast.error("Schedule a class before marking attendance.");
+                                return;
+                              }
+                              toggleAttendance(latestClass.id, student.id);
+                              toast.success(`${student.name} marked ${isPresent ? "absent" : "present"}`);
+                            }}
+                          >
+                            {isPresent ? "Unmark" : "Mark"}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </Card>
@@ -1999,10 +2044,16 @@ const InstructorDashboardShell = () => {
     const saved = localStorage.getItem("instructor_active_tab");
     return navItems.some((item) => item.key === saved) ? (saved as NavKey) : "overview";
   });
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const handleTabChange = (tab: NavKey) => {
     setActiveTab(tab);
     localStorage.setItem("instructor_active_tab", tab);
+  };
+
+  const handleMobileTabChange = (tab: NavKey) => {
+    handleTabChange(tab);
+    setMobileNavOpen(false);
   };
 
   const handleLogout = () => {
@@ -2012,17 +2063,17 @@ const InstructorDashboardShell = () => {
 
   useEffect(() => {
     if (!user || user.role !== "tutor") return;
-    if (profile.name !== user.name || profile.email !== user.email) {
+    if (!profile.name || !profile.email) {
       updateProfile({
-        name: user.name,
-        email: user.email,
+        name: profile.name || user.name,
+        email: profile.email || user.email,
       });
     }
   }, [profile.email, profile.name, updateProfile, user]);
 
   return (
-    <div className="min-h-screen bg-[#e9ebf1]">
-      <div className="flex">
+    <div className="min-h-screen overflow-x-hidden bg-[#e9ebf1]">
+      <div className="flex min-w-0">
         <aside className="hidden lg:flex w-[182px] fixed inset-y-0 flex-col bg-[#465b91] px-5 py-4 text-white">
           <div className="bg-white p-2">
             <img src="/abacus_logo.png" alt="Abacus Trainer logo" className="h-10 w-full object-contain" />
@@ -2066,20 +2117,20 @@ const InstructorDashboardShell = () => {
           </div>
         </aside>
 
-        <div className="flex-1 lg:ml-[182px]">
-          <header className="flex h-[54px] items-center justify-between bg-white px-8 shadow-sm">
-            <div className="flex items-center gap-3">
-              <Sheet>
+        <div className="min-w-0 flex-1 lg:ml-[182px]">
+          <header className="sticky top-0 z-30 flex min-h-[56px] items-center justify-between gap-2 bg-white px-3 py-2 shadow-sm sm:px-5 lg:px-8">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="lg:hidden">
+                  <Button variant="ghost" size="icon" className="shrink-0 lg:hidden" aria-label="Open instructor menu">
                     <Menu className="h-4 w-4" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-64 bg-[#465b91] p-5 text-white">
+                <SheetContent side="left" className="flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-[#465b91] p-5 text-white">
                   <img src="/abacus_logo.png" alt="Abacus Trainer logo" className="h-12 w-full bg-white object-contain p-2" />
                   <button
                     type="button"
-                    onClick={() => handleTabChange("settings")}
+                    onClick={() => handleMobileTabChange("settings")}
                     className="mt-4 flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-white/10"
                   >
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-[#465b91]">
@@ -2102,22 +2153,30 @@ const InstructorDashboardShell = () => {
                           activeTab === item.key ? "bg-white text-slate-950" : "text-white"
                         }`}
                         type="button"
-                        onClick={() => handleTabChange(item.key)}
+                        onClick={() => handleMobileTabChange(item.key)}
                       >
                         <item.icon className="h-4 w-4" />
                         {item.label}
                       </button>
                     ))}
                   </nav>
+                  <div className="mt-auto pt-5">
+                    <Button type="button" variant="secondary" className="w-full justify-start" onClick={handleLogout}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Logout
+                    </Button>
+                  </div>
                 </SheetContent>
               </Sheet>
               <Menu className="hidden h-4 w-4 lg:block" />
-              <p className="ml-4 text-base">Welcome to <span className="font-semibold">abacustrainer.com</span></p>
+              <p className="min-w-0 truncate text-sm sm:text-base lg:ml-4">
+                Welcome to <span className="font-semibold">abacustrainer.com</span>
+              </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="gap-2 text-xs">
+                  <Button variant="ghost" className="gap-2 px-2 text-xs sm:px-3">
                     <div className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
                       {profile.avatarUrl ? (
                         <img src={profile.avatarUrl} alt="User" className="h-full w-full object-cover" />
@@ -2125,7 +2184,7 @@ const InstructorDashboardShell = () => {
                         <GraduationCap className="h-4 w-4 text-primary" />
                       )}
                     </div>
-                    <span>{profile.name}</span>
+                    <span className="hidden max-w-28 truncate sm:inline">{profile.name}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -2133,13 +2192,13 @@ const InstructorDashboardShell = () => {
                   <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="ghost" size="icon" onClick={handleLogout}>
+              <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={handleLogout} aria-label="Logout">
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
           </header>
 
-          <main className="p-8 space-y-8">
+          <main className="min-w-0 space-y-6 p-4 sm:p-6 lg:space-y-8 lg:p-8 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto md:[&_table]:table">
             {activeTab === "overview" && <OverviewSection onNavigate={handleTabChange} />}
             {activeTab === "courses" && <CoursesSection />}
             {activeTab === "students" && <StudentsSection />}
@@ -2162,6 +2221,3 @@ const TeacherDashboard = () => (
 );
 
 export default TeacherDashboard;
-
-
-

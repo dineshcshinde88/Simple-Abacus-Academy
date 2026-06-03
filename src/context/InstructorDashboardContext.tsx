@@ -1,4 +1,6 @@
-﻿import { createContext, ReactNode, useContext, useMemo, useState } from "react";
+import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { AuthUser } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 export type FeesStatus = "paid" | "unpaid";
 export type PerformanceStatus = "Good" | "Average" | "Needs Improvement";
@@ -103,6 +105,7 @@ type InstructorDashboardContextType = {
   updateStudent: (id: string, updates: Partial<Student>) => void;
   deleteStudent: (id: string) => void;
   addBatch: (batch: Omit<Batch, "id" | "studentIds">) => void;
+  deleteBatch: (id: string) => void;
   assignStudentToBatch: (studentId: string, batchId: string) => void;
   scheduleClass: (session: Omit<ClassSession, "id" | "attendance">) => void;
   toggleAttendance: (classId: string, studentId: string) => void;
@@ -119,151 +122,136 @@ const InstructorDashboardContext = createContext<InstructorDashboardContextType 
 
 const uid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
-const PROFILE_STORAGE_KEY = "instructor_profile_v1";
+const LEGACY_PROFILE_STORAGE_KEY = "instructor_profile_v1";
+const DASHBOARD_STORAGE_VERSION = "v2";
 
-const initialStudents: Student[] = [
-  {
-    id: "stu-1",
-    name: "Aarav Mehta",
-    email: "aarav@student.com",
-    level: "Level 3",
-    batchId: "batch-1",
-    feesStatus: "paid",
-    joinedAt: "2026-03-12",
-    levelStartDate: "2026-04-01",
-    levelEndDate: "2026-06-30",
-    progress: { marks: 86, levelCompleted: 3, status: "Good" },
-  },
-  {
-    id: "stu-2",
-    name: "Siya Patel",
-    email: "siya@student.com",
-    level: "Level 2",
-    batchId: "batch-1",
-    feesStatus: "unpaid",
-    joinedAt: "2026-02-24",
-    levelStartDate: "2026-03-15",
-    levelEndDate: "2026-05-15",
-    progress: { marks: 72, levelCompleted: 2, status: "Average" },
-  },
-  {
-    id: "stu-3",
-    name: "Kabir Joshi",
-    email: "kabir@student.com",
-    level: "Level 4",
-    batchId: "batch-2",
-    feesStatus: "paid",
-    joinedAt: "2026-01-18",
-    levelStartDate: "2026-02-01",
-    levelEndDate: "2026-04-30",
-    progress: { marks: 91, levelCompleted: 4, status: "Good" },
-  },
-  {
-    id: "stu-4",
-    name: "Myra Shah",
-    email: "myra@student.com",
-    level: "Level 1",
-    batchId: null,
-    feesStatus: "unpaid",
-    joinedAt: "2026-03-28",
-    levelStartDate: "2026-04-10",
-    levelEndDate: "2026-07-10",
-    progress: { marks: 58, levelCompleted: 1, status: "Needs Improvement" },
-  },
-];
+const initialStudents: Student[] = [];
+const initialBatches: Batch[] = [];
+const initialClasses: ClassSession[] = [];
+const initialAssignments: Assignment[] = [];
+const initialMaterials: Material[] = [];
+const initialPayments: Payment[] = [];
+const initialAnnouncements: Announcement[] = [];
+const initialActivities: Activity[] = [];
 
-const initialBatches: Batch[] = [
-  { id: "batch-1", name: "Evening Stars", level: "Level 2-3", studentIds: ["stu-1", "stu-2"] },
-  { id: "batch-2", name: "Morning Wizards", level: "Level 4", studentIds: ["stu-3"] },
-];
+type InstructorDashboardState = {
+  profile: InstructorProfile;
+  students: Student[];
+  batches: Batch[];
+  classes: ClassSession[];
+  assignments: Assignment[];
+  materials: Material[];
+  payments: Payment[];
+  announcements: Announcement[];
+  activities: Activity[];
+};
 
-const initialClasses: ClassSession[] = [
-  {
-    id: "class-1",
-    batchId: "batch-1",
-    topic: "Speed drills",
-    date: "2026-04-15",
-    time: "17:00",
-    meetingLink: "https://meet.google.com/abc-defg-hij",
-    attendance: { "stu-1": true, "stu-2": false },
-  },
-  {
-    id: "class-2",
-    batchId: "batch-2",
-    topic: "Advanced multiplication",
-    date: "2026-04-16",
-    time: "08:00",
-    meetingLink: "https://zoom.us/j/123456789",
-    attendance: { "stu-3": true },
-  },
-];
+const defaultProfile = (user: AuthUser | null): InstructorProfile => ({
+  name: user?.name || "Instructor",
+  email: user?.email || "",
+  avatarUrl: null,
+});
 
-const initialAssignments: Assignment[] = [
-  {
-    id: "ass-1",
-    title: "Week 2 Worksheet",
-    questions: ["5-digit addition", "2-digit multiplication", "Speed round: 20 sums"],
-    assignedTo: { type: "batch", id: "batch-1" },
-    dueDate: "2026-04-18",
-    submissions: [
-      { studentId: "stu-1", submittedAt: "2026-04-10", score: 88, status: "submitted" },
-      { studentId: "stu-2", submittedAt: "", score: 0, status: "pending" },
-    ],
-  },
-];
+const defaultDashboardState = (user: AuthUser | null): InstructorDashboardState => ({
+  profile: defaultProfile(user),
+  students: initialStudents,
+  batches: initialBatches,
+  classes: initialClasses,
+  assignments: initialAssignments,
+  materials: initialMaterials,
+  payments: initialPayments,
+  announcements: initialAnnouncements,
+  activities: initialActivities,
+});
 
-const initialMaterials: Material[] = [
-  {
-    id: "mat-1",
-    title: "Abacus Level 2 Drill Pack",
-    type: "pdf",
-    url: "https://example.com/abacus-drills.pdf",
-    batchId: "batch-1",
-    uploadedAt: "2026-04-01",
-  },
-];
+const instructorStorageKey = (user: AuthUser | null) => {
+  const identity = user?.id || user?.email || "anonymous";
+  return `instructor_dashboard_${DASHBOARD_STORAGE_VERSION}_${identity}`;
+};
 
-const initialPayments: Payment[] = [
-  { id: "pay-1", studentId: "stu-1", amount: 1500, date: "2026-04-01", method: "UPI", status: "paid" },
-  { id: "pay-2", studentId: "stu-2", amount: 1500, date: "2026-04-05", method: "Cash", status: "unpaid" },
-];
+const readDashboardState = (key: string, user: AuthUser | null): InstructorDashboardState => {
+  const fallback = defaultDashboardState(user);
+  if (typeof window === "undefined") {
+    return fallback;
+  }
 
-const initialAnnouncements: Announcement[] = [
-  { id: "ann-1", title: "Class rescheduled", message: "Friday class moved to 6 PM.", sentAt: "2026-04-08" },
-];
+  const stored = window.localStorage.getItem(key);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored) as Partial<InstructorDashboardState>;
+      return {
+        ...fallback,
+        ...parsed,
+        profile: {
+          ...fallback.profile,
+          ...(parsed.profile || {}),
+        },
+      };
+    } catch {
+      window.localStorage.removeItem(key);
+    }
+  }
 
-const initialActivities: Activity[] = [
-  { id: "act-1", text: "Added new student Siya Patel", time: "2 hours ago" },
-  { id: "act-2", text: "Assigned Week 2 Worksheet to Evening Stars", time: "Yesterday" },
-  { id: "act-3", text: "Uploaded Drill Pack PDF", time: "2 days ago" },
-];
+  const legacyProfile = window.localStorage.getItem(LEGACY_PROFILE_STORAGE_KEY);
+  if (legacyProfile) {
+    try {
+      return {
+        ...fallback,
+        profile: {
+          ...fallback.profile,
+          ...(JSON.parse(legacyProfile) as Partial<InstructorProfile>),
+        },
+      };
+    } catch {
+      window.localStorage.removeItem(LEGACY_PROFILE_STORAGE_KEY);
+    }
+  }
+
+  return fallback;
+};
 
 export const InstructorDashboardProvider = ({ children }: { children: ReactNode }) => {
-  const [profile, setProfile] = useState<InstructorProfile>(() => {
-    if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem(PROFILE_STORAGE_KEY);
-      if (stored) {
-        try {
-          return JSON.parse(stored) as InstructorProfile;
-        } catch {
-          window.localStorage.removeItem(PROFILE_STORAGE_KEY);
-        }
-      }
-    }
-    return {
-      name: "Neha Kulkarni",
-      email: "neha@simpleabacus.com",
-      avatarUrl: null,
+  const { user } = useAuth();
+  const storageKey = instructorStorageKey(user);
+  const initialDashboard = readDashboardState(storageKey, user);
+  const [profile, setProfile] = useState<InstructorProfile>(initialDashboard.profile);
+  const [students, setStudents] = useState<Student[]>(initialDashboard.students);
+  const [batches, setBatches] = useState<Batch[]>(initialDashboard.batches);
+  const [classes, setClasses] = useState<ClassSession[]>(initialDashboard.classes);
+  const [assignments, setAssignments] = useState<Assignment[]>(initialDashboard.assignments);
+  const [materials, setMaterials] = useState<Material[]>(initialDashboard.materials);
+  const [payments, setPayments] = useState<Payment[]>(initialDashboard.payments);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(initialDashboard.announcements);
+  const [activities, setActivities] = useState<Activity[]>(initialDashboard.activities);
+
+  useEffect(() => {
+    const storedDashboard = readDashboardState(storageKey, user);
+    setProfile(storedDashboard.profile);
+    setStudents(storedDashboard.students);
+    setBatches(storedDashboard.batches);
+    setClasses(storedDashboard.classes);
+    setAssignments(storedDashboard.assignments);
+    setMaterials(storedDashboard.materials);
+    setPayments(storedDashboard.payments);
+    setAnnouncements(storedDashboard.announcements);
+    setActivities(storedDashboard.activities);
+  }, [storageKey, user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const dashboardState: InstructorDashboardState = {
+      profile,
+      students,
+      batches,
+      classes,
+      assignments,
+      materials,
+      payments,
+      announcements,
+      activities,
     };
-  });
-  const [students, setStudents] = useState<Student[]>(initialStudents);
-  const [batches, setBatches] = useState<Batch[]>(initialBatches);
-  const [classes, setClasses] = useState<ClassSession[]>(initialClasses);
-  const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments);
-  const [materials, setMaterials] = useState<Material[]>(initialMaterials);
-  const [payments, setPayments] = useState<Payment[]>(initialPayments);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(initialAnnouncements);
-  const [activities, setActivities] = useState<Activity[]>(initialActivities);
+    window.localStorage.setItem(storageKey, JSON.stringify(dashboardState));
+  }, [activities, announcements, assignments, batches, classes, materials, payments, profile, storageKey, students]);
 
   const addActivity = (text: string) => {
     setActivities((prev) => [{ id: uid(), text, time: "Just now" }, ...prev].slice(0, 8));
@@ -295,6 +283,15 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
     const newBatch: Batch = { id: uid(), studentIds: [], ...batch };
     setBatches((prev) => [newBatch, ...prev]);
     addActivity(`Created batch ${newBatch.name}`);
+  };
+
+  const deleteBatch: InstructorDashboardContextType["deleteBatch"] = (id) => {
+    setBatches((prev) => prev.filter((batch) => batch.id !== id));
+    setStudents((prev) => prev.map((student) => (student.batchId === id ? { ...student, batchId: null } : student)));
+    setClasses((prev) => prev.filter((session) => session.batchId !== id));
+    setMaterials((prev) => prev.filter((material) => material.batchId !== id));
+    setAssignments((prev) => prev.filter((assignment) => assignment.assignedTo.type !== "batch" || assignment.assignedTo.id !== id));
+    addActivity("Removed a batch");
   };
 
   const assignStudentToBatch: InstructorDashboardContextType["assignStudentToBatch"] = (studentId, batchId) => {
@@ -392,13 +389,7 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
   };
 
   const updateProfile: InstructorDashboardContextType["updateProfile"] = (updates) => {
-    setProfile((prev) => {
-      const next = { ...prev, ...updates };
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(next));
-      }
-      return next;
-    });
+    setProfile((prev) => ({ ...prev, ...updates }));
   };
 
   const value = useMemo(
@@ -416,6 +407,7 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
       updateStudent,
       deleteStudent,
       addBatch,
+      deleteBatch,
       assignStudentToBatch,
       scheduleClass,
       toggleAttendance,
@@ -450,4 +442,3 @@ export const useInstructorDashboard = () => {
   }
   return context;
 };
-

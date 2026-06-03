@@ -106,7 +106,7 @@ const PrivacyPolicy = () => {
                     <br />
                     Email: simpleabacuspune@gmail.com
                     <br />
-                    Address: Near Kunjir Public School, Manjri, Manjari Budruk, Pune, Maharashtra 412307
+                    Address: Near Kunjir Public School, Manjari Budruk, Pune, Maharashtra 412307
                   </p>
                 </div>
               </div>

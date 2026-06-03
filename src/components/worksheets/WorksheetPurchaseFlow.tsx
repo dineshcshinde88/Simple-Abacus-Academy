@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Clock, List, Lock, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Layers, List, ShieldCheck, Trash2 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -72,12 +72,14 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [duration, setDuration] = useState<Duration>("3-months");
-  const [selectedLevel, setSelectedLevel] = useState(searchParams.get("level") || config.levels[0]);
+  const [selectedLevels, setSelectedLevels] = useState<string[]>([searchParams.get("level") || config.levels[0]]);
   const [showCart, setShowCart] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const selectedPlan = durationPrices[duration];
+  const totalPrice = selectedPlan.price * selectedLevels.length;
+  const totalOriginalPrice = selectedPlan.originalPrice * selectedLevels.length;
 
   useEffect(() => {
     const incomingDuration = searchParams.get("duration");
@@ -86,17 +88,30 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
     }
   }, [searchParams]);
 
-  const loginRedirect = `${window.location.pathname}?level=${encodeURIComponent(selectedLevel)}&duration=${duration}`;
+  const loginRedirect = `${window.location.pathname}?level=${encodeURIComponent(selectedLevels[0] || config.levels[0])}&duration=${duration}`;
 
-  const matchingPlan = (plans: LevelPlan[]) =>
+  const matchingPlan = (plans: LevelPlan[], level: string) =>
     plans.find((plan) => {
       const sameCourse = plan.courseSlug === config.courseSlug || normalize(plan.name).includes(normalize(config.courseName));
-      const sameLevel = normalize(plan.levelName || plan.name).includes(normalize(selectedLevel));
+      const sameLevel = normalize(plan.levelName || plan.name).includes(normalize(level));
       return sameCourse && sameLevel && plan.durationDays === selectedPlan.days;
     });
 
+  const toggleLevel = (level: string) => {
+    setSelectedLevels((current) => {
+      if (current.includes(level)) {
+        return current.length > 1 ? current.filter((item) => item !== level) : current;
+      }
+      return [...current, level];
+    });
+  };
+
+  const removeLevel = (level: string) => {
+    setSelectedLevels((current) => current.length > 1 ? current.filter((item) => item !== level) : current);
+  };
+
   const handleProceedToPayment = async () => {
-    if (!agreedToTerms || isProcessingPayment) return;
+    if (!agreedToTerms || isProcessingPayment || selectedLevels.length === 0) return;
     const activeToken = token || window.localStorage.getItem(TOKEN_KEY) || "";
 
     if (!activeToken || (user && user.role !== "student")) {
@@ -111,19 +126,22 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
       if (!scriptReady || !window.Razorpay) throw new Error("Unable to load Razorpay checkout.");
 
       const plansResp = await getSubscriptionPlans(activeToken);
-      const plan = matchingPlan(plansResp.plans || []);
-      if (!plan) throw new Error("Selected subscription plan was not found.");
+      const matchedPlans = selectedLevels.map((level) => {
+        const plan = matchingPlan(plansResp.plans || [], level);
+        if (!plan) throw new Error(`${level} subscription plan was not found.`);
+        return { level, plan };
+      });
 
-      const orderResp = await createRazorpayOrder(activeToken, plan.id);
+      const orderResp = await createRazorpayOrder(activeToken, matchedPlans.map((item) => item.plan.id));
       const razorpay = new window.Razorpay({
         key: orderResp.keyId,
         amount: orderResp.order.amount,
         currency: orderResp.order.currency,
         name: "Simple Abacus",
-        description: orderResp.plan.name,
+        description: matchedPlans.length === 1 ? orderResp.plan.name : `${matchedPlans.length} worksheet levels`,
         order_id: orderResp.order.id,
         prefill: { name: user.name, email: user.email },
-        notes: { planId: orderResp.plan.id, levelName: orderResp.plan.levelName || selectedLevel },
+        notes: { planId: orderResp.plan.id, levelName: selectedLevels.join(", ") },
         handler: async (response: RazorpayCheckoutResponse) => {
           try {
             await verifyRazorpayPayment(activeToken, {
@@ -132,7 +150,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
             });
-            toast({ title: "Payment successful", description: `${selectedLevel} subscription is active.` });
+            toast({ title: "Payment successful", description: `${selectedLevels.length} level subscription${selectedLevels.length > 1 ? "s are" : " is"} active.` });
             navigate("/student/dashboard");
           } catch (error) {
             toast({
@@ -160,7 +178,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
   };
 
   const perks = useMemo(
-    () => ["View Questions", "Practice Mode", "Visualization Mode", "Progress Tracking"],
+    () => ["View Questions", "Practice Mode", "Competition Mode", "Progress Tracking"],
     [],
   );
 
@@ -174,7 +192,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
               <>
                 <div>
                   <h1 className="text-3xl font-heading font-bold text-[#4B1E83] md:text-4xl">Abacus Trainer Cart</h1>
-                  <p className="mt-2 text-sm text-slate-600">1 Program Selected</p>
+                  <p className="mt-2 text-sm text-slate-600">{selectedLevels.length} Level{selectedLevels.length > 1 ? "s" : ""} Selected</p>
                 </div>
                 <div className="mt-8 grid items-start gap-8 lg:grid-cols-[1fr_280px]">
                   <div>
@@ -183,19 +201,24 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
                         <img src={config.image} alt={config.title} className="h-24 w-full rounded-lg object-cover sm:w-28" />
                         <div>
                           <h2 className="text-lg font-heading font-bold text-[#4B1E83]">{config.title}</h2>
-                          <p className="mt-2 text-sm text-slate-600">{selectedLevel} Selected</p>
-                          <div className="mt-4 flex items-center justify-between rounded-md border border-[#6f2dbd] px-3 py-2 text-sm text-[#4B1E83]">
-                            <span>
-                              {selectedLevel} <strong>Rs.{selectedPlan.price}</strong>{" "}
-                              <span className="text-xs text-red-500 line-through">Rs.{selectedPlan.originalPrice}</span>
-                            </span>
-                            <Trash2 className="h-4 w-4 text-orange-500" />
+                          <p className="mt-2 text-sm text-slate-600">{selectedLevels.join(", ")} Selected</p>
+                          <div className="mt-4 grid gap-2">
+                            {selectedLevels.map((level) => (
+                              <div key={level} className="flex items-center justify-between rounded-md border border-[#6f2dbd] px-3 py-2 text-sm text-[#4B1E83]">
+                                <span>
+                                  {level} <strong>Rs.{selectedPlan.price}</strong>{" "}
+                                  <span className="text-xs text-red-500 line-through">Rs.{selectedPlan.originalPrice}</span>
+                                </span>
+                                <button type="button" onClick={() => removeLevel(level)} aria-label={`Remove ${level}`}>
+                                  <Trash2 className="h-4 w-4 text-orange-500" />
+                                </button>
+                              </div>
+                            ))}
                           </div>
                         </div>
                         <div className="text-right">
-                          <Trash2 className="ml-auto h-4 w-4 text-orange-500" />
-                          <div className="mt-5 text-xl font-heading font-bold text-orange-500">Rs.{selectedPlan.price}</div>
-                          <div className="text-sm text-orange-500 line-through">Rs.{selectedPlan.originalPrice}</div>
+                          <div className="mt-5 text-xl font-heading font-bold text-orange-500">Rs.{totalPrice}</div>
+                          <div className="text-sm text-orange-500 line-through">Rs.{totalOriginalPrice}</div>
                         </div>
                       </div>
                     </div>
@@ -208,11 +231,11 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
                   <aside className="rounded-xl bg-white p-6 shadow-card">
                     <h3 className="text-lg font-heading font-bold text-[#4B1E83]">Total:</h3>
                     <div className="mt-3 flex items-center gap-2">
-                      <span className="text-3xl font-heading font-bold text-orange-500">Rs.{selectedPlan.price}</span>
-                      <span className="text-sm text-orange-500 line-through">Rs.{selectedPlan.originalPrice}</span>
+                      <span className="text-3xl font-heading font-bold text-orange-500">Rs.{totalPrice}</span>
+                      <span className="text-sm text-orange-500 line-through">Rs.{totalOriginalPrice}</span>
                     </div>
                     <div className="mt-4 inline-flex rounded-full bg-emerald-100 px-3 py-2 text-sm font-semibold text-emerald-700">
-                      You Saved Rs.{selectedPlan.originalPrice - selectedPlan.price}
+                      You Saved Rs.{totalOriginalPrice - totalPrice}
                     </div>
                     <p className="mt-5 text-sm font-semibold text-slate-900">Special Bundle Discount Applied</p>
                     <label className="mt-5 flex items-center gap-2 text-xs text-slate-700">
@@ -266,7 +289,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
 
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
                       {config.levels.map((level) => {
-                        const active = selectedLevel === level;
+                        const active = selectedLevels.includes(level);
                         return (
                           <button
                             key={level}
@@ -274,7 +297,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
                             className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left shadow-sm transition ${
                               active ? "border-[#4B1E83] bg-purple-50" : "border-orange-300 bg-white hover:border-orange-500"
                             }`}
-                            onClick={() => setSelectedLevel(level)}
+                            onClick={() => toggleLevel(level)}
                           >
                             <span className="flex items-center gap-3">
                               <span className={`h-4 w-4 rounded border ${active ? "border-[#4B1E83] bg-[#4B1E83]" : "border-slate-300"}`} />
@@ -293,7 +316,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
                     <div className="mt-6 grid gap-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-600 md:grid-cols-3">
                       <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" /> Secure Razorpay</div>
                       <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-orange-500" /> {selectedPlan.label} access</div>
-                      <div className="flex items-center gap-2"><Lock className="h-4 w-4 text-[#4B1E83]" /> Purchased level only</div>
+                      <div className="flex items-center gap-2"><Layers className="h-4 w-4 text-[#4B1E83]" /> Multiple levels supported</div>
                     </div>
                   </div>
                 </div>
@@ -322,7 +345,7 @@ export const abacusWorksheetConfig: CourseConfig = {
   courseSlug: "abacus-worksheet",
   backLabel: "Buy Vedic Maths Worksheets",
   backPath: "/vedic-maths-worksheet-subscription",
-  levels: ["Level 1", "Level 2", "Level 3", "Level 4", "Level 5", "Level 6", "Level 7"],
+  levels: ["Level 0 (Foundation)", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5", "Level 6", "Level 7"],
   image: placeholderImages.moduleSection,
   accentClass: "bg-gradient-to-br from-[#4B1E83] via-[#6f2dbd] to-orange-500",
 };

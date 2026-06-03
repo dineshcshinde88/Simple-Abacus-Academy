@@ -50,9 +50,10 @@ const Footer = () => (
             <img src="/abacus_logo.svg" alt="Abacus Trainer" className="h-10 w-auto" />
           </div>
           <p className="mt-4 text-sm text-white/85 leading-relaxed">
-            Simple Abacus brings 4+ years of expertise in Abacus and Vedic Maths, trusted by 1,000+ students and
-            teachers. We offer online courses for children, school programs, competition conductor, teacher training,
-            franchise support, and worksheet subscriptions, providing end-to-end solutions for both learning and teaching.
+            With over 4 years of expertise, Simple Abacus is a trusted leader in Abacus and Vedic Maths education,
+            empowering more than 1,000 students and teachers. We offer a comprehensive suite of services-including
+            student courses, school-integrated programs, National-level competitions, certified teacher training, and
+            premium worksheet subscriptions-delivering complete, end-to-end solutions for both learning and teaching.
           </p>
           <p className="mt-3 text-sm font-semibold text-white bg-gradient-to-r from-white/10 via-white/5 to-white/10 border border-white/20 px-4 py-3 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur-sm">
             Simple Abacus is a Division of Mangalvarsha Education Pvt. Ltd.
@@ -135,7 +136,7 @@ const Footer = () => (
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4" />
                 <span>
-                  Kunjir Public School, Manjri, Manjari Budruk, Pune, Maharashtra 412307
+                  Kunjir Public School, Manjari Budruk, Pune, Maharashtra 412307
                 </span>
               </div>
             </div>
@@ -170,6 +171,4 @@ const Footer = () => (
 );
 
 export default Footer;
-
-
 

@@ -13,7 +13,7 @@ const contactInfo = [
   { icon: Mail, title: "Email", value: "simpleabacuspune@gmail.com", href: "mailto:simpleabacuspune@gmail.com" },
   { icon: Phone, title: "Phone", value: "+91 89991 64139", href: "tel:+918999164139" },
   { icon: MessageCircle, title: "WhatsApp", value: "+91 89991 64139", href: "https://wa.me/918999164139" },
-  { icon: MapPin, title: "Address", value: "Near Kunjir Public School, Manjri, Manjari Budruk, Pune, Maharashtra 412307" },
+  { icon: MapPin, title: "Address", value: "Kunjir Public School, Manjari Budruk, Pune, Maharashtra 412307" },
   { icon: Clock, title: "Working Hours", value: "Mon-Sat: 9:00 AM - 7:00 PM" },
 ];
 
@@ -36,18 +36,6 @@ const Contact = () => {
     <div className="min-h-screen">
       <Navbar />
       <main className="pt-16">
-        {/* Hero */}
-        <section className="gradient-hero py-16 md:py-24">
-          <div className="container mx-auto px-4 text-center">
-            <motion.h1 {...fadeUp} className="text-4xl md:text-5xl font-heading font-bold text-primary-foreground mb-4">
-              Get in <span className="text-gradient">Touch</span>
-            </motion.h1>
-            <motion.p {...fadeUp} transition={{ delay: 0.1 }} className="text-primary-foreground/80 max-w-2xl mx-auto text-lg">
-              Have questions about classes, timings, or levels? Send us a message and our team will guide you.
-            </motion.p>
-          </div>
-        </section>
-
         <section className="py-20">
           <div className="container mx-auto px-4">
             <div className="grid lg:grid-cols-2 gap-12 max-w-5xl mx-auto">
@@ -104,12 +92,14 @@ const Contact = () => {
                   ))}
                 </div>
 
-                {/* Map placeholder */}
-                <div className="mt-8 bg-muted rounded-xl h-64 flex items-center justify-center border border-border">
-                  <div className="text-center text-muted-foreground">
-                    <MapPin className="w-8 h-8 mx-auto mb-2" />
-                    <p className="text-sm">Map integration coming soon</p>
-                  </div>
+                <div className="mt-8 h-64 overflow-hidden rounded-xl border border-border bg-muted">
+                  <iframe
+                    title="Simple Abacus location map"
+                    src="https://www.google.com/maps?q=Kunjir%20Public%20School%2C%20Manjari%20Budruk%2C%20Pune%2C%20Maharashtra%20412307&output=embed"
+                    className="h-full w-full"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
                 </div>
               </motion.div>
             </div>

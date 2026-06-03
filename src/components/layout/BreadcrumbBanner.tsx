@@ -55,6 +55,8 @@ const BreadcrumbBanner = () => {
     pathname.startsWith("/student/") ||
     pathname.startsWith("/tutor/") ||
     pathname.startsWith("/competition/") ||
+    pathname === "/teacher-dashboard" ||
+    pathname.startsWith("/teacher-dashboard/") ||
     pathname === "/online-competition" ||
     pathname === "/competition-register"
   ) {

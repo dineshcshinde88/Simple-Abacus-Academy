@@ -7,6 +7,7 @@ $menuItems = [
   ['label' => 'Demo Bookings', 'href' => 'demo_bookings.php', 'key' => 'demo_bookings'],
   ['label' => 'Instructors', 'href' => 'instructors.php', 'key' => 'instructors'],
   ['label' => 'Teachers', 'href' => 'teachers.php', 'key' => 'teachers'],
+  ['label' => 'Blog', 'href' => 'blogs.php', 'key' => 'blogs'],
   ['label' => 'Profile', 'href' => 'profile.php', 'key' => 'profile'],
 ];
 ?>

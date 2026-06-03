@@ -10,8 +10,11 @@ const request = async <T>(path: string, options: RequestInit = {}, token?: strin
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  if (!res.ok) throw new Error("Request failed");
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((data as { message?: string }).message || "Request failed");
+  }
+  return data as T;
 };
 
 export const trainingLogin = (email: string, password: string) =>

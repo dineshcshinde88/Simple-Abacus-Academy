@@ -455,16 +455,21 @@ function instructor_send_password_reset_email(string $name, string $email, strin
 
 function instructor_ensure_approved_user(array $instructor): string
 {
+    if (function_exists('ensure_training_schema')) {
+        ensure_training_schema();
+    }
+
     $email = strtolower((string) $instructor['email']);
     $user = db_one('SELECT * FROM users WHERE email = :email LIMIT 1', ['email' => $email]);
     $now = now_sql();
     if ($user) {
         db_exec_sql(
-            'UPDATE users SET name = :name, password = :password, role = :role, updated_at = :updated_at WHERE id = :id',
+            'UPDATE users SET name = :name, password = :password, role = :role, training_status = :training_status, updated_at = :updated_at WHERE id = :id',
             [
                 'name' => $instructor['full_name'],
                 'password' => $instructor['password'],
                 'role' => 'tutor',
+                'training_status' => 'approved',
                 'updated_at' => $now,
                 'id' => $user['id'],
             ]
@@ -473,14 +478,15 @@ function instructor_ensure_approved_user(array $instructor): string
     } else {
         $userId = uuid_v4();
         db_exec_sql(
-            'INSERT INTO users (id, name, email, password, role, created_at, updated_at)
-             VALUES (:id, :name, :email, :password, :role, :created_at, :updated_at)',
+            'INSERT INTO users (id, name, email, password, role, training_status, created_at, updated_at)
+             VALUES (:id, :name, :email, :password, :role, :training_status, :created_at, :updated_at)',
             [
                 'id' => $userId,
                 'name' => $instructor['full_name'],
                 'email' => $email,
                 'password' => $instructor['password'],
                 'role' => 'tutor',
+                'training_status' => 'approved',
                 'created_at' => $now,
                 'updated_at' => $now,
             ]

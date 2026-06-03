@@ -38,6 +38,19 @@ const statusStyles: Record<TrainingShopOrder["paymentStatus"], string> = {
   failed: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
+const shopTerms = [
+  "All prices mentioned are exclusive for registered teachers/partners only.",
+  "Prices are subject to change without prior notice.",
+  "Final billing will be done as per the current price at the time of order confirmation.",
+  "Once an order is confirmed, it cannot be cancelled or modified.",
+  "Delivery charges are extra, unless otherwise specified.",
+  "Free shipping is applicable on orders above ₹ 3500.",
+  "Standard delivery time is 5-10 working days from order confirmation.",
+  "100% advance payment is required to confirm the order.",
+  "The company is not responsible for delays caused by courier or logistics partners.",
+  "No return or refund will be accepted once the product is delivered.",
+];
+
 const getInitialSelections = () =>
   Object.fromEntries(
     trainingShopProducts.map((product) => [
@@ -157,8 +170,9 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
       navigate(`${paymentPath}?orderId=${encodeURIComponent(response.order.id)}`, {
         state: { order: response.order, paymentUrl: response.paymentUrl, backPath },
       });
-    } catch {
-      toast({ title: "Payment could not start", description: "Please try again in a moment.", variant: "destructive" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Please try again in a moment.";
+      toast({ title: "Payment could not start", description: message, variant: "destructive" });
     } finally {
       setRedirectingProductId(null);
     }
@@ -353,6 +367,18 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
             </div>
           </div>
         </aside>
+      </div>
+
+      <div className="rounded-2xl border border-orange-100 bg-white p-5 shadow-card">
+        <h3 className="font-bold text-foreground">Terms & Conditions</h3>
+        <ul className="mt-4 grid gap-2 text-sm leading-6 text-slate-600 md:grid-cols-2">
+          {shopTerms.map((term) => (
+            <li key={term} className="flex gap-2">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500" />
+              <span>{term}</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

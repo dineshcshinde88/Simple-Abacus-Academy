@@ -138,7 +138,7 @@ function ensure_worksheet_subscription_plans(): void
             'name' => 'Abacus Worksheet',
             'slug' => 'abacus-worksheet',
             'description' => 'Abacus worksheet subscription for students',
-            'levels' => [1, 2, 3, 4, 5, 6, 7],
+            'levels' => ['Level 0 (Foundation)', 1, 2, 3, 4, 5, 6, 7],
         ],
         [
             'name' => 'Vedic Maths Worksheet',
@@ -603,20 +603,28 @@ function controller_student_create_razorpay_order(array $ctx, array $data): void
         json_response(['message' => 'Student not found'], 404);
     }
 
-    $planId = trim((string) ($data['planId'] ?? ''));
-    if ($planId === '') {
+    $planIds = [];
+    if (isset($data['planIds']) && is_array($data['planIds'])) {
+        $planIds = array_values(array_unique(array_filter(array_map(static fn($id): string => trim((string) $id), $data['planIds']))));
+    } else {
+        $planId = trim((string) ($data['planId'] ?? ''));
+        if ($planId !== '') {
+            $planIds = [$planId];
+        }
+    }
+    if (!$planIds) {
         json_response(['message' => 'planId is required'], 422);
     }
 
-    $plan = db_one(
-        'SELECT p.*, l.level_name
+    $placeholders = implode(',', array_fill(0, count($planIds), '?'));
+    $plans = db_all(
+        "SELECT p.*, l.level_name
          FROM subscription_plans p
          LEFT JOIN levels l ON l.id = p.level_id
-         WHERE p.id = :id AND p.is_active = 1
-         LIMIT 1',
-        ['id' => $planId]
+         WHERE p.id IN ({$placeholders}) AND p.is_active = 1",
+        $planIds
     );
-    if (!$plan) {
+    if (count($plans) !== count($planIds)) {
         json_response(['message' => 'Subscription plan not found'], 404);
     }
 
@@ -625,11 +633,11 @@ function controller_student_create_razorpay_order(array $ctx, array $data): void
         json_response(['message' => 'Razorpay is not configured. Please contact admin.'], 400);
     }
 
-    $amount = (float) ($plan['price'] ?? 0);
+    $amount = array_reduce($plans, static fn(float $sum, array $plan): float => $sum + (float) ($plan['price'] ?? 0), 0.0);
     if ($amount <= 0) {
         json_response(['message' => 'Invalid plan price'], 422);
     }
-    $currency = (string) ($plan['currency'] ?? 'INR');
+    $currency = (string) ($plans[0]['currency'] ?? 'INR');
     $amountPaise = (int) round($amount * 100);
 
     $receipt = 'sub_' . substr(str_replace('-', '', $student['id']), 0, 10) . '_' . time();
@@ -639,8 +647,9 @@ function controller_student_create_razorpay_order(array $ctx, array $data): void
         'receipt' => $receipt,
         'notes' => [
             'student_id' => $student['id'],
-            'plan_id' => $plan['id'],
-            'plan_name' => $plan['name'],
+            'plan_id' => $plans[0]['id'],
+            'plan_name' => count($plans) === 1 ? $plans[0]['name'] : count($plans) . ' worksheet levels',
+            'plan_ids' => implode(',', $planIds),
         ],
     ];
 
@@ -660,13 +669,13 @@ function controller_student_create_razorpay_order(array $ctx, array $data): void
         [
             'id' => $attemptId,
             'student_id' => $student['id'],
-            'plan_id' => $plan['id'],
+            'plan_id' => $plans[0]['id'],
             'provider' => 'razorpay',
             'amount' => $amount,
             'currency' => $currency,
             'status' => 'created',
             'provider_order_id' => $rzOrder['id'] ?? null,
-            'metadata_json' => json_encode($rzOrder, JSON_UNESCAPED_SLASHES),
+            'metadata_json' => json_encode(['order' => $rzOrder, 'plan_ids' => $planIds], JSON_UNESCAPED_SLASHES),
             'created_at' => $now,
             'updated_at' => $now,
         ]
@@ -681,14 +690,23 @@ function controller_student_create_razorpay_order(array $ctx, array $data): void
             'currency' => $rzOrder['currency'] ?? $currency,
         ],
         'plan' => [
+            'id' => $plans[0]['id'],
+            'name' => count($plans) === 1 ? $plans[0]['name'] : count($plans) . ' worksheet levels',
+            'levelId' => $plans[0]['level_id'] ?? null,
+            'levelName' => $plans[0]['level_name'] ?? null,
+            'durationDays' => (int) ($plans[0]['duration_days'] ?? 0),
+            'price' => $amount,
+            'currency' => $currency,
+        ],
+        'plans' => array_map(static fn(array $plan): array => [
             'id' => $plan['id'],
             'name' => $plan['name'],
             'levelId' => $plan['level_id'] ?? null,
             'levelName' => $plan['level_name'] ?? null,
             'durationDays' => (int) ($plan['duration_days'] ?? 0),
-            'price' => $amount,
-            'currency' => $currency,
-        ],
+            'price' => (float) ($plan['price'] ?? 0),
+            'currency' => (string) ($plan['currency'] ?? 'INR'),
+        ], $plans),
     ]);
 }
 
@@ -744,41 +762,28 @@ function controller_student_verify_razorpay_payment(array $ctx, array $data): vo
         json_response(['message' => 'Payment signature verification failed'], 422);
     }
 
-    $plan = db_one('SELECT * FROM subscription_plans WHERE id = :id LIMIT 1', ['id' => $attempt['plan_id']]);
-    if (!$plan) {
+    $metadata = json_decode((string) ($attempt['metadata_json'] ?? ''), true);
+    $planIds = [];
+    if (is_array($metadata) && isset($metadata['plan_ids']) && is_array($metadata['plan_ids'])) {
+        $planIds = array_values(array_filter(array_map(static fn($id): string => trim((string) $id), $metadata['plan_ids'])));
+    }
+    if (!$planIds) {
+        $planIds = [(string) $attempt['plan_id']];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($planIds), '?'));
+    $plans = db_all("SELECT * FROM subscription_plans WHERE id IN ({$placeholders})", $planIds);
+    if (count($plans) !== count($planIds)) {
         json_response(['message' => 'Plan not found for this payment'], 404);
     }
 
-    $days = (int) ($plan['duration_days'] ?? 0);
-    if ($days <= 0) {
-        json_response(['message' => 'Invalid plan duration'], 422);
-    }
-
-    $nowTs = time();
-    $existing = db_one(
-        'SELECT * FROM student_subscriptions
-         WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active" AND payment_status = "paid"
-         ORDER BY expiry_date DESC
-         LIMIT 1',
-        [
-            'student_id' => $student['id'],
-            'level_id' => $plan['level_id'] ?? null,
-        ]
-    );
-
-    $baseExpiryTs = $nowTs;
-    if ($existing && !empty($existing['expiry_date'])) {
-        $existingExpiry = strtotime((string) $existing['expiry_date']);
-        if ($existingExpiry !== false && $existingExpiry > $baseExpiryTs) {
-            $baseExpiryTs = $existingExpiry;
+    foreach ($plans as $plan) {
+        if ((int) ($plan['duration_days'] ?? 0) <= 0) {
+            json_response(['message' => 'Invalid plan duration'], 422);
         }
     }
-
-    $startTs = $nowTs;
-    $endTs = $baseExpiryTs + ($days * 86400);
-    $startDate = gmdate('Y-m-d H:i:s', $startTs);
-    $endDate = gmdate('Y-m-d H:i:s', $endTs);
     $now = now_sql();
+    $nowTs = time();
 
     $pdo = db_conn();
     $pdo->beginTransaction();
@@ -797,53 +802,77 @@ function controller_student_verify_razorpay_payment(array $ctx, array $data): vo
             ]
         );
 
-        db_exec_sql(
-            'UPDATE student_subscriptions
-             SET status = :status, updated_at = :updated_at
-             WHERE student_id = :student_id AND status = "active"',
-            ['status' => 'expired', 'updated_at' => $now, 'student_id' => $student['id']]
-        );
+        foreach ($plans as $plan) {
+            $days = (int) ($plan['duration_days'] ?? 0);
+            $existing = db_one(
+                'SELECT * FROM student_subscriptions
+                 WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active" AND payment_status = "paid"
+                 ORDER BY expiry_date DESC
+                 LIMIT 1',
+                [
+                    'student_id' => $student['id'],
+                    'level_id' => $plan['level_id'] ?? null,
+                ]
+            );
 
-        $subscriptionId = uuid_v4();
-        db_exec_sql(
-            'INSERT INTO student_subscriptions
-             (id, student_id, plan_id, level_id, plan_name, amount, currency, start_date, expiry_date, status, payment_status, payment_attempt_id, razorpay_order_id, razorpay_payment_id, created_at, updated_at)
-             VALUES
-             (:id, :student_id, :plan_id, :level_id, :plan_name, :amount, :currency, :start_date, :expiry_date, :status, :payment_status, :payment_attempt_id, :razorpay_order_id, :razorpay_payment_id, :created_at, :updated_at)',
-            [
-                'id' => $subscriptionId,
-                'student_id' => $student['id'],
-                'plan_id' => $plan['id'],
-                'level_id' => $plan['level_id'] ?: null,
-                'plan_name' => $plan['name'],
-                'amount' => $attempt['amount'],
-                'currency' => $attempt['currency'] ?: 'INR',
-                'start_date' => $startDate,
-                'expiry_date' => $endDate,
-                'status' => 'active',
-                'payment_status' => 'paid',
-                'payment_attempt_id' => $attemptId,
-                'razorpay_order_id' => $orderId,
-                'razorpay_payment_id' => $paymentId,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]
-        );
+            $baseExpiryTs = $nowTs;
+            if ($existing && !empty($existing['expiry_date'])) {
+                $existingExpiry = strtotime((string) $existing['expiry_date']);
+                if ($existingExpiry !== false && $existingExpiry > $baseExpiryTs) {
+                    $baseExpiryTs = $existingExpiry;
+                }
+            }
 
-        db_exec_sql(
-            'UPDATE students
-             SET level_id = :level_id, subscription_plan = :plan_name, subscription_start = :start_date, subscription_end = :end_date, subscription_status = :status, updated_at = :updated_at
-             WHERE id = :student_id',
-            [
-                'level_id' => $plan['level_id'] ?: null,
-                'plan_name' => $plan['name'],
-                'start_date' => $startDate,
-                'end_date' => $endDate,
-                'status' => 'active',
-                'updated_at' => $now,
-                'student_id' => $student['id'],
-            ]
-        );
+            $startDate = gmdate('Y-m-d H:i:s', $nowTs);
+            $endDate = gmdate('Y-m-d H:i:s', $baseExpiryTs + ($days * 86400));
+
+            db_exec_sql(
+                'UPDATE student_subscriptions
+                 SET status = :status, updated_at = :updated_at
+                 WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active"',
+                ['status' => 'expired', 'updated_at' => $now, 'student_id' => $student['id'], 'level_id' => $plan['level_id'] ?: null]
+            );
+
+            db_exec_sql(
+                'INSERT INTO student_subscriptions
+                 (id, student_id, plan_id, level_id, plan_name, amount, currency, start_date, expiry_date, status, payment_status, payment_attempt_id, razorpay_order_id, razorpay_payment_id, created_at, updated_at)
+                 VALUES
+                 (:id, :student_id, :plan_id, :level_id, :plan_name, :amount, :currency, :start_date, :expiry_date, :status, :payment_status, :payment_attempt_id, :razorpay_order_id, :razorpay_payment_id, :created_at, :updated_at)',
+                [
+                    'id' => uuid_v4(),
+                    'student_id' => $student['id'],
+                    'plan_id' => $plan['id'],
+                    'level_id' => $plan['level_id'] ?: null,
+                    'plan_name' => $plan['name'],
+                    'amount' => (float) ($plan['price'] ?? 0),
+                    'currency' => $plan['currency'] ?: ($attempt['currency'] ?: 'INR'),
+                    'start_date' => $startDate,
+                    'expiry_date' => $endDate,
+                    'status' => 'active',
+                    'payment_status' => 'paid',
+                    'payment_attempt_id' => $attemptId,
+                    'razorpay_order_id' => $orderId,
+                    'razorpay_payment_id' => $paymentId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+
+            db_exec_sql(
+                'UPDATE students
+                 SET level_id = :level_id, subscription_plan = :plan_name, subscription_start = :start_date, subscription_end = :end_date, subscription_status = :status, updated_at = :updated_at
+                 WHERE id = :student_id',
+                [
+                    'level_id' => $plan['level_id'] ?: null,
+                    'plan_name' => count($plans) === 1 ? $plan['name'] : count($plans) . ' worksheet levels',
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'status' => 'active',
+                    'updated_at' => $now,
+                    'student_id' => $student['id'],
+                ]
+            );
+        }
 
         $pdo->commit();
     } catch (Throwable $e) {

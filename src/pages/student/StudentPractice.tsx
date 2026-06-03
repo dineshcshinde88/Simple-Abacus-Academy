@@ -82,7 +82,7 @@ const StudentPractice = () => {
         }
       } catch (error) {
         toast({ title: "Practice error", description: error instanceof Error ? error.message : "Please try again." });
-        if (paperId) navigate("/student/practice", { replace: true });
+        if (paperId) navigate("/student/online-competition", { replace: true });
       } finally {
         setLoading(false);
       }
@@ -154,8 +154,8 @@ const StudentPractice = () => {
       <StudentLayout
         header={(
           <div>
-            <h1 className="text-2xl md:text-3xl font-heading font-bold text-slate-900">Practice Papers</h1>
-            <p className="text-sm text-slate-500 mt-1">Level-wise timed abacus practice with subscription access</p>
+            <h1 className="text-2xl md:text-3xl font-heading font-bold text-slate-900">Online Competition</h1>
+            <p className="text-sm text-slate-500 mt-1">Online competition practice papers and performance details</p>
           </div>
         )}
       >
@@ -185,7 +185,7 @@ const StudentPractice = () => {
                   <p className="text-sm text-slate-500">10 papers, 60 questions, {Math.round(level.timerSeconds / 60)} minute timer</p>
                 </div>
                 {!level.unlocked && (
-                  <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => navigate("/student/orders")}>
+                  <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => navigate("/student/shop")}>
                     Purchase Subscription
                   </Button>
                 )}
@@ -201,7 +201,7 @@ const StudentPractice = () => {
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => navigate(`/student/practice/${p.id}`)}
+                      onClick={() => navigate(`/student/online-competition/${p.id}`)}
                       className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[#5b21b6] hover:bg-white"
                     >
                       <p className="text-xs font-semibold uppercase text-slate-500">Paper {p.paperNumber}</p>
@@ -237,7 +237,7 @@ const StudentPractice = () => {
             <h1 className="text-2xl md:text-3xl font-heading font-bold text-slate-900">{paper?.title || "Practice Paper"}</h1>
             <p className="text-sm text-slate-500 mt-1">{paper?.levelName} • {questions.length} questions</p>
           </div>
-          <Button variant="outline" onClick={() => navigate("/student/practice")}>Back to Papers</Button>
+          <Button variant="outline" onClick={() => navigate("/student/online-competition")}>Back to Online Competition</Button>
         </div>
       )}
     >
@@ -301,8 +301,8 @@ const StudentPractice = () => {
                 </div>
               ))}
             </div>
-            <Button className="mt-5 bg-slate-900 hover:bg-slate-800" onClick={() => navigate("/student/practice")}>
-              <RotateCcw className="mr-2 h-4 w-4" /> Back to Practice
+            <Button className="mt-5 bg-slate-900 hover:bg-slate-800" onClick={() => navigate("/student/online-competition")}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Back to Online Competition
             </Button>
           </section>
         ) : (

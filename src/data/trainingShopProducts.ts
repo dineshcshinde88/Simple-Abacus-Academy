@@ -1,10 +1,10 @@
 import abacusForSchoolImage from "@/assets/abacus for school.png";
 import abacusKitNewAdmissionImage from "@/assets/abacus kit new admission.png";
 import abacusKitRegularImage from "@/assets/abacus kit regular.png";
-import abacusTshirtImage from "@/assets/abacus t shirt.png";
+import abacusTshirtImage from "@/assets/t-shirt.png";
 import abacusToolImage from "@/assets/abacus tool a kit.png";
 import certificateImage from "@/assets/certificate.png";
-import vedicMathematicsKitImage from "@/assets/Vedic Mathematics Kit.png";
+import vedicMathematicsKitNewImage from "@/assets/vedic mathematics kit new.png";
 
 export type TrainingShopOption = {
   label: string;
@@ -61,12 +61,12 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     id: "student-abacus-tool",
     name: "Student Abacus Tool (1 Piece)",
     category: "Tools",
-    description: "Durable student abacus tool available in 15-rod and 17-rod variants.",
+    description: "Durable student abacus tool available in 7-rod and 15-rod variants.",
     optionLabel: "Option",
     image: abacusToolImage,
     options: [
-      { label: "15 Rod", price: 180 },
-      { label: "17 Rod", price: 110 },
+      { label: "7 Rod", price: 110 },
+      { label: "15 Rod", price: 130 },
     ],
   },
   {
@@ -94,7 +94,7 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     description: "Level-wise Vedic Maths learning kit with book and certificate.",
     includes: ["1 Book", "1 Certificate"],
     optionLabel: "Level",
-    image: vedicMathematicsKitImage,
+    image: vedicMathematicsKitNewImage,
     options: vedicLevels.map((label) => ({ label, price: 310 })),
   },
 ];

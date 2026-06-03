@@ -97,6 +97,17 @@ function require_training_teacher(): array
     }
     $status = (string) db_value('SELECT training_status FROM users WHERE id = :id LIMIT 1', ['id' => $ctx['user']['id']]);
     if ($status !== 'approved') {
+        $approvedInstructor = db_one(
+            'SELECT id FROM instructors WHERE email = :email AND status = :status AND is_verified = 1 LIMIT 1',
+            ['email' => (string) $ctx['user']['email'], 'status' => 'approved']
+        );
+        if ($approvedInstructor) {
+            db_exec_sql(
+                'UPDATE users SET training_status = :training_status, updated_at = :updated_at WHERE id = :id',
+                ['training_status' => 'approved', 'updated_at' => now_sql(), 'id' => (string) $ctx['user']['id']]
+            );
+            return $ctx;
+        }
         json_response(['message' => 'Your teacher account is waiting for admin approval.'], 403);
     }
     return $ctx;

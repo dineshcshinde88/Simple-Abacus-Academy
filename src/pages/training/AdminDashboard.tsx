@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,18 @@ const AdminDashboard = () => {
   const [competition, setCompetition] = useState<CompetitionAdminOverview | null>(null);
   const [lastCompetitionPassword, setLastCompetitionPassword] = useState<{ email: string; password: string } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const competitionCategoryRows = useMemo(
+    () =>
+      (competition?.categories || []).map((category) => ({
+        ...category,
+        subcategories: (competition?.subcategories || [])
+          .filter((subcategory) => subcategory.category_id === category.id)
+          .map((subcategory) => subcategory.name)
+          .join(", "),
+      })),
+    [competition],
+  );
 
   const load = async () => {
     if (!token) return;
@@ -116,6 +128,33 @@ const AdminDashboard = () => {
                 <AdminMetric label="Revenue" value={`Rs. ${competition?.summary.revenue || 0}`} />
                 <AdminMetric label="Participants" value={competition?.summary.participantsCount || 0} />
                 <AdminMetric label="Active Kit Access" value={competition?.summary.activePracticeKitAccess || 0} />
+              </div>
+
+              <div className="mt-6 rounded-lg border border-border bg-slate-50 p-4">
+                <h3 className="font-semibold text-foreground">Online Competition Categories & Subcategories</h3>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-left text-sm">
+                    <thead className="text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="border-b border-border py-2">Category</th>
+                        <th className="border-b border-border py-2">Subcategory</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border bg-white">
+                      {competitionCategoryRows.map((category) => (
+                        <tr key={category.id}>
+                          <td className="py-3 font-semibold">{category.name}</td>
+                          <td className="py-3">{category.subcategories || "-"}</td>
+                        </tr>
+                      ))}
+                      {competitionCategoryRows.length === 0 && (
+                        <tr>
+                          <td className="py-3 text-muted-foreground" colSpan={2}>No categories found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <div className="mt-6 overflow-x-auto">

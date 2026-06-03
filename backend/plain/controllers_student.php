@@ -12,8 +12,19 @@ function controller_student_dashboard(array $ctx): void
         $student = current_student($ctx['user']['id']);
     }
 
-    $status = (string) ($student['subscription_status'] ?? 'expired');
-    if (!empty($student['subscription_end']) && strtotime((string) $student['subscription_end']) < time()) {
+    $subscriptionOverview = function_exists('get_student_subscription_overview')
+        ? get_student_subscription_overview((string) $student['id'])
+        : ['current' => null, 'history' => []];
+    $activeSubscriptions = array_values(array_filter(
+        $subscriptionOverview['history'] ?? [],
+        static fn(array $sub): bool => ($sub['status'] ?? '') === 'active'
+            && ($sub['paymentStatus'] ?? '') === 'paid'
+            && !empty($sub['expiryDate'])
+            && strtotime((string) $sub['expiryDate']) >= time()
+    ));
+
+    $status = count($activeSubscriptions) > 0 ? 'active' : (string) ($student['subscription_status'] ?? 'expired');
+    if ($status !== 'active' && !empty($student['subscription_end']) && strtotime((string) $student['subscription_end']) < time()) {
         $status = 'expired';
         if (($student['subscription_status'] ?? '') !== 'expired') {
             db_exec_sql('UPDATE students SET subscription_status = :status, updated_at = :updated_at WHERE id = :id', [
@@ -24,8 +35,26 @@ function controller_student_dashboard(array $ctx): void
         }
     }
 
-    $worksheetsCount = !empty($student['level_id']) ? (int) db_value('SELECT COUNT(*) FROM worksheets WHERE level_id = :id', ['id' => $student['level_id']]) : 0;
-    $videosCount = !empty($student['level_id']) ? (int) db_value('SELECT COUNT(*) FROM videos WHERE level_id = :id', ['id' => $student['level_id']]) : 0;
+    $activeLevelIds = array_values(array_unique(array_filter(array_map(
+        static fn(array $sub): ?string => $sub['levelId'] ?? null,
+        $activeSubscriptions
+    ))));
+    $countByLevels = static function (string $table) use ($activeLevelIds, $student): int {
+        if ($activeLevelIds) {
+            $placeholders = [];
+            $params = [];
+            foreach ($activeLevelIds as $index => $levelId) {
+                $key = 'level_' . $index;
+                $placeholders[] = ':' . $key;
+                $params[$key] = $levelId;
+            }
+            return (int) db_value('SELECT COUNT(*) FROM ' . $table . ' WHERE level_id IN (' . implode(',', $placeholders) . ')', $params);
+        }
+        return !empty($student['level_id']) ? (int) db_value('SELECT COUNT(*) FROM ' . $table . ' WHERE level_id = :id', ['id' => $student['level_id']]) : 0;
+    };
+
+    $worksheetsCount = $countByLevels('worksheets');
+    $videosCount = $countByLevels('videos');
     $practice = ['purchasedLevels' => 0, 'completedPapers' => 0, 'pendingPapers' => 0, 'averageAccuracy' => 0.0];
     if (function_exists('ensure_practice_schema')) {
         ensure_practice_schema();
@@ -66,17 +95,69 @@ function controller_student_dashboard(array $ctx): void
             $batches = $decoded;
         }
     }
+    $activeStartDates = array_filter(array_map(static fn(array $sub): ?string => $sub['startDate'] ?? null, $activeSubscriptions));
+    $activeExpiryDates = array_filter(array_map(static fn(array $sub): ?string => $sub['expiryDate'] ?? null, $activeSubscriptions));
 
     json_response([
         'name' => $student['user_name'] ?? 'Student',
-        'level' => $student['level_name'] ?? null,
+        'level' => $activeSubscriptions
+            ? implode(', ', array_values(array_filter(array_map(static fn(array $sub): string => (string) ($sub['levelName'] ?? ''), $activeSubscriptions))))
+            : ($student['level_name'] ?? null),
         'batchesCount' => count($batches),
         'worksheetsCount' => $worksheetsCount,
         'videosCount' => $videosCount,
         'subscriptionStatus' => $status,
-        'startDate' => $student['subscription_start'] ?? null,
-        'expiryDate' => $student['subscription_end'] ?? null,
+        'startDate' => $activeStartDates
+            ? min($activeStartDates)
+            : ($student['subscription_start'] ?? null),
+        'expiryDate' => $activeExpiryDates
+            ? max($activeExpiryDates)
+            : ($student['subscription_end'] ?? null),
+        'subscriptions' => $activeSubscriptions,
         'practice' => $practice,
+    ]);
+}
+
+function controller_student_profile(array $ctx): void
+{
+    if (function_exists('ensure_student_registration_schema')) {
+        ensure_student_registration_schema();
+    }
+
+    $student = current_student($ctx['user']['id']);
+    if (!$student) {
+        json_response(['message' => 'Student not found'], 404);
+    }
+
+    if (function_exists('sync_student_subscription_state')) {
+        sync_student_subscription_state((string) $student['id']);
+        $student = current_student($ctx['user']['id']);
+    }
+
+    $subscriptionOverview = function_exists('get_student_subscription_overview')
+        ? get_student_subscription_overview((string) $student['id'])
+        : ['current' => null, 'history' => []];
+
+    json_response([
+        'profile' => [
+            'id' => $student['id'],
+            'name' => $student['user_name'] ?? '',
+            'email' => $student['user_email'] ?? '',
+            'course' => $student['course'] ?? '',
+            'phoneCountry' => $student['phone_country'] ?? '+91',
+            'phone' => $student['phone'] ?? '',
+            'gender' => $student['gender'] ?? '',
+            'motherTongue' => $student['mother_tongue'] ?? '',
+            'dob' => $student['dob'] ?? null,
+            'level' => $student['level_name'] ?? null,
+            'courseName' => $student['course_name'] ?? null,
+            'subscriptionPlan' => $student['subscription_plan'] ?? null,
+            'subscriptionStatus' => $student['subscription_status'] ?? 'expired',
+            'subscriptionStart' => $student['subscription_start'] ?? null,
+            'subscriptionEnd' => $student['subscription_end'] ?? null,
+            'createdAt' => $student['created_at'] ?? null,
+            'subscriptions' => $subscriptionOverview['history'] ?? [],
+        ],
     ]);
 }
 

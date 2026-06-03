@@ -79,6 +79,13 @@ const CompetitionRegister = () => {
             <p className="mt-3 text-sm text-slate-500">Create a separate competition portal account request.</p>
           </div>
 
+          <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-sm font-semibold text-blue-800">
+            Note: For Online Competition Registration, Please Contact{" "}
+            <a href="tel:+918999164139" className="whitespace-nowrap text-blue-700 hover:underline">
+              +91-8999164139
+            </a>
+          </div>
+
           <div className="mt-8 grid gap-5 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Full Name</Label>
