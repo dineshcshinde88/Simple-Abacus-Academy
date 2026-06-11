@@ -63,6 +63,9 @@ function require_role(array $roles): array
 
 function current_student(string $userId): ?array
 {
+    if (function_exists('ensure_student_registration_schema')) {
+        ensure_student_registration_schema();
+    }
     if (function_exists('ensure_billing_schema')) {
         ensure_billing_schema();
     }

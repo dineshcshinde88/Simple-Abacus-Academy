@@ -204,6 +204,7 @@ function request_body_data(string $method): array
     $contentType = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
     if (str_contains($contentType, 'application/json')) {
         $raw = file_get_contents('php://input');
+        $GLOBALS['request_raw_body'] = (string) $raw;
         $decoded = json_decode((string) $raw, true);
         return is_array($decoded) ? $decoded : [];
     }
@@ -213,6 +214,7 @@ function request_body_data(string $method): array
     }
 
     $raw = file_get_contents('php://input');
+    $GLOBALS['request_raw_body'] = (string) $raw;
     parse_str((string) $raw, $parsed);
     return is_array($parsed) ? $parsed : [];
 }

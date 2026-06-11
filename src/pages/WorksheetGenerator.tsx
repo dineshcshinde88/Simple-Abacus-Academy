@@ -19,7 +19,6 @@ type WorksheetQuestion = { numbers: number[]; operator: string; answer: number }
 
 const features = [
   { title: "Complete Customization", desc: "Pick operations, rows, and question counts to match each learner.", icon: Settings2 },
-  { title: "Auto Answer Keys", desc: "Get instant answers with every worksheet for quick checking.", icon: CheckCircle2 },
   { title: "Unlimited Worksheets", desc: "Generate as many practice sets as you need, anytime.", icon: Sparkles },
   { title: "Free Access", desc: "Create worksheets without extra cost or hidden fees.", icon: HeartHandshake },
 ];
@@ -33,7 +32,7 @@ const benefits = [
 const faqs = [
   { q: "Is the worksheet generator free to use?", a: "Yes. You can generate unlimited worksheets without any fees." },
   { q: "Can I download worksheets as PDF?", a: "Yes. Use the Download PDF button to save and print worksheets." },
-  { q: "Do worksheets include answer keys?", a: "Yes. Each worksheet can include an auto-generated answer key." },
+  { q: "Do worksheets include answer keys?", a: "No. Worksheets are designed for student practice with blank answer spaces." },
   { q: "Can I change operations and difficulty?", a: "Yes. Select an operation and adjust rows and questions for the right level." },
   { q: "Will this work on mobile devices?", a: "Absolutely. The generator is fully responsive for phones and tablets." },
 ];
@@ -64,6 +63,13 @@ const WorksheetGenerator = () => {
     const min = Math.pow(10, digits - 1);
     const max = Math.pow(10, digits) - 1;
     return Math.floor(Math.random() * (max - min + 1)) + min;
+  };
+
+  const randomNumberUpto = (digits: number, maxValue?: number) => {
+    const digitMax = Math.pow(10, Math.max(1, digits)) - 1;
+    const max = Math.max(0, Math.min(digitMax, maxValue ?? digitMax));
+    if (max <= 0) return 0;
+    return Math.floor(Math.random() * max) + 1;
   };
 
   const getActiveDigitLengths = () =>
@@ -106,17 +112,23 @@ const WorksheetGenerator = () => {
         const nums = digitLengths.map((digits) => randomNumber(digits));
         result.push({ numbers: nums, operator: "+", answer: nums.reduce((acc, val) => acc + val, 0) });
       } else if (operation === "Subtraction") {
-        const nums = digitLengths.map((digits) => randomNumber(digits));
-        const subtractorTotal = nums.slice(1).reduce((acc, val) => acc + val, 0);
-        const first = Math.max(nums[0], subtractorTotal + randomNumber(digitLengths[0]));
-        result.push({ numbers: [first, ...nums.slice(1)], operator: "-", answer: first - subtractorTotal });
+        const first = randomNumber(digitLengths[0]);
+        let remaining = first;
+        const subtractors = digitLengths.slice(1).map((digits, index, list) => {
+          const rowsLeft = list.length - index - 1;
+          const value = randomNumberUpto(digits, remaining - rowsLeft);
+          remaining -= value;
+          return value;
+        });
+        const subtractorTotal = subtractors.reduce((acc, val) => acc + val, 0);
+        result.push({ numbers: [first, ...subtractors], operator: "-", answer: first - subtractorTotal });
       } else if (operation === "Multiplication") {
         const nums = digitLengths.slice(0, 2).map((digits) => randomNumber(digits));
         result.push({ numbers: nums, operator: "x", answer: nums[0] * nums[1] });
       } else {
+        const dividend = randomNumber(digitLengths[0] || 1);
         const divisor = Math.max(1, randomNumber(digitLengths[1] || 1));
-        const quotient = randomNumber(digitLengths[0] || 1);
-        result.push({ numbers: [divisor * quotient, divisor], operator: "÷", answer: quotient });
+        result.push({ numbers: [dividend, divisor], operator: "÷", answer: Number((dividend / divisor).toFixed(2)) });
       }
     }
 
@@ -134,7 +146,8 @@ const WorksheetGenerator = () => {
   };
 
   const buildPrintHtml = (items: WorksheetQuestion[]) => {
-    const questionsPerPage = Number(rows) >= 8 ? 6 : 8;
+    const rowsCount = Number(rows);
+    const questionsPerPage = rowsCount >= 8 ? 10 : rowsCount >= 5 ? 12 : 16;
     const pages = Math.ceil(items.length / questionsPerPage);
     const title = `Worksheet Generator - ${previewSummary}`;
     const generated = new Date().toLocaleDateString();
@@ -176,23 +189,23 @@ const WorksheetGenerator = () => {
   <title>${title}</title>
   <style>
     * { box-sizing: border-box; }
-    @page { size: A4; margin: 10mm; }
+    @page { size: A4; margin: 7mm; }
     body { font-family: Arial, sans-serif; margin: 0; color: #111827; background: #fff; }
     .page { page-break-after: always; }
     .page:last-child { page-break-after: auto; }
-    .page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px; border-bottom: 2px solid #f97316; padding-bottom: 8px; }
-    .brand { color: #ef233c; font-size: 20px; font-weight: 900; letter-spacing: .5px; }
-    h1 { font-size: 14px; margin: 4px 0 0; }
-    .meta { color: #6b7280; font-size: 12px; white-space: nowrap; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
-    .question { min-height: ${Number(rows) >= 8 ? "196px" : "146px"}; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 12px; break-inside: avoid; page-break-inside: avoid; }
-    .q-title { color: #6d28d9; font-size: 12px; font-weight: 700; margin-bottom: 8px; text-align: center; }
-    .nums { width: 104px; margin-left: auto; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.25; }
-    .row { display: grid; grid-template-columns: 18px 1fr; gap: 8px; text-align: right; }
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 5px; border-bottom: 1.2px solid #f97316; padding-bottom: 3px; }
+    .brand { color: #ef233c; font-size: 14px; font-weight: 900; letter-spacing: .3px; }
+    h1 { font-size: 10px; margin: 1px 0 0; }
+    .meta { color: #6b7280; font-size: 9px; white-space: nowrap; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-items: start; }
+    .question { min-height: ${rowsCount >= 8 ? "124px" : rowsCount >= 5 ? "100px" : "78px"}; border: 1px solid #d1d5db; border-radius: 5px; padding: 5px 8px; break-inside: avoid; page-break-inside: avoid; }
+    .q-title { color: #6d28d9; font-size: 9px; font-weight: 700; margin-bottom: 3px; text-align: center; }
+    .nums { width: 84px; margin-left: auto; font-family: "Courier New", monospace; font-size: 9.5px; line-height: 1.05; }
+    .row { display: grid; grid-template-columns: 14px 1fr; gap: 5px; text-align: right; }
     .op { color: #059669; font-weight: 700; text-align: center; }
-    .num { display: block; min-width: 64px; }
-    .line { border-top: 1.5px solid #374151; margin-top: 6px; }
-    .answer-space { width: 104px; height: 16px; border-bottom: 1px solid #9ca3af; margin-left: auto; margin-top: 4px; }
+    .num { display: block; min-width: 52px; }
+    .line { border-top: 1px solid #374151; margin-top: 3px; }
+    .answer-space { width: 84px; height: 8px; border-bottom: 1px solid #9ca3af; margin-left: auto; margin-top: 1px; }
     @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
   </style>
 </head>

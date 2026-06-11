@@ -5,7 +5,6 @@ export type StudentDashboardData = {
   level: string | null;
   batchesCount: number;
   worksheetsCount: number;
-  videosCount: number;
   subscriptionStatus: "active" | "expired";
   startDate: string | null;
   expiryDate: string | null;
@@ -48,6 +47,22 @@ export type StudentProfileData = {
   subscriptions?: NonNullable<StudentDashboardData["subscriptions"]>;
 };
 
+export type StudentCourseData = {
+  id: string;
+  courseId: string | null;
+  courseName: string;
+  courseSlug: string | null;
+  levelId: string | null;
+  levelName: string | null;
+  subscriptionId: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  status: "active" | "expired" | "cancelled";
+  accessStart: string | null;
+  accessEnd: string | null;
+};
+
 const API_BASE = getApiBase();
 
 export async function fetchStudentDashboard(token: string): Promise<StudentDashboardData> {
@@ -75,6 +90,21 @@ export async function fetchStudentProfile(token: string): Promise<{ profile: Stu
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error((data as { message?: string }).message || "Failed to load profile");
+  }
+
+  return response.json();
+}
+
+export async function fetchStudentCourses(token: string): Promise<{ courses: StudentCourseData[] }> {
+  const response = await fetch(`${API_BASE}/api/student/courses`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error((data as { message?: string }).message || "Failed to load courses");
   }
 
   return response.json();

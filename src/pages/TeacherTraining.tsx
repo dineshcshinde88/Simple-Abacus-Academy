@@ -1,9 +1,15 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import teacherTrainingImage from "@/assets/pages/teacher-training.png";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { getApiBase } from "@/lib/apiBase";
 import {
   Award,
   BookOpen,
@@ -12,6 +18,9 @@ import {
   Laptop,
   Layers,
   LineChart,
+  Mail,
+  MessageCircle,
+  Phone,
   ShieldCheck,
   Sparkles,
   Users,
@@ -184,6 +193,186 @@ const Card = ({ icon: Icon, title, desc }: CardProps) => (
   </div>
 );
 
+const TeacherTrainingEnquiryForm = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [programs, setPrograms] = useState({ abacus: true, vedic: true });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    mobile: "",
+    location: "",
+    message: "",
+  });
+
+  const selectedPrograms = [
+    programs.abacus ? "Abacus Teacher Training" : null,
+    programs.vedic ? "Vedic Maths Teacher Training" : null,
+  ].filter(Boolean) as string[];
+
+  const updateField = (field: keyof typeof form, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (selectedPrograms.length === 0) {
+      toast.error("Please select at least one teacher training program.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${getApiBase()}/api/instructor/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          mobile: form.mobile,
+          address: form.location || "Teacher training enquiry",
+          qualification: form.message,
+          programs: selectedPrograms,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error((data as { message?: string }).message || "Unable to submit enquiry.");
+      }
+
+      toast.success("Thank you! Your teacher training enquiry has been submitted.");
+      setForm({ name: "", email: "", mobile: "", location: "", message: "" });
+      setPrograms({ abacus: true, vedic: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to submit enquiry. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Section className="bg-muted/40">
+      <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] items-start">
+        <div>
+          <span className="inline-flex rounded-full bg-[#f97316]/10 px-4 py-1.5 text-sm font-semibold text-[#f97316]">
+            Teacher Training Enquiry
+          </span>
+          <h2 className="mt-4 text-3xl md:text-4xl font-heading font-bold text-foreground">
+            Ask about Abacus and Vedic Maths teacher training
+          </h2>
+          <p className="mt-4 text-muted-foreground text-lg leading-relaxed">
+            Share your details and our team will guide you on batches, fees, course structure, eligibility, and
+            certification.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button variant="outline" asChild>
+              <a href="tel:+918999164139">
+                <Phone className="h-4 w-4" /> Call
+              </a>
+            </Button>
+            <Button variant="outline" asChild>
+              <a href="https://wa.me/918999164139?text=Hi%20Simple%20Abacus%2C%20I%20want%20to%20enquire%20about%20Abacus%20and%20Vedic%20Maths%20teacher%20training." target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="h-4 w-4" /> WhatsApp
+              </a>
+            </Button>
+            <Button variant="outline" asChild>
+              <a href="mailto:simpleabacuspune@gmail.com?subject=Teacher%20Training%20Enquiry">
+                <Mail className="h-4 w-4" /> Email
+              </a>
+            </Button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-white p-6 shadow-card">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="teacher-enquiry-name">Full Name</Label>
+              <Input
+                id="teacher-enquiry-name"
+                value={form.name}
+                onChange={(event) => updateField("name", event.target.value)}
+                placeholder="Your name"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="teacher-enquiry-email">Email</Label>
+              <Input
+                id="teacher-enquiry-email"
+                type="email"
+                value={form.email}
+                onChange={(event) => updateField("email", event.target.value)}
+                placeholder="you@example.com"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="teacher-enquiry-mobile">Mobile Number</Label>
+              <Input
+                id="teacher-enquiry-mobile"
+                type="tel"
+                value={form.mobile}
+                onChange={(event) => updateField("mobile", event.target.value)}
+                placeholder="+91 XXXXX XXXXX"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="teacher-enquiry-location">City / Location</Label>
+              <Input
+                id="teacher-enquiry-location"
+                value={form.location}
+                onChange={(event) => updateField("location", event.target.value)}
+                placeholder="City or area"
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <Label>Interested Program</Label>
+            <div className="flex flex-wrap gap-4 text-sm font-medium text-foreground">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={programs.abacus}
+                  onChange={(event) => setPrograms((current) => ({ ...current, abacus: event.target.checked }))}
+                  className="h-4 w-4 accent-[#4c1d95]"
+                />
+                Abacus Teacher Training
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={programs.vedic}
+                  onChange={(event) => setPrograms((current) => ({ ...current, vedic: event.target.checked }))}
+                  className="h-4 w-4 accent-[#4c1d95]"
+                />
+                Vedic Maths Teacher Training
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-2">
+            <Label htmlFor="teacher-enquiry-message">Message</Label>
+            <Textarea
+              id="teacher-enquiry-message"
+              value={form.message}
+              onChange={(event) => updateField("message", event.target.value)}
+              placeholder="Tell us what you want to know about the training program"
+              rows={4}
+            />
+          </div>
+
+          <Button type="submit" className="mt-6 bg-[#f97316] hover:bg-[#ea580c] text-white" disabled={isSubmitting}>
+            {isSubmitting ? "Submitting..." : "Submit Enquiry"}
+          </Button>
+        </form>
+      </div>
+    </Section>
+  );
+};
+
 const TeacherTraining = () => (
   <div className="min-h-screen bg-background">
     <Navbar />
@@ -211,6 +400,8 @@ const TeacherTraining = () => (
           </div>
         </div>
       </Section>
+
+      <TeacherTrainingEnquiryForm />
 
       {/* Why this course */}
       <Section className="bg-muted/40">

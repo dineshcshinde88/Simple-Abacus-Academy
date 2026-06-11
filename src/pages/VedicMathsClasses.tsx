@@ -44,7 +44,7 @@ const learnTopics = [
 
 const structure = [
   { label: "Levels", value: "4 Levels" },
-  { label: "Duration", value: "3 months per level" },
+  { label: "Duration", value: "2 months per level" },
   { label: "Mode", value: "Online" },
   { label: "Practice Materials", value: "Worksheets + drills" },
 ];
@@ -60,7 +60,7 @@ const steps = [
 const faqs = [
   { q: "What is Vedic Maths?", a: "It is a system of quick calculation methods based on ancient Indian sutras." },
   { q: "What age group can join?", a: "Generally suitable for students aged 8 and above." },
-  { q: "How long is the course?", a: "The program runs in levels, typically three months each." },
+  { q: "How long is the course?", a: "The program runs in levels, typically two months each." },
   { q: "Is the course fully online?", a: "Yes, classes are conducted online with live instruction." },
   { q: "Will it help in exams?", a: "Yes, it improves speed and accuracy which benefits exam performance." },
 ];

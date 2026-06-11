@@ -47,7 +47,7 @@ const Footer = () => (
       <div className="grid gap-12 lg:grid-cols-[1.1fr_1.4fr_0.8fr_1fr]">
         <div>
           <div className="inline-flex items-center rounded-md bg-white p-2">
-            <img src="/abacus_logo.svg" alt="Abacus Trainer" className="h-10 w-auto" />
+            <img src="/abacus_logo.svg" alt="Simple Abacus" className="h-10 w-auto" />
           </div>
           <p className="mt-4 text-sm text-white/85 leading-relaxed">
             With over 4 years of expertise, Simple Abacus is a trusted leader in Abacus and Vedic Maths education,
@@ -171,4 +171,3 @@ const Footer = () => (
 );
 
 export default Footer;
-

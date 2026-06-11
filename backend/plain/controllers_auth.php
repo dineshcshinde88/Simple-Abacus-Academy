@@ -116,6 +116,37 @@ function ensure_student_registration_schema(): void
              FROM student'
         );
     }
+
+    if (!auth_table_exists('students') && auth_table_exists('Student')) {
+        auth_ensure_column('Student', 'course', "VARCHAR(120) NOT NULL DEFAULT '' AFTER userId");
+        auth_ensure_column('Student', 'phoneCountry', "VARCHAR(10) NOT NULL DEFAULT '+91' AFTER course");
+        auth_ensure_column('Student', 'phone', "VARCHAR(40) NOT NULL DEFAULT '' AFTER phoneCountry");
+        auth_ensure_column('Student', 'gender', "VARCHAR(30) NOT NULL DEFAULT '' AFTER phone");
+        auth_ensure_column('Student', 'motherTongue', "VARCHAR(120) NOT NULL DEFAULT '' AFTER gender");
+        auth_ensure_column('Student', 'dob', 'DATE NULL AFTER motherTongue');
+        db_exec_sql(
+            'CREATE OR REPLACE VIEW students AS
+             SELECT
+               Student.id AS id,
+               Student.userId AS user_id,
+               Student.course AS course,
+               Student.phoneCountry AS phone_country,
+               Student.phone AS phone,
+               Student.gender AS gender,
+               Student.motherTongue AS mother_tongue,
+               Student.dob AS dob,
+               Student.tutorId AS tutor_id,
+               Student.levelId AS level_id,
+               Student.batches AS batches,
+               Student.subscriptionPlan AS subscription_plan,
+               Student.subscriptionStart AS subscription_start,
+               Student.subscriptionEnd AS subscription_end,
+               Student.subscriptionStatus AS subscription_status,
+               Student.createdAt AS created_at,
+               Student.updatedAt AS updated_at
+             FROM Student'
+        );
+    }
 }
 
 function controller_auth_register(array $data): void

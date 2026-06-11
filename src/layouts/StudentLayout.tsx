@@ -46,7 +46,7 @@ const StudentLayout = ({ header, children }: StudentLayoutProps) => {
   const sidebar = (
     <>
       <div className="rounded-xl bg-white p-3 flex items-center justify-center">
-        <img src="/abacus_logo.png" alt="Abacus Trainer" className="h-10 w-auto" />
+        <img src="/abacus_logo.png" alt="Simple Abacus" className="h-10 w-auto" />
       </div>
       <nav className="mt-8 flex-1 space-y-1">
         {menuItems.map((item) => (

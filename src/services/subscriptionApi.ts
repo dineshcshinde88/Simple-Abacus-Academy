@@ -113,6 +113,16 @@ export const createRazorpayOrder = (token: string, planId: string | string[]) =>
     body: Array.isArray(planId) ? { planIds: planId } : { planId },
   });
 
+export const ensureWorksheetPlan = (
+  token: string,
+  payload: { courseSlug: "abacus-worksheet" | "vedic-maths-worksheet"; level: string; durationDays: number },
+) =>
+  apiRequest<{ plan: LevelPlan }>("/api/student/subscriptions/ensure-plan", {
+    method: "POST",
+    token,
+    body: payload,
+  });
+
 export const verifyRazorpayPayment = (
   token: string,
   payload: {

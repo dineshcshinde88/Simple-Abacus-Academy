@@ -97,3 +97,4 @@ export const adminApproveTeacher = (token: string, id: string) =>
   request<any>(`/api/training/admin/teachers/${id}/approve`, { method: "PUT" }, token);
 
 export const adminListStudents = (token: string) => request<any>("/api/training/admin/students", {}, token);
+export const adminListRegisteredStudents = (token: string) => request<any>("/api/admin/students", {}, token);

@@ -46,7 +46,9 @@ const WorksheetsSubscription = () => (
             {categories.map((category) => (
               <article key={category.title} className="overflow-hidden rounded-2xl bg-white shadow-card">
                 <div className={`bg-gradient-to-br ${category.accent} p-5`}>
-                  <img src={category.image} alt={category.title} className="h-56 w-full rounded-xl object-cover" />
+                  <div className="flex h-64 items-center justify-center overflow-hidden rounded-xl bg-white/95">
+                    <img src={category.image} alt={category.title} className="h-full w-full object-contain" />
+                  </div>
                 </div>
                 <div className="p-6">
                   <div className="flex items-start gap-3">

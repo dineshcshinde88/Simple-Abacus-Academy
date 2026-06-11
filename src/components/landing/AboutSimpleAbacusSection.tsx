@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { placeholderImages } from "@/data/placeholderImages";
+import HomePhotoGallery from "./HomePhotoGallery";
 
 const AboutSimpleAbacusSection = () => (
   <section className="py-20 bg-card border-b border-border">
@@ -32,15 +32,8 @@ const AboutSimpleAbacusSection = () => (
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ delay: 0.1 }}
-          className="relative"
         >
-          <div className="absolute inset-0 gradient-accent rounded-3xl -rotate-2 opacity-15" />
-          <img
-            src={placeholderImages.aboutSimpleAbacus}
-            alt="Students learning at Simple Abacus"
-            className="relative w-full rounded-3xl shadow-2xl object-cover aspect-[4/3]"
-            loading="lazy"
-          />
+          <HomePhotoGallery />
         </motion.div>
       </div>
     </div>

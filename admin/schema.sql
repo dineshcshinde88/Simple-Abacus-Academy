@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS teachers (
   email VARCHAR(160) NOT NULL UNIQUE,
   phone VARCHAR(20) NOT NULL,
   expertise VARCHAR(160) NOT NULL,
-  qualification VARCHAR(160) NOT NULL DEFAULT 'Certified Abacus Trainer',
+  qualification VARCHAR(160) NOT NULL DEFAULT 'Certified Simple Abacus Instructor',
   experience VARCHAR(120) NOT NULL DEFAULT '',
   location VARCHAR(160) NOT NULL DEFAULT '',
   specialization VARCHAR(120) NOT NULL DEFAULT 'Abacus',
@@ -95,10 +95,10 @@ CREATE TABLE IF NOT EXISTS teachers (
 INSERT INTO teachers
   (name, email, phone, expertise, qualification, experience, location, specialization, image, description, joining_date, status)
 VALUES
-  ('Poonam Yuvraj Gavhane', 'poonam.gavhane@simpleabacus.com', 'Not added', 'Abacus', 'Certified Abacus Trainer', '5+ Years Experience', 'Pune, Maharashtra', 'Abacus', '/assets/teachers/poonam-gavhane.png', 'Patient, structured instruction that builds number sense, focus, and confident mental math habits.', '2026-01-01', 'active'),
-  ('Mahanthi Kamini Devi', 'mahanthi.kamini.devi@simpleabacus.com', 'Not added', 'Abacus', 'Certified Abacus Trainer', '6+ Years Experience', 'Thane, Maharashtra', 'Abacus', '/assets/teachers/mahanthi-kamini-devi.png', 'Known for engaging classes and step-by-step guidance that keeps learners motivated and consistent.', '2026-01-01', 'active'),
-  ('Nayana Uday Patil', 'nayana.uday.patil@simpleabacus.com', 'Not added', 'Abacus', 'Certified Abacus Trainer', '4+ Years Experience', 'Pune, Maharashtra', 'Abacus', '/assets/teachers/nayana-uday-patil.png', 'Focuses on accuracy, speed, and confidence with child-friendly teaching and regular feedback.', '2026-01-01', 'active'),
-  ('Ashvini Balu Talekar', 'ashvini.balu.talekar@simpleabacus.com', 'Not added', 'Abacus', 'Certified Abacus Trainer', '5+ Years Experience', 'Pune, Maharashtra', 'Abacus', '/assets/teachers/ashvini-balu-talekar.png', 'Encouraging mentor who blends fun practice with clear fundamentals and personalized attention.', '2026-01-01', 'active')
+  ('Poonam Yuvraj Gavhane', 'poonam.gavhane@simpleabacus.com', 'Not added', 'Abacus', 'Certified Simple Abacus Instructor', '5+ Years Experience', 'Pune, Maharashtra', 'Abacus', '/assets/teachers/poonam-gavhane.png', 'Patient, structured instruction that builds number sense, focus, and confident mental math habits.', '2026-01-01', 'active'),
+  ('Mahanthi Kamini Devi', 'mahanthi.kamini.devi@simpleabacus.com', 'Not added', 'Abacus', 'Certified Simple Abacus Instructor', '6+ Years Experience', 'Thane, Maharashtra', 'Abacus', '/assets/teachers/mahanthi-kamini-devi.png', 'Known for engaging classes and step-by-step guidance that keeps learners motivated and consistent.', '2026-01-01', 'active'),
+  ('Nayana Uday Patil', 'nayana.uday.patil@simpleabacus.com', 'Not added', 'Abacus', 'Certified Simple Abacus Instructor', '4+ Years Experience', 'Pune, Maharashtra', 'Abacus', '/assets/teachers/nayana-uday-patil.png', 'Focuses on accuracy, speed, and confidence with child-friendly teaching and regular feedback.', '2026-01-01', 'active'),
+  ('Ashvini Balu Talekar', 'ashvini.balu.talekar@simpleabacus.com', 'Not added', 'Abacus', 'Certified Simple Abacus Instructor', '5+ Years Experience', 'Pune, Maharashtra', 'Abacus', '/assets/teachers/ashvini-balu-talekar.png', 'Encouraging mentor who blends fun practice with clear fundamentals and personalized attention.', '2026-01-01', 'active')
 ON DUPLICATE KEY UPDATE email = email;
 
 -- Sample admin user (password: Admin@123)
@@ -106,3 +106,4 @@ ON DUPLICATE KEY UPDATE email = email;
 INSERT INTO admins (name, email, password)
 VALUES ('Admin', 'admin@simpleabacus.com', '$2y$10$0FRd5zBbHWNSK/VBBesajOWgJ.M0awaN0oSrNGQaRN.aGHqfig16W')
 ON DUPLICATE KEY UPDATE name = VALUES(name), password = VALUES(password);
+

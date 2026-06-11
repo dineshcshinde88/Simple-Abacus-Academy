@@ -95,6 +95,14 @@ function admin_students_ensure_column(PDO $pdo, string $table, string $column, s
     }
 }
 
+function admin_students_uuid(): string
+{
+    $data = random_bytes(16);
+    $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+    $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+}
+
 function admin_students_table_type(PDO $pdo, string $table): string
 {
     $stmt = $pdo->prepare(
@@ -106,8 +114,26 @@ function admin_students_table_type(PDO $pdo, string $table): string
 
 function admin_students_backend_storage(PDO $pdo): array
 {
-    $type = admin_students_table_type($pdo, 'students');
-    if ($type === 'BASE TABLE') {
+    if (
+        admin_students_table_exists($pdo, 'Student')
+        && admin_students_column_exists($pdo, 'Student', 'userId')
+    ) {
+        return [
+            'table' => 'Student',
+            'user_id' => 'userId',
+            'phone_country' => 'phoneCountry',
+            'mother_tongue' => 'motherTongue',
+            'level_id' => 'levelId',
+            'subscription_status' => 'subscriptionStatus',
+            'created_at' => 'createdAt',
+            'updated_at' => 'updatedAt',
+        ];
+    }
+
+    if (
+        admin_students_table_exists($pdo, 'students')
+        && admin_students_column_exists($pdo, 'students', 'user_id')
+    ) {
         return [
             'table' => 'students',
             'user_id' => 'user_id',
@@ -115,11 +141,15 @@ function admin_students_backend_storage(PDO $pdo): array
             'mother_tongue' => 'mother_tongue',
             'level_id' => 'level_id',
             'subscription_status' => 'subscription_status',
+            'created_at' => 'created_at',
             'updated_at' => 'updated_at',
         ];
     }
 
-    if ($type === 'VIEW' && admin_students_table_exists($pdo, 'student')) {
+    if (
+        admin_students_table_exists($pdo, 'student')
+        && admin_students_column_exists($pdo, 'student', 'userId')
+    ) {
         return [
             'table' => 'student',
             'user_id' => 'userId',
@@ -127,6 +157,23 @@ function admin_students_backend_storage(PDO $pdo): array
             'mother_tongue' => 'motherTongue',
             'level_id' => 'levelId',
             'subscription_status' => 'subscriptionStatus',
+            'created_at' => 'createdAt',
+            'updated_at' => 'updatedAt',
+        ];
+    }
+
+    if (
+        admin_students_table_exists($pdo, 'students')
+        && admin_students_column_exists($pdo, 'students', 'userId')
+    ) {
+        return [
+            'table' => 'students',
+            'user_id' => 'userId',
+            'phone_country' => 'phoneCountry',
+            'mother_tongue' => 'motherTongue',
+            'level_id' => 'levelId',
+            'subscription_status' => 'subscriptionStatus',
+            'created_at' => 'createdAt',
             'updated_at' => 'updatedAt',
         ];
     }
@@ -134,7 +181,81 @@ function admin_students_backend_storage(PDO $pdo): array
     return [];
 }
 
-if (admin_students_table_exists($pdo, 'students')) {
+function admin_students_level_table(PDO $pdo): string
+{
+    if (admin_students_table_exists($pdo, 'Level')) {
+        return 'Level';
+    }
+    if (admin_students_table_exists($pdo, 'levels')) {
+        return 'levels';
+    }
+    return '';
+}
+
+function admin_students_level_name_column(PDO $pdo, string $table): string
+{
+    foreach (['level_name', 'levelName', 'name'] as $column) {
+        if (admin_students_column_exists($pdo, $table, $column)) {
+            return $column;
+        }
+    }
+    return 'id';
+}
+
+function admin_students_valid_level_id(PDO $pdo, ?string $levelId): ?string
+{
+    $levelId = trim((string) $levelId);
+    if ($levelId === '') {
+        return null;
+    }
+
+    $table = admin_students_level_table($pdo);
+    if ($table === '') {
+        return null;
+    }
+
+    $stmt = $pdo->prepare("SELECT id FROM {$table} WHERE id = ? LIMIT 1");
+    $stmt->execute([$levelId]);
+    return $stmt->fetch() ? $levelId : null;
+}
+
+function admin_students_user_table(PDO $pdo): string
+{
+    if (admin_students_table_exists($pdo, 'User')) {
+        return 'User';
+    }
+    if (admin_students_table_exists($pdo, 'users')) {
+        return 'users';
+    }
+    return 'users';
+}
+
+function admin_students_user_updated_column(PDO $pdo, string $userTable): string
+{
+    if (admin_students_column_exists($pdo, $userTable, 'updatedAt')) {
+        return 'updatedAt';
+    }
+    if (admin_students_column_exists($pdo, $userTable, 'updated_at')) {
+        return 'updated_at';
+    }
+    return '';
+}
+
+function admin_students_ensure_backend_profile_columns(PDO $pdo, array $storage): void
+{
+    if (!$storage || admin_students_table_type($pdo, $storage['table']) !== 'BASE TABLE') {
+        return;
+    }
+
+    admin_students_ensure_column($pdo, $storage['table'], 'course', "VARCHAR(120) NOT NULL DEFAULT ''");
+    admin_students_ensure_column($pdo, $storage['table'], $storage['phone_country'], "VARCHAR(10) NOT NULL DEFAULT '+91'");
+    admin_students_ensure_column($pdo, $storage['table'], 'phone', "VARCHAR(40) NOT NULL DEFAULT ''");
+    admin_students_ensure_column($pdo, $storage['table'], 'gender', "VARCHAR(30) NOT NULL DEFAULT ''");
+    admin_students_ensure_column($pdo, $storage['table'], $storage['mother_tongue'], "VARCHAR(120) NOT NULL DEFAULT ''");
+    admin_students_ensure_column($pdo, $storage['table'], 'dob', 'DATE NULL');
+}
+
+if (admin_students_table_type($pdo, 'students') === 'BASE TABLE') {
     admin_students_ensure_column($pdo, 'students', 'phone_country', "VARCHAR(10) NOT NULL DEFAULT '+91'");
     admin_students_ensure_column($pdo, 'students', 'gender', "VARCHAR(20) NOT NULL DEFAULT ''");
     admin_students_ensure_column($pdo, 'students', 'mother_tongue', "VARCHAR(120) NOT NULL DEFAULT ''");
@@ -149,7 +270,19 @@ $adminStudentsHasLegacyColumns = admin_students_table_exists($pdo, 'students')
     && admin_students_column_exists($pdo, 'students', 'course');
 
 $backendPdo = admin_students_backend_pdo();
+if (
+    !$backendPdo
+    && (admin_students_table_exists($pdo, 'users') || admin_students_table_exists($pdo, 'User'))
+    && (admin_students_table_exists($pdo, 'students') || admin_students_table_exists($pdo, 'Student'))
+) {
+    $backendPdo = $pdo;
+}
 $backendStorage = $backendPdo ? admin_students_backend_storage($backendPdo) : [];
+$backendUserTable = $backendPdo ? admin_students_user_table($backendPdo) : 'users';
+$backendUserUpdatedColumn = $backendPdo ? admin_students_user_updated_column($backendPdo, $backendUserTable) : 'updated_at';
+if ($backendPdo && $backendStorage) {
+    admin_students_ensure_backend_profile_columns($backendPdo, $backendStorage);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -167,7 +300,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $motherTongue = trim($_POST['mother_tongue'] ?? '');
     $dob = trim($_POST['dob'] ?? '');
     $password = (string) ($_POST['password'] ?? '');
-    $status = in_array(($_POST['status'] ?? 'active'), ['active', 'inactive'], true) ? $_POST['status'] : 'active';
+    $postedStatus = (string) ($_POST['status'] ?? 'active');
+    $status = in_array($postedStatus, ['active', 'inactive'], true) ? $postedStatus : 'active';
 
     if (($action === 'add' || $action === 'edit') && !$adminStudentsHasLegacyColumns) {
         $errors[] = 'Manual student editing is unavailable because this database uses the website student schema.';
@@ -206,6 +340,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'Student updated successfully.';
     }
 
+    if (!$errors && $action === 'add_website_student') {
+        if (!$backendPdo || !$backendStorage) {
+            $errors[] = 'Website student management is unavailable because the backend database is not connected.';
+        } elseif ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $phone === '' || trim($password) === '') {
+            $errors[] = 'Please enter student name, valid email, mobile number, and password.';
+        } else {
+            $existingUser = $backendPdo->prepare("SELECT id FROM {$backendUserTable} WHERE email = ? LIMIT 1");
+            $existingUser->execute([strtolower($email)]);
+            if ($existingUser->fetch()) {
+                $errors[] = 'A website user already exists with this email.';
+            } else {
+                $now = date('Y-m-d H:i:s');
+                $userId = admin_students_uuid();
+                $studentId = admin_students_uuid();
+                $studentTable = $backendStorage['table'];
+                $studentTableType = admin_students_table_type($backendPdo, $studentTable);
+                $studentColumns = ['id', $backendStorage['user_id']];
+                $studentValues = [$studentId, $userId];
+                $validatedLevelId = admin_students_valid_level_id($backendPdo, $_POST['level_id'] ?? null);
+                $studentColumnMap = [
+                    'course' => trim($_POST['website_course'] ?? '') !== '' ? trim($_POST['website_course']) : $course,
+                    $backendStorage['phone_country'] => $phoneCountry !== '' ? $phoneCountry : '+91',
+                    'phone' => $phone,
+                    'gender' => $gender,
+                    $backendStorage['mother_tongue'] => $motherTongue,
+                    'dob' => $dob !== '' ? $dob : null,
+                    $backendStorage['subscription_status'] => in_array(($_POST['website_status'] ?? 'expired'), ['active', 'expired'], true) ? $_POST['website_status'] : 'expired',
+                ];
+                if ($backendStorage['level_id'] !== '' && admin_students_column_exists($backendPdo, $studentTable, $backendStorage['level_id'])) {
+                    $studentColumnMap[$backendStorage['level_id']] = $validatedLevelId;
+                }
+                if ($studentTableType === 'BASE TABLE' && $backendStorage['created_at'] !== '' && admin_students_column_exists($backendPdo, $studentTable, $backendStorage['created_at'])) {
+                    $studentColumnMap[$backendStorage['created_at']] = $now;
+                }
+                if ($studentTableType === 'BASE TABLE' && $backendStorage['updated_at'] !== '' && admin_students_column_exists($backendPdo, $studentTable, $backendStorage['updated_at'])) {
+                    $studentColumnMap[$backendStorage['updated_at']] = $now;
+                }
+
+                foreach ($studentColumnMap as $column => $value) {
+                    if ($column !== '' && admin_students_column_exists($backendPdo, $studentTable, $column)) {
+                        $studentColumns[] = $column;
+                        $studentValues[] = $value;
+                    }
+                }
+
+                try {
+                    $backendPdo->beginTransaction();
+                    $userColumns = ['id', 'name', 'email', 'password', 'role'];
+                    $userValues = [$userId, $name, strtolower($email), password_hash($password, PASSWORD_BCRYPT), 'student'];
+                    if (admin_students_column_exists($backendPdo, $backendUserTable, 'createdAt')) {
+                        $userColumns[] = 'createdAt';
+                        $userValues[] = $now;
+                    } elseif (admin_students_column_exists($backendPdo, $backendUserTable, 'created_at')) {
+                        $userColumns[] = 'created_at';
+                        $userValues[] = $now;
+                    }
+                    if ($backendUserUpdatedColumn !== '') {
+                        $userColumns[] = $backendUserUpdatedColumn;
+                        $userValues[] = $now;
+                    }
+                    $userPlaceholders = implode(', ', array_fill(0, count($userColumns), '?'));
+                    $backendPdo
+                        ->prepare("INSERT INTO {$backendUserTable} (" . implode(', ', $userColumns) . ") VALUES ({$userPlaceholders})")
+                        ->execute($userValues);
+
+                    $placeholders = implode(', ', array_fill(0, count($studentColumns), '?'));
+                    $backendPdo
+                        ->prepare("INSERT INTO {$studentTable} (" . implode(', ', $studentColumns) . ") VALUES ({$placeholders})")
+                        ->execute($studentValues);
+
+                    $backendPdo->commit();
+                    $success = 'Website student added successfully.';
+                } catch (Throwable $e) {
+                    if ($backendPdo->inTransaction()) {
+                        $backendPdo->rollBack();
+                    }
+                    $errors[] = 'Website student could not be added: ' . $e->getMessage();
+                }
+            }
+        }
+    }
+
     if (!$errors && $action === 'edit_website_student') {
         if (!$backendPdo || !$backendStorage) {
             $errors[] = 'Website student management is unavailable because the backend database is not connected.';
@@ -213,8 +429,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Please enter a valid student name and email.';
         } else {
             $studentId = (string) ($_POST['website_student_id'] ?? '');
+            $studentTable = $backendStorage['table'];
+            $studentUserColumn = $backendStorage['user_id'];
             $studentRow = $backendPdo
-                ->prepare('SELECT id, user_id FROM students WHERE id = ? LIMIT 1');
+                ->prepare("SELECT id, {$studentUserColumn} AS user_id FROM {$studentTable} WHERE id = ? LIMIT 1");
             $studentRow->execute([$studentId]);
             $studentRecord = $studentRow->fetch();
 
@@ -226,17 +444,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $userParams = [
                     'name' => $name,
                     'email' => strtolower($email),
-                    'updated_at' => $now,
                     'id' => $studentRecord['user_id'],
                 ];
+                if ($backendUserUpdatedColumn !== '') {
+                    $userParams['updated_at'] = $now;
+                }
                 if (trim($password) !== '') {
                     $passwordSql = ', password = :password';
                     $userParams['password'] = password_hash($password, PASSWORD_BCRYPT);
                 }
+                $userUpdatedSql = $backendUserUpdatedColumn !== '' ? ", {$backendUserUpdatedColumn} = :updated_at" : '';
 
                 $studentUpdates = [];
                 $studentParams = ['id' => $studentId];
                 $studentTable = $backendStorage['table'];
+                $validatedLevelId = admin_students_valid_level_id($backendPdo, $_POST['level_id'] ?? null);
                 $fieldMap = [
                     'course' => trim($_POST['website_course'] ?? ''),
                     $backendStorage['phone_country'] => $phoneCountry !== '' ? $phoneCountry : '+91',
@@ -244,9 +466,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'gender' => $gender,
                     $backendStorage['mother_tongue'] => $motherTongue,
                     'dob' => $dob !== '' ? $dob : null,
-                    $backendStorage['level_id'] => trim($_POST['level_id'] ?? '') ?: null,
                     $backendStorage['subscription_status'] => in_array(($_POST['website_status'] ?? 'expired'), ['active', 'expired'], true) ? $_POST['website_status'] : 'expired',
                 ];
+                if ($validatedLevelId !== null || trim((string) ($_POST['level_id'] ?? '')) === '') {
+                    $fieldMap[$backendStorage['level_id']] = $validatedLevelId;
+                }
                 foreach ($fieldMap as $column => $value) {
                     if ($column !== '' && admin_students_column_exists($backendPdo, $studentTable, $column)) {
                         $param = 'student_' . preg_replace('/[^a-z0-9_]/i', '_', $column);
@@ -262,7 +486,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $backendPdo->beginTransaction();
                     $backendPdo
-                        ->prepare("UPDATE users SET name = :name, email = :email, updated_at = :updated_at{$passwordSql} WHERE id = :id")
+                        ->prepare("UPDATE {$backendUserTable} SET name = :name, email = :email{$userUpdatedSql}{$passwordSql} WHERE id = :id")
                         ->execute($userParams);
                     if ($studentUpdates) {
                         $backendPdo
@@ -286,7 +510,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Website student management is unavailable because the backend database is not connected.';
         } else {
             $studentId = (string) ($_POST['website_student_id'] ?? '');
-            $studentRow = $backendPdo->prepare('SELECT id, user_id FROM students WHERE id = ? LIMIT 1');
+            $studentTable = $backendStorage['table'];
+            $studentUserColumn = $backendStorage['user_id'];
+            $studentRow = $backendPdo->prepare("SELECT id, {$studentUserColumn} AS user_id FROM {$studentTable} WHERE id = ? LIMIT 1");
             $studentRow->execute([$studentId]);
             $studentRecord = $studentRow->fetch();
 
@@ -296,7 +522,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $backendPdo->beginTransaction();
                     $backendPdo->prepare("DELETE FROM {$backendStorage['table']} WHERE id = ?")->execute([$studentId]);
-                    $backendPdo->prepare('DELETE FROM users WHERE id = ?')->execute([$studentRecord['user_id']]);
+                    $backendPdo->prepare("DELETE FROM {$backendUserTable} WHERE id = ?")->execute([$studentRecord['user_id']]);
                     $backendPdo->commit();
                     $success = 'Website student deleted successfully.';
                 } catch (Throwable $e) {
@@ -359,56 +585,60 @@ if ($hasLegacyStudentColumns) {
 $websiteStudents = [];
 $websiteEditStudent = null;
 $websiteLevels = [];
-if ($backendPdo
-    && admin_students_table_exists($backendPdo, 'users')
-    && admin_students_table_exists($backendPdo, 'students')
-) {
-    $hasStudentCourse = admin_students_column_exists($backendPdo, 'students', 'course');
-    $hasStudentPhoneCountry = admin_students_column_exists($backendPdo, 'students', 'phone_country');
-    $hasStudentPhone = admin_students_column_exists($backendPdo, 'students', 'phone');
-    $hasStudentGender = admin_students_column_exists($backendPdo, 'students', 'gender');
-    $hasStudentMotherTongue = admin_students_column_exists($backendPdo, 'students', 'mother_tongue');
-    $hasStudentDob = admin_students_column_exists($backendPdo, 'students', 'dob');
-    $hasStudentLevel = admin_students_column_exists($backendPdo, 'students', 'level_id');
-    $hasStudentSubscriptionStatus = admin_students_column_exists($backendPdo, 'students', 'subscription_status');
-    $hasStudentCreatedAt = admin_students_column_exists($backendPdo, 'students', 'created_at');
-    $hasLevels = $hasStudentLevel && admin_students_table_exists($backendPdo, 'levels') && admin_students_column_exists($backendPdo, 'levels', 'level_name');
-    $levelJoin = $hasLevels ? 'LEFT JOIN levels l ON l.id = s.level_id' : '';
-    $courseSelect = $hasLevels ? "COALESCE(l.level_name, 'Not assigned')" : "'Not assigned'";
+if ($backendPdo && $backendStorage && admin_students_table_exists($backendPdo, $backendUserTable)) {
+    $studentTable = $backendStorage['table'];
+    $studentUserColumn = $backendStorage['user_id'];
+    $studentLevelColumn = $backendStorage['level_id'];
+    $studentStatusColumn = $backendStorage['subscription_status'];
+    $studentCreatedColumn = $backendStorage['created_at'];
+    $hasStudentCourse = admin_students_column_exists($backendPdo, $studentTable, 'course');
+    $hasStudentPhoneCountry = admin_students_column_exists($backendPdo, $studentTable, $backendStorage['phone_country']);
+    $hasStudentPhone = admin_students_column_exists($backendPdo, $studentTable, 'phone');
+    $hasStudentGender = admin_students_column_exists($backendPdo, $studentTable, 'gender');
+    $hasStudentMotherTongue = admin_students_column_exists($backendPdo, $studentTable, $backendStorage['mother_tongue']);
+    $hasStudentDob = admin_students_column_exists($backendPdo, $studentTable, 'dob');
+    $hasStudentLevel = admin_students_column_exists($backendPdo, $studentTable, $studentLevelColumn);
+    $hasStudentSubscriptionStatus = admin_students_column_exists($backendPdo, $studentTable, $studentStatusColumn);
+    $hasStudentCreatedAt = admin_students_column_exists($backendPdo, $studentTable, $studentCreatedColumn);
+    $levelTable = admin_students_level_table($backendPdo);
+    $levelNameColumn = $levelTable !== '' ? admin_students_level_name_column($backendPdo, $levelTable) : '';
+    $hasLevels = $hasStudentLevel && $levelTable !== '' && admin_students_column_exists($backendPdo, $levelTable, 'id');
+    $levelJoin = $hasLevels ? "LEFT JOIN {$levelTable} l ON l.id = s.{$studentLevelColumn}" : '';
+    $courseSelect = $hasLevels ? "COALESCE(l.{$levelNameColumn}, 'Not assigned')" : "'Not assigned'";
     if (!$hasLevels && $hasStudentCourse) {
         $courseSelect = "COALESCE(NULLIF(s.course, ''), 'Not assigned')";
     }
     $phoneSelect = $hasStudentPhone
         ? ($hasStudentPhoneCountry
-            ? "COALESCE(NULLIF(CONCAT(COALESCE(s.phone_country, ''), ' ', COALESCE(s.phone, '')), ' '), '-')"
+            ? "CASE WHEN COALESCE(NULLIF(s.phone, ''), '') = '' THEN '-' ELSE CONCAT(COALESCE(NULLIF(s.{$backendStorage['phone_country']}, ''), '+91'), ' ', s.phone) END"
             : "COALESCE(NULLIF(s.phone, ''), '-')")
         : "'-'";
-    $statusSelect = $hasStudentSubscriptionStatus ? "COALESCE(s.subscription_status, 'registered')" : "'registered'";
-    $createdSelect = $hasStudentCreatedAt ? 's.created_at' : 'u.created_at';
+    $statusSelect = $hasStudentSubscriptionStatus ? "COALESCE(s.{$studentStatusColumn}, 'registered')" : "'registered'";
+    $createdSelect = $hasStudentCreatedAt ? "s.{$studentCreatedColumn}" : 'u.created_at';
 
     if ($hasLevels) {
-        $websiteLevels = admin_students_table_exists($backendPdo, 'levels')
-            ? $backendPdo->query('SELECT id, level_name FROM levels ORDER BY level_name ASC')->fetchAll()
-            : [];
+        $websiteLevels = $backendPdo
+            ->query("SELECT id, {$levelNameColumn} AS level_name FROM {$levelTable} ORDER BY {$levelNameColumn} ASC")
+            ->fetchAll();
     }
 
     if (isset($_GET['edit_website'])) {
         $websiteEditId = (string) $_GET['edit_website'];
         $editSelect = [
             's.id',
-            's.user_id',
+            "s.{$studentUserColumn} AS user_id",
             'u.name',
             'u.email',
             ($hasStudentCourse ? 's.course' : "'' AS course"),
-            ($hasStudentPhoneCountry ? 's.phone_country' : "'+91' AS phone_country"),
+            ($hasStudentPhoneCountry ? "s.{$backendStorage['phone_country']} AS phone_country" : "'+91' AS phone_country"),
             ($hasStudentPhone ? 's.phone' : "'' AS phone"),
             ($hasStudentGender ? 's.gender' : "'' AS gender"),
-            ($hasStudentMotherTongue ? 's.mother_tongue' : "'' AS mother_tongue"),
+            ($hasStudentMotherTongue ? "s.{$backendStorage['mother_tongue']} AS mother_tongue" : "'' AS mother_tongue"),
             ($hasStudentDob ? 's.dob' : 'NULL AS dob'),
-            ($hasStudentLevel ? 's.level_id' : 'NULL AS level_id'),
-            ($hasStudentSubscriptionStatus ? 's.subscription_status AS status' : "'expired' AS status"),
+            ($hasStudentLevel ? "s.{$studentLevelColumn} AS level_id" : 'NULL AS level_id'),
+            ($hasStudentSubscriptionStatus ? "s.{$studentStatusColumn} AS status" : "'expired' AS status"),
         ];
-        $editStmt = $backendPdo->prepare('SELECT ' . implode(', ', $editSelect) . ' FROM students s INNER JOIN users u ON u.id = s.user_id WHERE s.id = ? LIMIT 1');
+        $editStmt = $backendPdo->prepare("SELECT " . implode(', ', $editSelect) . " FROM {$studentTable} s INNER JOIN {$backendUserTable} u ON u.id = s.{$studentUserColumn} WHERE s.id = ? LIMIT 1");
         $editStmt->execute([$websiteEditId]);
         $websiteEditStudent = $editStmt->fetch();
     }
@@ -416,7 +646,7 @@ if ($backendPdo
     $websiteWhere = ["u.role = 'student'"];
     $websiteParams = [];
     if ($search !== '') {
-        $websiteWhere[] = $hasLevels ? '(u.name LIKE ? OR u.email LIKE ? OR l.level_name LIKE ?)' : '(u.name LIKE ? OR u.email LIKE ?)';
+        $websiteWhere[] = $hasLevels ? "(u.name LIKE ? OR u.email LIKE ? OR l.{$levelNameColumn} LIKE ?)" : '(u.name LIKE ? OR u.email LIKE ?)';
         $websiteParams[] = "%{$search}%";
         $websiteParams[] = "%{$search}%";
         if ($hasLevels) {
@@ -424,23 +654,23 @@ if ($backendPdo
         }
     }
     if ($hasStudentSubscriptionStatus && $statusFilter === 'active') {
-        $websiteWhere[] = "s.subscription_status = 'active'";
+        $websiteWhere[] = "s.{$studentStatusColumn} = 'active'";
     } elseif ($hasStudentSubscriptionStatus && $statusFilter === 'inactive') {
-        $websiteWhere[] = "s.subscription_status <> 'active'";
+        $websiteWhere[] = "s.{$studentStatusColumn} <> 'active'";
     }
 
     $websiteSql = "
         SELECT
           s.id,
-          s.user_id,
+          s.{$studentUserColumn} AS user_id,
           u.name,
           u.email,
           {$phoneSelect} AS phone,
           {$courseSelect} AS course,
           {$statusSelect} AS status,
           {$createdSelect} AS created_at
-        FROM students s
-        INNER JOIN users u ON u.id = s.user_id
+        FROM {$studentTable} s
+        INNER JOIN {$backendUserTable} u ON u.id = s.{$studentUserColumn}
         {$levelJoin}
         WHERE " . implode(' AND ', $websiteWhere) . "
         ORDER BY {$createdSelect} DESC
@@ -548,7 +778,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
               <label class="form-label">Password</label>
               <input type="password" name="password" class="form-control" placeholder="<?php echo $editStudent ? 'Leave blank to keep current password' : 'Create Password'; ?>" <?php echo $editStudent ? '' : 'required'; ?> />
             </div>
-            <input type="hidden" name="status" value="<?php echo htmlspecialchars($editStudent['status'] ?? 'active'); ?>" />
+            <input type="hidden" name="status" value="<?php echo htmlspecialchars((string) ($editStudent['status'] ?? 'active')); ?>" />
             <button class="btn btn-primary w-100" type="submit"><?php echo $editStudent ? 'Update Student' : 'Add Student'; ?></button>
             <?php if ($editStudent): ?>
               <a href="students.php" class="btn btn-link w-100">Cancel Edit</a>
@@ -557,8 +787,87 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
         </div>
       </div>
     </div>
+  <?php elseif ($backendPdo && $backendStorage): ?>
+    <div class="col-lg-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <h5 class="card-title">Add Website Student</h5>
+          <form method="post">
+            <input type="hidden" name="action" value="add_website_student" />
+            <div class="mb-3 d-flex justify-content-center gap-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="course_types[]" value="Abacus" id="website-course-abacus" checked />
+                <label class="form-check-label fw-semibold" for="website-course-abacus">Abacus</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="course_types[]" value="Vedic Maths" id="website-course-vedic" />
+                <label class="form-check-label fw-semibold" for="website-course-vedic">Vedic Maths</label>
+              </div>
+            </div>
+            <input type="hidden" name="website_course" value="" />
+            <div class="mb-3">
+              <label class="form-label">Full Name</label>
+              <input type="text" name="name" class="form-control" placeholder="Full Name" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" placeholder="Email" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Mobile Number</label>
+              <div class="input-group">
+                <select name="phone_country" class="form-select" style="max-width: 110px;">
+                  <?php foreach (['+91' => 'IN +91', '+1' => 'US +1', '+44' => 'UK +44', '+971' => 'UAE +971'] as $code => $label): ?>
+                    <option value="<?php echo htmlspecialchars($code); ?>"><?php echo htmlspecialchars($label); ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <input type="text" name="phone" class="form-control" placeholder="Mobile Number" required />
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Level</label>
+              <select name="level_id" class="form-select">
+                <option value="">Not assigned</option>
+                <?php foreach ($websiteLevels as $level): ?>
+                  <option value="<?php echo htmlspecialchars((string) $level['id']); ?>"><?php echo htmlspecialchars($level['level_name']); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Status</label>
+              <select name="website_status" class="form-select">
+                <option value="expired">Expired</option>
+                <option value="active">Active</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Gender</label>
+              <select name="gender" class="form-select">
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Mother Tongue</label>
+              <input type="text" name="mother_tongue" class="form-control" placeholder="Mother Tongue" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Date of Birth</label>
+              <input type="date" name="dob" class="form-control" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Password</label>
+              <input type="password" name="password" class="form-control" placeholder="Create Password" required />
+            </div>
+            <button class="btn btn-primary w-100" type="submit">Add Student</button>
+          </form>
+        </div>
+      </div>
+    </div>
   <?php endif; ?>
-  <div class="<?php echo $hasLegacyStudentColumns ? 'col-lg-8' : 'col-12'; ?>">
+  <div class="<?php echo ($hasLegacyStudentColumns || ($backendPdo && $backendStorage)) ? 'col-lg-8' : 'col-12'; ?>">
     <?php if ($viewStudent): ?>
       <div class="card shadow-sm border-0 mb-4">
         <div class="card-body">

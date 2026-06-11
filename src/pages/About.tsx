@@ -1,26 +1,21 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { motion } from "framer-motion";
-import { Target, Eye, Heart, Users, Award, BookOpen } from "lucide-react";
+import { Target, Eye, Heart } from "lucide-react";
+import HomePhotoGallery from "@/components/landing/HomePhotoGallery";
 import { placeholderImages } from "@/data/placeholderImages";
 
 const stats = [
   { label: "Students Trained", value: "1000+" },
   { label: "Certified Trainers", value: "5+" },
   { label: "Active Learning Centres", value: "3+" },
-  { label: "Years of Excellence", value: "14+" },
+  { label: "Years of Excellence", value: "4+" },
 ];
 
 const values = [
   { icon: Target, title: "Our Mission", desc: "Make maths simple and joyful by building focus, memory, and calculation speed through a step-by-step abacus journey." },
   { icon: Eye, title: "Our Vision", desc: "Create confident learners who think logically, learn faster, and grow with a strong academic base." },
   { icon: Heart, title: "Our Values", desc: "Child-first teaching, patient mentoring, consistent practice, and celebrating small wins every week." },
-];
-
-const team = [
-  { name: "Varsha Shinde", role: "Founder & Master Trainer", desc: "14+ years in abacus training and child learning" },
-  { name: "Anita Desai", role: "Senior Trainer", desc: "Certified Level 10 instructor, 1,000+ students mentored" },
-  { name: "Rajesh Mehta", role: "Program Coordinator", desc: "Handles batches, exams, and parent communication" },
 ];
 
 const fadeUp = { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true } };
@@ -60,7 +55,7 @@ const About = () => (
               </ul>
               <p className="text-muted-foreground leading-relaxed mb-4">
                 Our students regularly participate in inter-school math challenges and abacus meets. Many earn top ranks
-                at the city and district level, and several continue with teacher training after completing Level 10.
+                at the city and district level, and several continue with teacher training after completing Level 7.
               </p>
               <p className="text-muted-foreground leading-relaxed mb-4">
                 We keep lessons short, clear, and interactive. Regular practice sheets, weekly feedback, and monthly
@@ -77,15 +72,8 @@ const About = () => (
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="relative"
             >
-              <div className="absolute inset-0 gradient-accent rounded-3xl -rotate-2 opacity-15" />
-              <img
-                src={placeholderImages.aboutHero}
-                alt="Students learning at Simple Abacus"
-                className="relative w-full rounded-3xl shadow-2xl object-cover aspect-[4/3]"
-                loading="lazy"
-              />
+              <HomePhotoGallery />
             </motion.div>
           </div>
         </div>
@@ -159,6 +147,13 @@ const About = () => (
                 <p className="text-muted-foreground">Founder - SIMPLE ABACUS</p>
                 <p className="text-muted-foreground">Manjari Budruk, Pune</p>
               </div>
+              <div className="mt-6 rounded-xl border border-border bg-card p-5 shadow-card">
+                <h3 className="font-heading text-xl font-bold text-foreground">Varsha Shinde</h3>
+                <p className="mt-1 font-medium text-secondary">Founder &amp; Master Trainer</p>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  10+ Years of Teaching, Mentoring &amp; Nurturing Young Minds.
+                </p>
+              </div>
             </motion.div>
 
             <motion.div
@@ -180,27 +175,6 @@ const About = () => (
         </div>
       </section>
 
-      {/* Team */}
-      <section className="py-20">
-        <div className="container mx-auto px-4">
-          <motion.div {...fadeUp} className="text-center mb-14">
-            <span className="inline-block px-4 py-1.5 rounded-full bg-accent-soft text-secondary text-sm font-semibold mb-4">Leadership</span>
-            <h2 className="text-3xl md:text-4xl font-heading font-bold text-foreground">Meet Our <span className="text-gradient">Team</span></h2>
-          </motion.div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {team.map((t, i) => (
-              <motion.div key={t.name} {...fadeUp} transition={{ delay: i * 0.15 }} className="bg-card rounded-xl p-6 border border-border shadow-card text-center">
-                <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                  <Users className="w-8 h-8 text-muted-foreground" />
-                </div>
-                <h4 className="font-heading font-bold text-foreground">{t.name}</h4>
-                <div className="text-sm text-secondary font-medium mb-2">{t.role}</div>
-                <p className="text-xs text-muted-foreground">{t.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
     </main>
     <Footer />
   </div>

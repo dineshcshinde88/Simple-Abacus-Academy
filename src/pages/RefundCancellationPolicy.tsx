@@ -69,7 +69,7 @@ const RefundCancellationPolicy = () => {
                     <br />
                     Email: simpleabacuspune@gmail.com
                     <br />
-                    Address: Near Kunjir Public School, Manjari Budruk, Pune, Maharashtra 412307
+                    Address: Kunjir Public School, Manjari Budruk, Pune, Maharashtra 412307
                   </p>
                 </div>
               </div>

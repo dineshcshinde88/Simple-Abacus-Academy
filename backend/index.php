@@ -137,16 +137,17 @@ if ($method === 'GET' && $path === '/api/student/subscriptions/plans') {
 if ($method === 'GET' && $path === '/api/student/subscriptions/summary') {
     controller_student_subscription_summary(require_role(['student']));
 }
+if ($method === 'GET' && $path === '/api/student/courses') {
+    controller_student_courses(require_role(['student']));
+}
+if ($method === 'POST' && $path === '/api/student/subscriptions/ensure-plan') {
+    controller_student_ensure_worksheet_plan(require_role(['student']), $data);
+}
 if ($method === 'POST' && $path === '/api/student/subscriptions/create-order') {
     controller_student_create_razorpay_order(require_role(['student']), $data);
 }
 if ($method === 'POST' && $path === '/api/student/subscriptions/verify') {
     controller_student_verify_razorpay_payment(require_role(['student']), $data);
-}
-if ($method === 'GET' && $path === '/api/student/videos') {
-    $ctx = require_role(['student']);
-    require_active_subscription($ctx['user']['id']);
-    controller_student_videos($ctx);
 }
 if ($method === 'GET' && $path === '/api/student/worksheets') {
     $ctx = require_role(['student']);
@@ -185,17 +186,11 @@ if ($method === 'GET' && preg_match('#^/api/worksheets/([a-f0-9-]+)/download$#i'
 if ($method === 'GET' && $path === '/api/student/progress') {
     controller_student_progress_list(require_role(['student']));
 }
-if ($method === 'GET' && $path === '/api/student/video-history') {
-    controller_student_video_history_list(require_role(['student']));
-}
 if ($method === 'GET' && $path === '/api/student/worksheet-completions') {
     controller_student_worksheet_completions_list(require_role(['student']));
 }
 if ($method === 'POST' && $path === '/api/student/progress') {
     controller_student_upsert_progress(require_role(['student']), $data);
-}
-if ($method === 'POST' && $path === '/api/student/video-history') {
-    controller_student_video_history_save(require_role(['student']), $data);
 }
 if ($method === 'POST' && $path === '/api/student/worksheet-completions') {
     controller_student_worksheet_completion_save(require_role(['student']), $data);

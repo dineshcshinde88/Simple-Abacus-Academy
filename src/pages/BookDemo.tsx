@@ -237,7 +237,7 @@ const BookDemo = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="dob">Date Of Birth</Label>
+                      <Label htmlFor="dob">Date of Birth</Label>
                       <Input id="dob" type="date" value={dob} onChange={(event) => setDob(event.target.value)} />
                     </div>
                   </div>

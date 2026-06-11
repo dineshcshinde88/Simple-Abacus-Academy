@@ -96,7 +96,7 @@ const InstructorRegistration = () => {
           <div className="container mx-auto px-4">
             <div className="mx-auto max-w-4xl rounded-2xl border border-border bg-white p-8 shadow-card">
               <div className="text-center">
-                <img src="/abacus_logo.png" alt="Abacus Trainer" className="mx-auto h-16 w-auto" />
+                <img src="/abacus_logo.png" alt="Simple Abacus" className="mx-auto h-16 w-auto" />
                 <h1 className="mt-6 text-3xl font-heading font-bold text-[#4B1E83]">Instructor Registration</h1>
                 <p className="mt-2 text-sm text-muted-foreground">Create your instructor account and wait for admin approval.</p>
               </div>

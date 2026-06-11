@@ -2,6 +2,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import HeroSection from "@/components/landing/HeroSection";
 import VideoIntroSection from "@/components/landing/VideoIntroSection";
+import AboutSimpleAbacusSection from "@/components/landing/AboutSimpleAbacusSection";
 import WorksheetPracticeSection from "@/components/landing/WorksheetPracticeSection";
 import ModuleSection from "@/components/landing/ModuleSection";
 import OurCoursesSection from "@/components/landing/OurCoursesSection";
@@ -17,6 +18,7 @@ const Index = () => (
     <main>
       <HeroSection />
       <VideoIntroSection />
+      <AboutSimpleAbacusSection />
       <WorksheetPracticeSection />
       <ModuleSection />
       <OurCoursesSection />

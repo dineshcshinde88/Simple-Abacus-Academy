@@ -2076,7 +2076,7 @@ const InstructorDashboardShell = () => {
       <div className="flex min-w-0">
         <aside className="hidden lg:flex w-[182px] fixed inset-y-0 flex-col bg-[#465b91] px-5 py-4 text-white">
           <div className="bg-white p-2">
-            <img src="/abacus_logo.png" alt="Abacus Trainer logo" className="h-10 w-full object-contain" />
+            <img src="/abacus_logo.png" alt="Simple Abacus logo" className="h-10 w-full object-contain" />
           </div>
           <button
             type="button"
@@ -2127,7 +2127,7 @@ const InstructorDashboardShell = () => {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-[#465b91] p-5 text-white">
-                  <img src="/abacus_logo.png" alt="Abacus Trainer logo" className="h-12 w-full bg-white object-contain p-2" />
+                  <img src="/abacus_logo.png" alt="Simple Abacus logo" className="h-12 w-full bg-white object-contain p-2" />
                   <button
                     type="button"
                     onClick={() => handleMobileTabChange("settings")}

@@ -54,7 +54,6 @@ function controller_student_dashboard(array $ctx): void
     };
 
     $worksheetsCount = $countByLevels('worksheets');
-    $videosCount = $countByLevels('videos');
     $practice = ['purchasedLevels' => 0, 'completedPapers' => 0, 'pendingPapers' => 0, 'averageAccuracy' => 0.0];
     if (function_exists('ensure_practice_schema')) {
         ensure_practice_schema();
@@ -105,7 +104,6 @@ function controller_student_dashboard(array $ctx): void
             : ($student['level_name'] ?? null),
         'batchesCount' => count($batches),
         'worksheetsCount' => $worksheetsCount,
-        'videosCount' => $videosCount,
         'subscriptionStatus' => $status,
         'startDate' => $activeStartDates
             ? min($activeStartDates)

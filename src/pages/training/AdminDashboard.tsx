@@ -4,7 +4,7 @@ import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTrainingAuth } from "@/context/TrainingAuthContext";
-import { adminApproveTeacher, adminListStudents, adminListTeachers } from "@/services/trainingApi";
+import { adminApproveTeacher, adminListRegisteredStudents, adminListStudents, adminListTeachers } from "@/services/trainingApi";
 import {
   AdminPracticeOverview,
   getAdminPracticeOverview,
@@ -22,6 +22,7 @@ const AdminDashboard = () => {
   const { token, logout } = useTrainingAuth();
   const [teachers, setTeachers] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
+  const [registeredStudents, setRegisteredStudents] = useState<any[]>([]);
   const [practice, setPractice] = useState<AdminPracticeOverview>({ levels: [], results: [] });
   const [competition, setCompetition] = useState<CompetitionAdminOverview | null>(null);
   const [lastCompetitionPassword, setLastCompetitionPassword] = useState<{ email: string; password: string } | null>(null);
@@ -43,10 +44,12 @@ const AdminDashboard = () => {
     if (!token) return;
     const t = await adminListTeachers(token);
     const s = await adminListStudents(token);
+    const registered = await adminListRegisteredStudents(token);
     const p = await getAdminPracticeOverview(token);
     const c = await getCompetitionAdminOverview(token);
     setTeachers(t.teachers || []);
     setStudents(s.students || []);
+    setRegisteredStudents(registered.students || []);
     setPractice(p);
     setCompetition(c);
   };
@@ -299,7 +302,7 @@ const AdminDashboard = () => {
               </div>
 
               <div className="rounded-2xl border border-border bg-white p-6 shadow-card">
-                <h2 className="text-xl font-semibold">Students</h2>
+                <h2 className="text-xl font-semibold">Training Students</h2>
                 <ul className="mt-4 space-y-3 text-sm">
                   {students.map((s) => (
                     <li key={s._id} className="flex items-center justify-between">
@@ -312,6 +315,47 @@ const AdminDashboard = () => {
                   ))}
                   {students.length === 0 && <li className="text-muted-foreground">No students yet.</li>}
                 </ul>
+              </div>
+            </div>
+
+            <div className="mt-8 rounded-2xl border border-border bg-white p-6 shadow-card">
+              <h2 className="text-xl font-semibold">Registered Students</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Students submitted from the website Student Registration form.
+              </p>
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="py-2">Student</th>
+                      <th className="py-2">Course</th>
+                      <th className="py-2">Mobile</th>
+                      <th className="py-2">Gender</th>
+                      <th className="py-2">Date of Birth</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {registeredStudents.map((student) => (
+                      <tr key={student.id}>
+                        <td className="py-3">
+                          <div className="font-semibold">{student.user?.name || "-"}</div>
+                          <div className="text-xs text-muted-foreground">{student.user?.email || "-"}</div>
+                        </td>
+                        <td className="py-3">{student.course || "-"}</td>
+                        <td className="py-3">
+                          {[student.phone_country, student.phone].filter(Boolean).join(" ") || "-"}
+                        </td>
+                        <td className="py-3">{student.gender || "-"}</td>
+                        <td className="py-3">{student.dob || "-"}</td>
+                      </tr>
+                    ))}
+                    {registeredStudents.length === 0 && (
+                      <tr>
+                        <td className="py-4 text-muted-foreground" colSpan={5}>No registered students yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

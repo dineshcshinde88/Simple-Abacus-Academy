@@ -12,6 +12,7 @@ import { placeholderImages } from "@/data/placeholderImages";
 import { useToast } from "@/hooks/use-toast";
 import {
   createRazorpayOrder,
+  ensureWorksheetPlan,
   getSubscriptionPlans,
   verifyRazorpayPayment,
   type LevelPlan,
@@ -65,6 +66,19 @@ const loadRazorpayScript = async (): Promise<boolean> => {
 };
 
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const singularize = (value: string) => normalize(value).replace(/\bworksheets\b/g, "worksheet");
+const planId = (plan: LevelPlan) => (plan as LevelPlan & { _id?: string }).id || (plan as LevelPlan & { _id?: string })._id || "";
+const levelMatches = (plan: LevelPlan, level: string) => {
+  const source = singularize(`${plan.levelName || ""} ${plan.name || ""}`);
+  const target = singularize(level);
+  const levelNumber = target.match(/\d+/)?.[0];
+
+  if (target.includes("foundation")) {
+    return source.includes("foundation") || /\blevel 0\b/.test(source);
+  }
+
+  return levelNumber ? new RegExp(`\\blevel ${levelNumber}\\b`).test(source) : source.includes(target);
+};
 
 const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
   const { toast } = useToast();
@@ -92,8 +106,12 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
 
   const matchingPlan = (plans: LevelPlan[], level: string) =>
     plans.find((plan) => {
-      const sameCourse = plan.courseSlug === config.courseSlug || normalize(plan.name).includes(normalize(config.courseName));
-      const sameLevel = normalize(plan.levelName || plan.name).includes(normalize(level));
+      const planText = singularize(`${plan.courseName || ""} ${plan.name || ""} ${plan.courseSlug || ""}`);
+      const sameCourse =
+        plan.courseSlug === config.courseSlug ||
+        planText.includes(singularize(config.courseName)) ||
+        planText.includes(singularize(config.courseSlug));
+      const sameLevel = levelMatches(plan, level);
       return sameCourse && sameLevel && plan.durationDays === selectedPlan.days;
     });
 
@@ -107,7 +125,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
   };
 
   const removeLevel = (level: string) => {
-    setSelectedLevels((current) => current.length > 1 ? current.filter((item) => item !== level) : current);
+    setSelectedLevels((current) => current.filter((item) => item !== level));
   };
 
   const handleProceedToPayment = async () => {
@@ -126,13 +144,24 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
       if (!scriptReady || !window.Razorpay) throw new Error("Unable to load Razorpay checkout.");
 
       const plansResp = await getSubscriptionPlans(activeToken);
-      const matchedPlans = selectedLevels.map((level) => {
-        const plan = matchingPlan(plansResp.plans || [], level);
-        if (!plan) throw new Error(`${level} subscription plan was not found.`);
-        return { level, plan };
-      });
+      const matchedPlans = await Promise.all(selectedLevels.map(async (level) => {
+        const existingPlan = matchingPlan(plansResp.plans || [], level);
+        if (existingPlan && planId(existingPlan)) {
+          return { level, plan: existingPlan };
+        }
 
-      const orderResp = await createRazorpayOrder(activeToken, matchedPlans.map((item) => item.plan.id));
+        const ensured = await ensureWorksheetPlan(activeToken, {
+          courseSlug: config.courseSlug,
+          level,
+          durationDays: selectedPlan.days,
+        });
+        if (!ensured.plan || !planId(ensured.plan)) {
+          throw new Error(`${level} subscription plan was not found.`);
+        }
+        return { level, plan: ensured.plan };
+      }));
+
+      const orderResp = await createRazorpayOrder(activeToken, matchedPlans.map((item) => planId(item.plan)));
       const razorpay = new window.Razorpay({
         key: orderResp.keyId,
         amount: orderResp.order.amount,
@@ -191,7 +220,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
             {showCart ? (
               <>
                 <div>
-                  <h1 className="text-3xl font-heading font-bold text-[#4B1E83] md:text-4xl">Abacus Trainer Cart</h1>
+                  <h1 className="text-3xl font-heading font-bold text-[#4B1E83] md:text-4xl">Simple Abacus Cart</h1>
                   <p className="mt-2 text-sm text-slate-600">{selectedLevels.length} Level{selectedLevels.length > 1 ? "s" : ""} Selected</p>
                 </div>
                 <div className="mt-8 grid items-start gap-8 lg:grid-cols-[1fr_280px]">
@@ -201,19 +230,27 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
                         <img src={config.image} alt={config.title} className="h-24 w-full rounded-lg object-cover sm:w-28" />
                         <div>
                           <h2 className="text-lg font-heading font-bold text-[#4B1E83]">{config.title}</h2>
-                          <p className="mt-2 text-sm text-slate-600">{selectedLevels.join(", ")} Selected</p>
+                          <p className="mt-2 text-sm text-slate-600">
+                            {selectedLevels.length ? `${selectedLevels.join(", ")} Selected` : "No level selected"}
+                          </p>
                           <div className="mt-4 grid gap-2">
-                            {selectedLevels.map((level) => (
-                              <div key={level} className="flex items-center justify-between rounded-md border border-[#6f2dbd] px-3 py-2 text-sm text-[#4B1E83]">
-                                <span>
-                                  {level} <strong>Rs.{selectedPlan.price}</strong>{" "}
-                                  <span className="text-xs text-red-500 line-through">Rs.{selectedPlan.originalPrice}</span>
-                                </span>
-                                <button type="button" onClick={() => removeLevel(level)} aria-label={`Remove ${level}`}>
-                                  <Trash2 className="h-4 w-4 text-orange-500" />
-                                </button>
+                            {selectedLevels.length ? (
+                              selectedLevels.map((level) => (
+                                <div key={level} className="flex items-center justify-between rounded-md border border-[#6f2dbd] px-3 py-2 text-sm text-[#4B1E83]">
+                                  <span>
+                                    {level} <strong>Rs.{selectedPlan.price}</strong>{" "}
+                                    <span className="text-xs text-red-500 line-through">Rs.{selectedPlan.originalPrice}</span>
+                                  </span>
+                                  <button type="button" onClick={() => removeLevel(level)} aria-label={`Remove ${level}`}>
+                                    <Trash2 className="h-4 w-4 text-orange-500" />
+                                  </button>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="rounded-md border border-dashed border-slate-300 px-3 py-3 text-sm text-slate-500">
+                                Your cart is empty. Continue shopping to select an Abacus or Vedic Maths level.
                               </div>
-                            ))}
+                            )}
                           </div>
                         </div>
                         <div className="text-right">
@@ -246,7 +283,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
                     </label>
                     <Button
                       className="mt-5 w-full rounded-md bg-[#4B1E83] py-6 font-semibold hover:bg-[#3c176a]"
-                      disabled={!agreedToTerms || isProcessingPayment}
+                      disabled={!agreedToTerms || isProcessingPayment || selectedLevels.length === 0}
                       onClick={() => void handleProceedToPayment()}
                     >
                       {isProcessingPayment ? "Starting Payment..." : "Proceed to Payment ->"}

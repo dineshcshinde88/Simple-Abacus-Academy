@@ -26,6 +26,37 @@ const daysUntil = (value?: string | null) => {
 const formatMoney = (amount?: number, currency = "INR") =>
   `${currency} ${Number(amount || 0).toFixed(2)}`;
 
+const getHighestLevelNumber = (value?: string | null) => {
+  const matches = value?.match(/level\s*(\d+)/gi) || [];
+  return matches.reduce((highest, match) => {
+    const number = Number(match.match(/\d+/)?.[0] || 0);
+    return Math.max(highest, number);
+  }, 0);
+};
+
+const isPaidUnexpiredSubscription = (subscription: NonNullable<StudentDashboardData["subscriptions"]>[number]) => {
+  if (subscription.status !== "active" || subscription.paymentStatus !== "paid" || !subscription.expiryDate) {
+    return false;
+  }
+
+  const expiry = new Date(subscription.expiryDate).getTime();
+  return !Number.isNaN(expiry) && expiry >= Date.now();
+};
+
+const getMinDate = (values: (string | null)[]) => {
+  const sorted = values
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  return sorted[0] || null;
+};
+
+const getMaxDate = (values: (string | null)[]) => {
+  const sorted = values
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  return sorted[0] || null;
+};
+
 const StudentDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -54,10 +85,12 @@ const StudentDashboard = () => {
     void loadDashboard();
   }, [navigate, toast]);
 
-  const isExpired = data?.subscriptionStatus === "expired";
-  const activeSubscriptions = data?.subscriptions || [];
-  const currentLevelNumber = Number((data?.level || "").match(/\d+/)?.[0] || 0);
-  const remainingDays = daysUntil(data?.expiryDate);
+  const activeSubscriptions = (data?.subscriptions || []).filter(isPaidUnexpiredSubscription);
+  const effectiveStartDate = getMinDate(activeSubscriptions.map((subscription) => subscription.startDate)) || data?.startDate || null;
+  const effectiveExpiryDate = getMaxDate(activeSubscriptions.map((subscription) => subscription.expiryDate)) || data?.expiryDate || null;
+  const isExpired = activeSubscriptions.length === 0 && data?.subscriptionStatus === "expired";
+  const currentLevelNumber = getHighestLevelNumber(data?.level);
+  const remainingDays = daysUntil(effectiveExpiryDate);
 
   const handleCertificateDownload = (level: number) => {
     toast({ title: "Download started", description: `Level ${level} certificate downloading...` });
@@ -85,13 +118,13 @@ const StudentDashboard = () => {
       {
         title: "Allocated",
         subtitle: "Courses",
-        count: data?.level ? 1 : 0,
+        count: activeSubscriptions.length,
         color: "bg-purple-600",
         button: null,
         to: "/student/courses",
       },
     ],
-    [data],
+    [activeSubscriptions.length, data],
   );
 
   if (loading) {
@@ -141,7 +174,7 @@ const StudentDashboard = () => {
         {!isExpired && remainingDays !== null && remainingDays <= 7 && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 font-medium flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>
-              Your level subscription ends on {formatDate(data?.expiryDate)}. Renew or upgrade your level to continue learning.
+              Your level subscription ends on {formatDate(effectiveExpiryDate)}. Renew or upgrade your level to continue learning.
             </span>
             <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => navigate("/student/shop")}>
               Renew / Upgrade
@@ -152,11 +185,11 @@ const StudentDashboard = () => {
         <div className="grid gap-4 md:grid-cols-3">
           <div className="bg-white rounded-2xl shadow-card p-5">
             <p className="text-xs text-slate-500 uppercase tracking-wide">Subscription Start</p>
-            <div className="mt-2 text-lg font-heading font-bold text-slate-900">{formatDate(data?.startDate)}</div>
+            <div className="mt-2 text-lg font-heading font-bold text-slate-900">{formatDate(effectiveStartDate)}</div>
           </div>
           <div className="bg-white rounded-2xl shadow-card p-5">
             <p className="text-xs text-slate-500 uppercase tracking-wide">Subscription End</p>
-            <div className="mt-2 text-lg font-heading font-bold text-slate-900">{formatDate(data?.expiryDate)}</div>
+            <div className="mt-2 text-lg font-heading font-bold text-slate-900">{formatDate(effectiveExpiryDate)}</div>
           </div>
           <div className="bg-white rounded-2xl shadow-card p-5">
             <p className="text-xs text-slate-500 uppercase tracking-wide">Renewal Status</p>
@@ -253,8 +286,7 @@ const StudentDashboard = () => {
                 <div>
                   <h3 className="text-xl font-heading font-bold">Course Completion Certificate</h3>
                   <p className="text-sm text-white/80">
-                    Congratulations! You have successfully completed Abacus Level 7. Download your certificate to
-                    showcase your achievement.
+                    Download available certificates for your completed course levels and keep your achievement records.
                   </p>
                 </div>
               </div>

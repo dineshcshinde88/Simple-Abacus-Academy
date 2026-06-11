@@ -51,7 +51,7 @@ const Testimonials = () => {
           <div className="container mx-auto px-4">
             <div className="text-center mb-10">
               <h1 className="text-3xl md:text-4xl font-heading font-bold text-foreground">Testimonials</h1>
-              <p className="mt-2 text-muted-foreground">What parents and students say about Abacus Trainer.</p>
+              <p className="mt-2 text-muted-foreground">What parents and students say about Simple Abacus.</p>
               <div className="mt-4 flex justify-center">
                 <Button asChild variant="hero">
                   <a

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Bot, MessageCircle, SendHorizontal, X, Menu, ThumbsUp, Paperclip, Smile } from "lucide-react";
+import { Bot, MessageCircle, SendHorizontal, X, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -133,7 +133,15 @@ const AIChatbot = () => {
       <div className="fixed bottom-5 right-4 z-50 md:bottom-6 md:right-6">
         <div className="flex flex-col items-end gap-3">
           {isOpen && (
-            <div className="w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-card">
+            <div className="relative w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-card">
+            <button
+              type="button"
+              aria-label="Close chatbot"
+              className="absolute right-3 top-3 z-20 rounded-full bg-white/95 p-1.5 text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+              onClick={() => setIsOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </button>
             <div className="bg-[#43B754] px-4 py-3 text-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -228,15 +236,6 @@ const AIChatbot = () => {
                   <SendHorizontal className="h-4 w-4" />
                   <span className="sr-only">Send</span>
                 </Button>
-                <button type="button" className="rounded-full p-2 text-emerald-600 hover:bg-emerald-50" aria-label="Like">
-                  <ThumbsUp className="h-4 w-4" />
-                </button>
-                <button type="button" className="rounded-full p-2 text-emerald-600 hover:bg-emerald-50" aria-label="Attach">
-                  <Paperclip className="h-4 w-4" />
-                </button>
-                <button type="button" className="rounded-full p-2 text-emerald-600 hover:bg-emerald-50" aria-label="Emoji">
-                  <Smile className="h-4 w-4" />
-                </button>
               </form>
             </div>
           </div>

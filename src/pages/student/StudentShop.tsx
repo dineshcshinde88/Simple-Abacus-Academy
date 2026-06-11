@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
   createRazorpayOrder,
+  ensureWorksheetPlan,
   getSubscriptionPlans,
   getSubscriptionSummary,
   LevelPlan,
@@ -12,6 +13,7 @@ import {
 } from "@/services/subscriptionApi";
 
 const TOKEN_KEY = "abacus_auth_token";
+const FOUNDATION_LEVEL = "Level 0 (Foundation)";
 
 type RazorpayCheckoutResponse = {
   razorpay_payment_id: string;
@@ -48,6 +50,35 @@ const formatDate = (value?: string | null) => {
   return d.toLocaleDateString();
 };
 
+const getLevelOrder = (plan: LevelPlan) => {
+  const levelText = `${plan.levelName || ""} ${plan.name || ""}`;
+  if (/foundation/i.test(levelText)) return 0;
+  const match = levelText.match(/level\s*(\d+)/i);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+};
+
+const sortPlans = (items: LevelPlan[]) =>
+  [...items].sort((a, b) => {
+    const courseCompare = (a.courseName || "").localeCompare(b.courseName || "");
+    if (courseCompare !== 0) return courseCompare;
+
+    const levelCompare = getLevelOrder(a) - getLevelOrder(b);
+    if (levelCompare !== 0) return levelCompare;
+
+    return a.durationDays - b.durationDays || a.price - b.price || a.name.localeCompare(b.name);
+  });
+
+const hasAbacusFoundationPlan = (items: LevelPlan[], durationDays: number) =>
+  items.some((plan) => {
+    const planText = `${plan.courseSlug || ""} ${plan.courseName || ""} ${plan.levelName || ""} ${plan.name || ""}`;
+    return plan.durationDays === durationDays && /abacus/i.test(planText) && /foundation/i.test(planText);
+  });
+
+const isWorksheetPlan = (plan: LevelPlan) => {
+  const planText = `${plan.courseSlug || ""} ${plan.courseName || ""} ${plan.levelName || ""} ${plan.name || ""}`;
+  return /worksheet/i.test(planText);
+};
+
 const StudentShop = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -64,7 +95,24 @@ const StudentShop = () => {
   const refreshData = async () => {
     if (!token) return;
     const [plansResp, summaryResp] = await Promise.all([getSubscriptionPlans(token), getSubscriptionSummary(token)]);
-    setPlans(plansResp.plans || []);
+    let nextPlans = plansResp.plans || [];
+    const missingFoundationDurations = [90, 365].filter((durationDays) => !hasAbacusFoundationPlan(nextPlans, durationDays));
+
+    if (missingFoundationDurations.length > 0) {
+      await Promise.all(
+        missingFoundationDurations.map((durationDays) =>
+          ensureWorksheetPlan(token, {
+            courseSlug: "abacus-worksheet",
+            level: FOUNDATION_LEVEL,
+            durationDays,
+          }),
+        ),
+      );
+      const refreshedPlansResp = await getSubscriptionPlans(token);
+      nextPlans = refreshedPlansResp.plans || [];
+    }
+
+    setPlans(sortPlans(nextPlans.filter(isWorksheetPlan)));
     setCurrent(summaryResp.subscription?.current || null);
     setHistory(summaryResp.subscription?.history || []);
     setCanPay(summaryResp.canPay);

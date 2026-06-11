@@ -143,7 +143,7 @@ function instructor_send_brevo_api_mail(string $to, string $subject, string $htm
         return null;
     }
 
-    [$fromEmail, $fromName] = instructor_parse_mail_address($fromRaw, 'Abacus Trainer');
+    [$fromEmail, $fromName] = instructor_parse_mail_address($fromRaw, 'Simple Abacus');
     $timeout = max(3, (int) envv('EMAIL_TIMEOUT_SECONDS', '10'));
     $payload = [
         'sender' => ['email' => $fromEmail, 'name' => $fromName],
@@ -333,12 +333,12 @@ function instructor_send_html_mail(string $to, string $subject, string $html, st
     }
 
     $timeout = max(3, (int) envv('EMAIL_TIMEOUT_SECONDS', '10'));
-    $fromRaw = (string) envv('EMAIL_FROM', (string) envv('MAIL_FROM_ADDRESS', 'Abacus Trainer <no-reply@abacustrainer.com>'));
+    $fromRaw = (string) envv('EMAIL_FROM', (string) envv('MAIL_FROM_ADDRESS', 'Simple Abacus <no-reply@simpleabacus.com>'));
     $apiSent = instructor_send_brevo_api_mail($to, $subject, $html, $text, $fromRaw);
     if ($apiSent !== null) {
         return $apiSent;
     }
-    [$fromEmail, $fromName] = instructor_parse_mail_address($fromRaw, 'Abacus Trainer');
+    [$fromEmail, $fromName] = instructor_parse_mail_address($fromRaw, 'Simple Abacus');
 
     $host = (string) envv('EMAIL_HOST', (string) envv('MAIL_HOST', ''));
     $port = (int) envv('EMAIL_PORT', (string) envv('MAIL_PORT', '587'));

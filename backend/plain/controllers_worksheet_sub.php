@@ -27,6 +27,37 @@ function worksheet_sub_level_number(?string $name): ?string
 
 function worksheet_sub_student_level(array $student): ?array
 {
+    if (function_exists('get_student_subscription_overview') && !empty($student['id'])) {
+        $overview = get_student_subscription_overview((string) $student['id']);
+        $activeSubscriptions = array_values(array_filter(
+            $overview['history'] ?? [],
+            static fn(array $sub): bool => ($sub['status'] ?? '') === 'active'
+                && ($sub['paymentStatus'] ?? '') === 'paid'
+                && !empty($sub['expiryDate'])
+                && strtotime((string) $sub['expiryDate']) >= time()
+        ));
+
+        foreach ($activeSubscriptions as $subscription) {
+            $planName = (string) ($subscription['planName'] ?? '');
+            $levelName = (string) ($subscription['levelName'] ?? '');
+            if (!preg_match('/worksheet/i', $planName . ' ' . $levelName)) {
+                continue;
+            }
+
+            $subscriptionLevelNumber = worksheet_sub_level_number($levelName !== '' ? $levelName : $planName);
+            if ($subscriptionLevelNumber === null) {
+                continue;
+            }
+
+            $levels = db_all('SELECT id, level_name FROM worksheet_levels ORDER BY id ASC');
+            foreach ($levels as $level) {
+                if (worksheet_sub_level_number((string) ($level['level_name'] ?? '')) === $subscriptionLevelNumber) {
+                    return $level;
+                }
+            }
+        }
+    }
+
     if (!empty($student['level_id'])) {
         $level = db_one('SELECT id, level_name FROM worksheet_levels WHERE id = :id LIMIT 1', ['id' => $student['level_id']]);
         if ($level) {

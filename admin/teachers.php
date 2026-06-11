@@ -146,7 +146,7 @@ function admin_teachers_sync_approved_instructors(PDO $teacherPdo, PDO $instruct
             $specialization,
             substr((string) (($instructor['created_at'] ?? '') ?: date('Y-m-d')), 0, 10),
             'active',
-            (string) (($instructor['qualification'] ?? '') ?: 'Certified Abacus Trainer'),
+            (string) (($instructor['qualification'] ?? '') ?: 'Certified Simple Abacus Instructor'),
             $experience !== '' ? $experience : ($careerStarted !== '' ? 'Teaching since ' . $careerStarted : 'Certified Trainer'),
             (string) (($instructor['address'] ?? '') ?: 'Online'),
             $specialization,
@@ -173,7 +173,7 @@ try {
             email VARCHAR(160) NOT NULL UNIQUE,
             phone VARCHAR(20) NOT NULL,
             expertise VARCHAR(160) NOT NULL,
-            qualification VARCHAR(160) NOT NULL DEFAULT 'Certified Abacus Trainer',
+            qualification VARCHAR(160) NOT NULL DEFAULT 'Certified Simple Abacus Instructor',
             experience VARCHAR(120) NOT NULL DEFAULT '',
             location VARCHAR(160) NOT NULL DEFAULT '',
             specialization VARCHAR(120) NOT NULL DEFAULT 'Abacus',
@@ -185,7 +185,7 @@ try {
     );
 
     $teacherColumns = [
-        'qualification' => "VARCHAR(160) NOT NULL DEFAULT 'Certified Abacus Trainer'",
+        'qualification' => "VARCHAR(160) NOT NULL DEFAULT 'Certified Simple Abacus Instructor'",
         'experience' => "VARCHAR(120) NOT NULL DEFAULT ''",
         'location' => "VARCHAR(160) NOT NULL DEFAULT ''",
         'specialization' => "VARCHAR(120) NOT NULL DEFAULT 'Abacus'",
@@ -215,7 +215,7 @@ $defaultTeachers = [
         'expertise' => 'Abacus',
         'joining_date' => '2026-01-01',
         'status' => 'active',
-        'qualification' => 'Certified Abacus Trainer',
+        'qualification' => 'Certified Simple Abacus Instructor',
         'experience' => '5+ Years Experience',
         'location' => 'Pune, Maharashtra',
         'specialization' => 'Abacus',
@@ -229,7 +229,7 @@ $defaultTeachers = [
         'expertise' => 'Abacus',
         'joining_date' => '2026-01-01',
         'status' => 'active',
-        'qualification' => 'Certified Abacus Trainer',
+        'qualification' => 'Certified Simple Abacus Instructor',
         'experience' => '6+ Years Experience',
         'location' => 'Thane, Maharashtra',
         'specialization' => 'Abacus',
@@ -243,7 +243,7 @@ $defaultTeachers = [
         'expertise' => 'Abacus',
         'joining_date' => '2026-01-01',
         'status' => 'active',
-        'qualification' => 'Certified Abacus Trainer',
+        'qualification' => 'Certified Simple Abacus Instructor',
         'experience' => '4+ Years Experience',
         'location' => 'Pune, Maharashtra',
         'specialization' => 'Abacus',
@@ -257,7 +257,7 @@ $defaultTeachers = [
         'expertise' => 'Abacus',
         'joining_date' => '2026-01-01',
         'status' => 'active',
-        'qualification' => 'Certified Abacus Trainer',
+        'qualification' => 'Certified Simple Abacus Instructor',
         'experience' => '5+ Years Experience',
         'location' => 'Pune, Maharashtra',
         'specialization' => 'Abacus',
@@ -391,7 +391,7 @@ if (isset($_GET['edit'])) {
           </div>
           <div class="mb-3">
             <label class="form-label">Qualification</label>
-            <input type="text" name="qualification" class="form-control" value="<?php echo htmlspecialchars($editTeacher['qualification'] ?? 'Certified Abacus Trainer'); ?>" required />
+            <input type="text" name="qualification" class="form-control" value="<?php echo htmlspecialchars($editTeacher['qualification'] ?? 'Certified Simple Abacus Instructor'); ?>" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Experience</label>
@@ -505,3 +505,4 @@ if (isset($_GET['edit'])) {
 </div>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
+

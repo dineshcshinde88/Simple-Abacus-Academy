@@ -19,6 +19,12 @@ const valueOrDash = (value?: string | null) => {
   return text || "-";
 };
 
+const formatPhone = (country?: string | null, phone?: string | null) => {
+  const number = String(phone || "").trim();
+  if (!number) return "-";
+  return [country, number].map((item) => String(item || "").trim()).filter(Boolean).join(" ");
+};
+
 const InfoItem = ({ label, value }: { label: string; value?: string | null }) => (
   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
@@ -108,9 +114,7 @@ const StudentProfile = () => {
                 <Phone className="h-5 w-5 text-[#5b21b6]" />
                 <div>
                   <p className="text-xs uppercase text-slate-500">Mobile Number</p>
-                  <p className="font-semibold text-slate-900">
-                    {valueOrDash(`${profile?.phoneCountry || ""} ${profile?.phone || ""}`)}
-                  </p>
+                  <p className="font-semibold text-slate-900">{formatPhone(profile?.phoneCountry, profile?.phone)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-xl border border-slate-200 p-4">
@@ -132,7 +136,7 @@ const StudentProfile = () => {
               <InfoItem label="Full Name" value={profile?.name} />
               <InfoItem label="Email" value={profile?.email} />
               <InfoItem label="Course" value={profile?.course || profile?.courseName} />
-              <InfoItem label="Mobile Number" value={`${profile?.phoneCountry || ""} ${profile?.phone || ""}`} />
+              <InfoItem label="Mobile Number" value={formatPhone(profile?.phoneCountry, profile?.phone)} />
               <InfoItem label="Gender" value={profile?.gender} />
               <InfoItem label="Mother Tongue" value={profile?.motherTongue} />
               <InfoItem label="Date Of Birth" value={formatDate(profile?.dob)} />

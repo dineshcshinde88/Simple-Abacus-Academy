@@ -15,19 +15,10 @@ const addOns = [
     kicker: "Get the skills",
     title: "Competition Conductor",
     body:
-      "We also pack up competition kits so you can run certified tournaments and still have plenty of training sheets left over.",
+      "We organize online competitions that provide students with opportunities to showcase their Abacus and Vedic Maths skills. Participants gain access to exclusive practice worksheets, competition resources, and the chance to compete with students from across the country and around the world.",
     cta: "Get Started",
     accent: "bg-[#dc2626] hover:bg-[#b91c1c] text-white",
     to: "/contact",
-  },
-  {
-    kicker: "Partner with Us",
-    title: "Franchise Opportunities",
-    body:
-      "We hand over the full playbookâ€”branding, lesson plans, and expert adviceâ€”so you look like the local math wizard.",
-    cta: "Join Now",
-    accent: "bg-[#4c1d95] hover:bg-[#43208a] text-white",
-    to: "/franchise",
   },
   {
     kicker: "Buy Courses",
@@ -49,7 +40,7 @@ const AddOnServicesSection = () => (
         </h2>
       </div>
 
-      <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {addOns.map((item) => (
           <div
             key={item.title}

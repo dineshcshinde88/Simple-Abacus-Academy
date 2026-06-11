@@ -10,7 +10,7 @@ const levels = [
     range: "Level 1-3",
     title: "Beginner",
     age: "6-8 years",
-    duration: "6 months",
+    duration: "",
     desc: "Build the base with a physical abacus. Students learn bead concepts, number sense, and accurate addition and subtraction.",
     features: [
       "Abacus setup and finger movement",
@@ -22,10 +22,10 @@ const levels = [
     color: "border-info/30 bg-info/5",
   },
   {
-    range: "Level 4-6",
+    range: "Level 4-5",
     title: "Intermediate",
     age: "8-11 years",
-    duration: "9 months",
+    duration: "",
     popular: true,
     desc: "Move from physical to mental abacus. Students improve speed, accuracy, and confidence with multi-digit calculations.",
     features: [
@@ -38,10 +38,10 @@ const levels = [
     color: "border-secondary/40 bg-secondary/5",
   },
   {
-    range: "Level 7-10",
+    range: "Level 6-7",
     title: "Advanced",
     age: "11-14 years",
-    duration: "12 months",
+    duration: "",
     desc: "Master high-speed mental maths and real exam readiness. Ideal for students who enjoy challenges and competitions.",
     features: [
       "Complex multi-step calculations",
@@ -73,7 +73,7 @@ const Programs = () => (
             Courses and <span className="text-gradient">Syllabus</span>
           </motion.h1>
           <motion.p {...fadeUp} transition={{ delay: 0.1 }} className="text-primary-foreground/80 max-w-2xl mx-auto text-lg">
-            A structured 10-level curriculum for ages 6-14, designed to move students from basics to advanced mental maths.
+            A structured 7-level curriculum for ages 6-14, designed to move students from basics to advanced mental maths.
           </motion.p>
         </div>
       </section>
@@ -99,7 +99,7 @@ const Programs = () => (
                   <h3 className="text-2xl font-heading font-bold text-foreground mb-1">{l.title}</h3>
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-sm text-secondary font-medium">Ages {l.age}</span>
-                    <span className="text-sm text-muted-foreground">- {l.duration}</span>
+                    {l.duration ? <span className="text-sm text-muted-foreground">- {l.duration}</span> : null}
                   </div>
                   <p className="text-muted-foreground mb-4">{l.desc}</p>
                   <ul className="space-y-2">

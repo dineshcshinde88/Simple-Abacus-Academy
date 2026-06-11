@@ -267,7 +267,7 @@ function controller_public_teachers(): void
             'name' => (string) ($row['name'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
             'phone' => (string) ($row['phone'] ?? ''),
-            'qualification' => (string) (($row['qualification'] ?? '') ?: 'Certified Abacus Trainer'),
+            'qualification' => (string) (($row['qualification'] ?? '') ?: 'Certified Simple Abacus Instructor'),
             'experience' => (string) (($row['experience'] ?? '') ?: 'Certified Trainer'),
             'location' => (string) (($row['location'] ?? '') ?: 'Online'),
             'specialization' => (string) (($row['specialization'] ?? '') ?: public_teacher_course_label($row['expertise'] ?? null)),
@@ -282,6 +282,18 @@ function controller_public_teachers(): void
 
 function controller_payments_webhook(array $data): void
 {
+    if (function_exists('handle_payment_webhook')) {
+        $result = handle_payment_webhook($data);
+        json_response([
+            'received' => true,
+            'event' => [
+                'provider' => envv('PAYMENT_PROVIDER', 'razorpay'),
+                'receivedAt' => gmdate('c'),
+            ],
+            'result' => $result,
+        ]);
+    }
+
     json_response([
         'received' => true,
         'event' => [
