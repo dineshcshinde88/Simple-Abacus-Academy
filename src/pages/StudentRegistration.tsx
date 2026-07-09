@@ -22,7 +22,6 @@ const buildCaptcha = () => {
 
 const StudentRegistration = () => {
   const { toast } = useToast();
-  const { register } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/student/dashboard";
