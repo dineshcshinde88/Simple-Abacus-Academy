@@ -280,6 +280,14 @@ if ($method === 'GET' && $path === '/api/admin/worksheet-sub/reports') {
     require_role(['admin']);
     controller_admin_worksheet_sub_reports();
 }
+if ($method === 'GET' && $path === '/api/admin/worksheet-sub/competition-config') {
+    require_role(['admin']);
+    controller_admin_worksheet_competition_config();
+}
+if ($method === 'PUT' && $path === '/api/admin/worksheet-sub/competition-config') {
+    require_role(['admin']);
+    controller_admin_update_worksheet_competition_config($data);
+}
 if ($method === 'PUT' && preg_match('#^/api/admin/levels/([a-f0-9-]+)$#i', $path, $m)) {
     require_role(['admin']);
     controller_admin_update_level($m[1], $data);

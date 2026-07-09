@@ -230,7 +230,7 @@ const StudentDashboard = () => {
         <section className="rounded-2xl bg-white p-5 shadow-card">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-lg font-heading font-bold text-slate-900">Active Worksheet Subscriptions</h3>
+              <h3 className="text-lg font-heading font-bold text-slate-900">My Subscriptions</h3>
               <p className="text-sm text-slate-500">Purchased Abacus and Vedic Maths level subscriptions appear here.</p>
             </div>
             <Button variant="outline" onClick={() => navigate("/student/orders")}>View Orders</Button>
@@ -249,7 +249,8 @@ const StudentDashboard = () => {
                     <th className="py-3 pr-4">Start</th>
                     <th className="py-3 pr-4">End</th>
                     <th className="py-3 pr-4">Amount</th>
-                    <th className="py-3">Status</th>
+                    <th className="py-3 pr-4">Status</th>
+                    <th className="py-3">Action</th>
                   </tr>
                 </thead>
                 <tbody>

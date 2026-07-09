@@ -10,6 +10,12 @@ export type WorksheetTopic = {
   level_id: string;
   topic_name: string;
   total_questions: number;
+  mode?: "vedic";
+  competition?: {
+    unlockedTier: number;
+    passingPercentage: number;
+    tiers: { seconds: number; unlocked: boolean; current: boolean }[];
+  };
 };
 
 export type WorksheetQuestion = {
@@ -30,6 +36,8 @@ export type WorksheetPractice = {
   correct_answers: number;
   time_taken: number;
   status: "Excellent" | "Good" | "Needs Practice";
+  mode?: "practice" | "competition";
+  speed_tier?: number | null;
   created_at: string;
 };
 
@@ -45,6 +53,8 @@ type SubmitPracticePayload = {
   totalQuestions: number;
   correctAnswers: number;
   timeTaken: number;
+  mode?: "practice" | "competition";
+  speedTier?: number | null;
 };
 
 const API_BASE = getApiBase();
@@ -70,8 +80,15 @@ export async function fetchWorksheetDashboard(levelId?: string | null): Promise<
   return apiGet<WorksheetDashboardPayload>(`/api/student/worksheet-sub${query}`);
 }
 
-export async function fetchWorksheetQuestions(topic: WorksheetTopic): Promise<WorksheetQuestion[]> {
-  const data = await apiGet<{ questions: WorksheetQuestion[] }>(`/api/student/worksheet-sub/topics/${topic.id}/questions`);
+export async function fetchWorksheetQuestions(
+  topic: WorksheetTopic,
+  options?: { mode?: "practice" | "competition"; speedTier?: number | null },
+): Promise<WorksheetQuestion[]> {
+  const params = new URLSearchParams();
+  if (options?.mode) params.set("mode", options.mode);
+  if (options?.speedTier) params.set("speedTier", String(options.speedTier));
+  const query = params.toString() ? `?${params.toString()}` : "";
+  const data = await apiGet<{ questions: WorksheetQuestion[] }>(`/api/student/worksheet-sub/topics/${topic.id}/questions${query}`);
   return data.questions.map((question) => ({ ...question, options: shuffleOptions(question.options || []) }));
 }
 
@@ -123,6 +140,8 @@ export async function submitWorksheetPractice(payload: SubmitPracticePayload): P
     correct_answers: payload.correctAnswers,
     time_taken: payload.timeTaken,
     status,
+    mode: payload.mode || "practice",
+    speed_tier: payload.speedTier ?? null,
     created_at: new Date().toISOString(),
   };
 

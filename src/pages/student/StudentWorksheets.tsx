@@ -38,6 +38,7 @@ import {
 } from "@/services/worksheetSubApi";
 
 const PRACTICE_LIMIT = 60;
+const VEDIC_PRACTICE_SECONDS = 600;
 const TOKEN_KEY = "abacus_auth_token";
 
 type StudentSubscription = NonNullable<StudentDashboardData["subscriptions"]>[number];
@@ -119,9 +120,10 @@ const normalizeCourseTitle = (subscription: StudentSubscription) => {
   return plan.replace(/\s*worksheet\s*subscription\s*/gi, " ").replace(/\s+/g, " ").trim();
 };
 
-const isAbacusWorksheetSubscription = (subscription: StudentSubscription) =>
-  /abacus/i.test(`${subscription.planName} ${subscription.levelName || ""}`) &&
-  /worksheet/i.test(`${subscription.planName} ${subscription.levelName || ""}`);
+const isWorksheetSubscription = (subscription: StudentSubscription) => {
+  const text = `${subscription.planName} ${subscription.levelName || ""}`;
+  return /worksheet/i.test(text) && (/abacus/i.test(text) || /vedic/i.test(text));
+};
 
 const sortByLevelName = <T extends { levelName?: string | null }>(items: T[]) =>
   [...items].sort((a, b) => {
@@ -200,8 +202,8 @@ const WorksheetOverviewPage = ({
   dashboard?: StudentDashboardData | null;
 }) => {
   const subscriptions = dashboard?.subscriptions || [];
-  const activeSubscriptions = subscriptions.filter((item) => item.status === "active" && item.paymentStatus === "paid" && isAbacusWorksheetSubscription(item));
-  const expiredSubscriptions = subscriptions.filter((item) => (item.status === "expired" || item.status === "cancelled") && isAbacusWorksheetSubscription(item));
+  const activeSubscriptions = subscriptions.filter((item) => item.status === "active" && item.paymentStatus === "paid" && isWorksheetSubscription(item));
+  const expiredSubscriptions = subscriptions.filter((item) => (item.status === "expired" || item.status === "cancelled") && isWorksheetSubscription(item));
   const fallbackActive: StudentSubscription[] =
     activeSubscriptions.length || !level
       ? []
@@ -350,6 +352,7 @@ const StudentWorksheets = () => {
 
     if (selectedTopic && view === "questions") return <QuestionsPage level={level} topic={selectedTopic} />;
     if (selectedTopic && view === "practice") return <PracticePage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
+    if (selectedTopic && view === "competition") return <CompetitionPage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
     if (selectedTopic && view === "visualization") return <VisualizationPage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
     if (selectedTopic && view === "practices") return <PracticesPage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
 
@@ -398,32 +401,60 @@ const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; top
             <p className="font-semibold text-slate-800">No worksheet topics are available for this subscription yet.</p>
           </Card>
         )}
-        {filtered.map((topic, index) => (
-          <Card key={topic.id} className="group rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-slate-950 sm:text-base">
-                  {index + 1}. {topic.topic_name}
-                </h3>
-                <p className="mt-1 text-xs font-medium text-slate-500">{topic.total_questions} questions available</p>
+        {filtered.map((topic, index) => {
+          const isVedic = topic.mode === "vedic" || /vedic/i.test(level?.level_name || "");
+          const currentTier = topic.competition?.unlockedTier || 15;
+          return (
+            <Card key={topic.id} className="group rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-slate-950 sm:text-base">
+                    {index + 1}. {topic.topic_name}
+                  </h3>
+                  <p className="mt-1 text-xs font-medium text-slate-500">
+                    {topic.total_questions} questions available{isVedic ? ` - Competition unlocked: ${currentTier}s` : ""}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
+                  {isVedic ? (
+                    <>
+                      <Button asChild className="h-9 bg-[#ff6500] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#e95c00]">
+                        <Link to={`/student/worksheets/${topic.id}/practice${levelQuery}`}>Practice Mode</Link>
+                      </Button>
+                      <Button asChild className="h-9 bg-[#551896] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#421173]">
+                        <Link to={`/student/worksheets/${topic.id}/competition${levelQuery}`}>Competition Mode</Link>
+                      </Button>
+                      <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
+                        <Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}>Topic/Sub-topic List</Link>
+                      </Button>
+                      <Button asChild className="h-9 bg-[#11894e] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#0e7442]">
+                        <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>Progress Report</Link>
+                      </Button>
+                      <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
+                        <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>Score History</Link>
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
+                        <Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}>View Questions [{topic.total_questions}]</Link>
+                      </Button>
+                      <Button asChild className="h-9 bg-[#ff6500] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#e95c00]">
+                        <Link to={`/student/worksheets/${topic.id}/practice${levelQuery}`}>Practice Now</Link>
+                      </Button>
+                      <Button asChild className="h-9 bg-[#11894e] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#0e7442]">
+                        <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link>
+                      </Button>
+                      <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
+                        <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>View Practices</Link>
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
-                <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
-                  <Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}>View Questions [{topic.total_questions}]</Link>
-                </Button>
-                <Button asChild className="h-9 bg-[#ff6500] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#e95c00]">
-                  <Link to={`/student/worksheets/${topic.id}/practice${levelQuery}`}>Practice Now</Link>
-                </Button>
-                <Button asChild className="h-9 bg-[#11894e] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#0e7442]">
-                  <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link>
-                </Button>
-                <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
-                  <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>View Practices</Link>
-                </Button>
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
@@ -467,7 +498,8 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [seconds, setSeconds] = useState(0);
+  const isVedic = topic.mode === "vedic" || /vedic/i.test(level?.level_name || "");
+  const [seconds, setSeconds] = useState(isVedic ? VEDIC_PRACTICE_SECONDS : 0);
   const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -477,9 +509,19 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
 
   useEffect(() => {
     if (complete) return undefined;
-    const timer = window.setInterval(() => setSeconds((prev) => prev + 1), 1000);
+    const timer = window.setInterval(() => {
+      setSeconds((prev) => {
+        if (!isVedic) return prev + 1;
+        if (prev <= 1) {
+          window.clearInterval(timer);
+          setComplete(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
     return () => window.clearInterval(timer);
-  }, [complete]);
+  }, [complete, isVedic]);
 
   const current = questions[index];
   const currentOptions = current?.options || [];
@@ -487,9 +529,9 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
   const accuracy = questions.length ? Math.round((correct / questions.length) * 100) : 0;
   const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
 
-  const goNext = () => {
+  const goNext = (selectedAnswer = answer) => {
     if (!current) return;
-    const nextAnswers = { ...answers, [current.id]: answer.trim() };
+    const nextAnswers = { ...answers, [current.id]: selectedAnswer.trim() };
     setAnswers(nextAnswers);
     setAnswer("");
     if (index >= questions.length - 1) {
@@ -509,7 +551,8 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
       accuracy: finalAccuracy,
       totalQuestions: questions.length,
       correctAnswers: finalCorrect,
-      timeTaken: seconds,
+      timeTaken: isVedic ? VEDIC_PRACTICE_SECONDS - seconds : seconds,
+      mode: "practice",
     });
     toast.success("Practice result saved");
     navigate(`/student/worksheets/${topic.id}/practices${levelQuery}`);
@@ -548,7 +591,10 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
                       type="button"
                       variant={selected ? "default" : "outline"}
                       className={`h-12 justify-start rounded-md text-base font-semibold ${selected ? "bg-[#551896] hover:bg-[#421173]" : "border-slate-200 bg-white text-slate-800 hover:bg-[#f7f2ff]"}`}
-                      onClick={() => setAnswer(option)}
+                      onClick={() => {
+                        setAnswer(option);
+                        if (isVedic) window.setTimeout(() => goNext(option), 200);
+                      }}
                     >
                       {option}
                     </Button>
@@ -566,11 +612,13 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
               />
             )}
             <div className="flex items-center justify-between">
-              <Button variant="outline" disabled={index === 0} onClick={() => {
-                setIndex((prev) => Math.max(0, prev - 1));
-                setAnswer(answers[questions[index - 1]?.id] || "");
-              }}>Previous</Button>
-              <Button className="bg-[#ff6500] hover:bg-[#e95c00]" disabled={!current} onClick={goNext}>
+              {!isVedic ? (
+                <Button variant="outline" disabled={index === 0} onClick={() => {
+                  setIndex((prev) => Math.max(0, prev - 1));
+                  setAnswer(answers[questions[index - 1]?.id] || "");
+                }}>Previous</Button>
+              ) : <span />}
+              <Button className="bg-[#ff6500] hover:bg-[#e95c00]" disabled={!current} onClick={() => goNext()}>
                 {index === questions.length - 1 ? "Finish Practice" : "Next Question"}
               </Button>
             </div>
@@ -582,7 +630,7 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
             <div className="mx-auto grid max-w-xl gap-3 sm:grid-cols-3">
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Score</p><p className="text-xl font-bold">{correct}/{questions.length}</p></div>
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Accuracy</p><p className="text-xl font-bold">{accuracy}%</p></div>
-              <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Time</p><p className="text-xl font-bold">{formatTime(seconds)}</p></div>
+              <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Time</p><p className="text-xl font-bold">{formatTime(isVedic ? VEDIC_PRACTICE_SECONDS - seconds : seconds)}</p></div>
             </div>
             <Button disabled={saving} className="bg-[#11894e] hover:bg-[#0e7442]" onClick={save}>
               {saving ? "Saving..." : "Save Result"}
@@ -594,6 +642,137 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
   );
 };
 
+const CompetitionPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
+  const navigate = useNavigate();
+  const tiers = topic.competition?.tiers || Array.from({ length: 15 }, (_, index) => ({ seconds: 15 - index, unlocked: index === 0, current: index === 0 }));
+  const defaultTier = topic.competition?.unlockedTier || 15;
+  const [speedTier, setSpeedTier] = useState(defaultTier);
+  const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
+  const [index, setIndex] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [questionSeconds, setQuestionSeconds] = useState(defaultTier);
+  const [elapsed, setElapsed] = useState(0);
+  const [complete, setComplete] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const current = questions[index];
+  const currentOptions = current?.options || [];
+  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
+  const correct = questions.reduce((total, question) => total + (answers[question.id]?.trim() === question.answer ? 1 : 0), 0);
+  const accuracy = questions.length ? Math.round((correct / questions.length) * 100) : 0;
+  const passing = topic.competition?.passingPercentage || 90;
+
+  useEffect(() => {
+    setQuestions([]);
+    setIndex(0);
+    setAnswers({});
+    setComplete(false);
+    setQuestionSeconds(speedTier);
+    fetchWorksheetQuestions(topic, { mode: "competition", speedTier }).then((items) => setQuestions(items.slice(0, PRACTICE_LIMIT)));
+  }, [topic, speedTier]);
+
+  const submitCompetition = async (finalAnswers: Record<string, string>) => {
+    if (!questions.length || saving) return;
+    setSaving(true);
+    const finalCorrect = questions.reduce((total, question) => total + (finalAnswers[question.id]?.trim() === question.answer ? 1 : 0), 0);
+    const finalAccuracy = Math.round((finalCorrect / questions.length) * 100);
+    await submitWorksheetPractice({
+      topicId: topic.id,
+      score: finalCorrect,
+      accuracy: finalAccuracy,
+      totalQuestions: questions.length,
+      correctAnswers: finalCorrect,
+      timeTaken: elapsed,
+      mode: "competition",
+      speedTier,
+    });
+    toast.success(finalAccuracy >= passing ? "Speed tier cleared. Next tier unlocked." : "Competition attempt saved.");
+    navigate(`/student/worksheets/${topic.id}/practices${levelQuery}`);
+  };
+
+  const moveNext = (selectedAnswer: string) => {
+    if (!current || complete) return;
+    const nextAnswers = { ...answers, [current.id]: selectedAnswer };
+    setAnswers(nextAnswers);
+    if (index >= questions.length - 1) {
+      setComplete(true);
+      void submitCompetition(nextAnswers);
+      return;
+    }
+    setIndex((prev) => prev + 1);
+    setQuestionSeconds(speedTier);
+  };
+
+  useEffect(() => {
+    if (complete || !questions.length) return undefined;
+    const timer = window.setInterval(() => {
+      setElapsed((prev) => prev + 1);
+      setQuestionSeconds((prev) => {
+        if (prev <= 1) {
+          window.setTimeout(() => moveNext(""), 0);
+          return speedTier;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [complete, questions.length, speedTier, index, answers, current]);
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-6">
+      <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Competition Mode" }]} />
+      <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
+
+      <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
+        <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">{topic.topic_name}</h2>
+              <p className="text-sm text-slate-500">Pass at {passing}% or above to unlock the next speed tier.</p>
+            </div>
+            <div className="flex gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#f7f2ff] px-3 py-2 text-sm font-bold text-[#551896]"><Clock className="h-4 w-4" />{questionSeconds}s</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-2 text-sm font-bold text-[#ff6500]"><BarChart3 className="h-4 w-4" />{accuracy}%</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {tiers.map((tier) => (
+              <button
+                key={tier.seconds}
+                type="button"
+                disabled={!tier.unlocked || questions.length > 0}
+                onClick={() => setSpeedTier(tier.seconds)}
+                className={`h-9 min-w-12 rounded-md px-3 text-xs font-bold ${speedTier === tier.seconds ? "bg-[#551896] text-white" : tier.unlocked ? "bg-slate-100 text-slate-800" : "bg-slate-200 text-slate-400"}`}
+              >
+                {tier.seconds}s
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-6 pt-6">
+          <div className="rounded-xl bg-slate-50 p-6 text-center">
+            <p className="text-xs font-bold uppercase text-slate-500">Question {Math.min(index + 1, questions.length || 1)} of {questions.length || PRACTICE_LIMIT}</p>
+            <p className="mt-4 whitespace-pre-line text-4xl font-bold text-[#551896]">{current?.question || "Loading..."}</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {currentOptions.map((option) => (
+              <Button
+                key={`${current?.id}-${option}`}
+                type="button"
+                variant="outline"
+                className="h-12 justify-start rounded-md border-slate-200 bg-white text-base font-semibold text-slate-800 hover:bg-[#f7f2ff]"
+                onClick={() => window.setTimeout(() => moveNext(option), 200)}
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+          {complete || saving ? <p className="text-center text-sm font-semibold text-slate-500">Submitting competition result...</p> : null}
+        </div>
+      </Card>
+    </div>
+  );
+};
 const VisualizationPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
@@ -890,6 +1069,8 @@ const PracticesPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topi
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Mode</th>
+                  <th className="px-4 py-3">Tier</th>
                   <th className="px-4 py-3">Score</th>
                   <th className="px-4 py-3">Accuracy</th>
                   <th className="px-4 py-3">Time Taken</th>
@@ -900,6 +1081,8 @@ const PracticesPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topi
                 {practices.map((practice) => (
                   <tr key={practice.id} className="hover:bg-slate-50">
                     <td className="px-4 py-4 font-semibold text-slate-800">{new Date(practice.created_at).toLocaleString()}</td>
+                    <td className="px-4 py-4 capitalize">{practice.mode || "practice"}</td>
+                    <td className="px-4 py-4">{practice.speed_tier ? `${practice.speed_tier}s` : "-"}</td>
                     <td className="px-4 py-4">{practice.correct_answers}/{practice.total_questions}</td>
                     <td className="px-4 py-4">{practice.accuracy}%</td>
                     <td className="px-4 py-4">{formatTime(Number(practice.time_taken))}</td>
