@@ -11,6 +11,7 @@ export type StudentDashboardData = {
   subscriptions?: {
     id: string;
     planName: string;
+    levelId: string | null;
     levelName: string | null;
     amount: number;
     currency: string;

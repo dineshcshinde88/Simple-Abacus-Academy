@@ -74,6 +74,28 @@ function auth_ensure_column(string $table, string $column, string $definition): 
     }
 }
 
+function auth_writable_table(array $candidates): string
+{
+    foreach ($candidates as $table) {
+        if (auth_table_type($table) === 'BASE TABLE') {
+            return $table;
+        }
+    }
+
+    return $candidates[0];
+}
+
+function auth_table_column(string $table, string $snakeColumn, string $camelColumn): string
+{
+    if (auth_table_has_column($table, $snakeColumn)) {
+        return $snakeColumn;
+    }
+    if (auth_table_has_column($table, $camelColumn)) {
+        return $camelColumn;
+    }
+    return $snakeColumn;
+}
+
 function ensure_student_registration_schema(): void
 {
     if (auth_table_type('students') === 'BASE TABLE') {
@@ -172,15 +194,32 @@ function controller_auth_register(array $data): void
         json_response(['message' => 'Email already registered'], 409);
     }
 
+    if ($role === 'student') {
+        ensure_student_registration_schema();
+    }
+
     $pdo = db_conn();
     $userId = uuid_v4();
     $now = now_sql();
+    $usersWriteTable = auth_writable_table(['users', 'user', 'User']);
+    $studentsWriteTable = auth_writable_table(['students', 'student', 'Student']);
+    $tutorsWriteTable = auth_writable_table(['tutors', 'tutor', 'Tutor']);
+    $userCreatedColumn = auth_table_column($usersWriteTable, 'created_at', 'createdAt');
+    $userUpdatedColumn = auth_table_column($usersWriteTable, 'updated_at', 'updatedAt');
+    $studentUserColumn = auth_table_column($studentsWriteTable, 'user_id', 'userId');
+    $studentPhoneCountryColumn = auth_table_column($studentsWriteTable, 'phone_country', 'phoneCountry');
+    $studentMotherTongueColumn = auth_table_column($studentsWriteTable, 'mother_tongue', 'motherTongue');
+    $studentCreatedColumn = auth_table_column($studentsWriteTable, 'created_at', 'createdAt');
+    $studentUpdatedColumn = auth_table_column($studentsWriteTable, 'updated_at', 'updatedAt');
+    $tutorUserColumn = auth_table_column($tutorsWriteTable, 'user_id', 'userId');
+    $tutorCreatedColumn = auth_table_column($tutorsWriteTable, 'created_at', 'createdAt');
+    $tutorUpdatedColumn = auth_table_column($tutorsWriteTable, 'updated_at', 'updatedAt');
 
     $pdo->beginTransaction();
     try {
         db_exec_sql(
-            'INSERT INTO users (id, name, email, password, role, created_at, updated_at)
-             VALUES (:id, :name, :email, :password, :role, :created_at, :updated_at)',
+            "INSERT INTO {$usersWriteTable} (id, name, email, password, role, {$userCreatedColumn}, {$userUpdatedColumn})
+             VALUES (:id, :name, :email, :password, :role, :created_at, :updated_at)",
             [
                 'id' => $userId,
                 'name' => $name,
@@ -193,10 +232,9 @@ function controller_auth_register(array $data): void
         );
 
         if ($role === 'student') {
-            ensure_student_registration_schema();
             db_exec_sql(
-                'INSERT INTO students (id, user_id, course, phone_country, phone, gender, mother_tongue, dob, created_at, updated_at)
-                 VALUES (:id, :user_id, :course, :phone_country, :phone, :gender, :mother_tongue, :dob, :created_at, :updated_at)',
+                "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, course, {$studentPhoneCountryColumn}, phone, gender, {$studentMotherTongueColumn}, dob, {$studentCreatedColumn}, {$studentUpdatedColumn})
+                 VALUES (:id, :user_id, :course, :phone_country, :phone, :gender, :mother_tongue, :dob, :created_at, :updated_at)",
                 [
                     'id' => uuid_v4(),
                     'user_id' => $userId,
@@ -212,14 +250,17 @@ function controller_auth_register(array $data): void
             );
         } else {
             db_exec_sql(
-                'INSERT INTO tutors (id, user_id, created_at, updated_at) VALUES (:id, :user_id, :created_at, :updated_at)',
+                "INSERT INTO {$tutorsWriteTable} (id, {$tutorUserColumn}, {$tutorCreatedColumn}, {$tutorUpdatedColumn}) VALUES (:id, :user_id, :created_at, :updated_at)",
                 ['id' => uuid_v4(), 'user_id' => $userId, 'created_at' => $now, 'updated_at' => $now]
             );
         }
 
         $pdo->commit();
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('Student/tutor registration failed: ' . $e->getMessage());
         json_response(['message' => 'Failed to register user'], 500);
     }
 

@@ -453,44 +453,120 @@ function instructor_send_password_reset_email(string $name, string $email, strin
     return instructor_send_html_mail($email, $subject, $html, $text);
 }
 
+function instructor_is_approved(array $instructor): bool
+{
+    return (string) ($instructor['status'] ?? '') === 'approved' || (int) ($instructor['is_verified'] ?? 0) === 1;
+}
+
+function instructor_ensure_user_training_status_column(): void
+{
+    $usersTableType = (string) db_value(
+        'SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table LIMIT 1',
+        ['table' => 'users']
+    );
+    if ($usersTableType !== 'BASE TABLE') {
+        return;
+    }
+
+    if (function_exists('billing_table_has_column')) {
+        if (!billing_table_has_column('users', 'training_status')) {
+            db_exec_sql("ALTER TABLE users ADD COLUMN training_status VARCHAR(30) NOT NULL DEFAULT 'pending'");
+            db_exec_sql("UPDATE users SET training_status = 'approved' WHERE role IN ('admin', 'tutor')");
+        }
+        return;
+    }
+
+    $exists = (int) db_value(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column',
+        ['table' => 'users', 'column' => 'training_status']
+    );
+    if ($exists === 0) {
+        db_exec_sql("ALTER TABLE users ADD COLUMN training_status VARCHAR(30) NOT NULL DEFAULT 'pending'");
+        db_exec_sql("UPDATE users SET training_status = 'approved' WHERE role IN ('admin', 'tutor')");
+    }
+}
+
+function instructor_users_has_training_status(): bool
+{
+    if (function_exists('billing_table_has_column')) {
+        return billing_table_has_column('users', 'training_status');
+    }
+
+    return (int) db_value(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column',
+        ['table' => 'users', 'column' => 'training_status']
+    ) > 0;
+}
+
 function instructor_ensure_approved_user(array $instructor): string
 {
     if (function_exists('ensure_training_schema')) {
         ensure_training_schema();
     }
+    instructor_ensure_user_training_status_column();
 
     $email = strtolower((string) $instructor['email']);
     $user = db_one('SELECT * FROM users WHERE email = :email LIMIT 1', ['email' => $email]);
     $now = now_sql();
+    $hasTrainingStatus = instructor_users_has_training_status();
     if ($user) {
-        db_exec_sql(
-            'UPDATE users SET name = :name, password = :password, role = :role, training_status = :training_status, updated_at = :updated_at WHERE id = :id',
-            [
-                'name' => $instructor['full_name'],
-                'password' => $instructor['password'],
-                'role' => 'tutor',
-                'training_status' => 'approved',
-                'updated_at' => $now,
-                'id' => $user['id'],
-            ]
-        );
+        if ($hasTrainingStatus) {
+            db_exec_sql(
+                'UPDATE users SET name = :name, password = :password, role = :role, training_status = :training_status, updated_at = :updated_at WHERE id = :id',
+                [
+                    'name' => $instructor['full_name'],
+                    'password' => $instructor['password'],
+                    'role' => 'tutor',
+                    'training_status' => 'approved',
+                    'updated_at' => $now,
+                    'id' => $user['id'],
+                ]
+            );
+        } else {
+            db_exec_sql(
+                'UPDATE users SET name = :name, password = :password, role = :role, updated_at = :updated_at WHERE id = :id',
+                [
+                    'name' => $instructor['full_name'],
+                    'password' => $instructor['password'],
+                    'role' => 'tutor',
+                    'updated_at' => $now,
+                    'id' => $user['id'],
+                ]
+            );
+        }
         $userId = (string) $user['id'];
     } else {
         $userId = uuid_v4();
-        db_exec_sql(
-            'INSERT INTO users (id, name, email, password, role, training_status, created_at, updated_at)
-             VALUES (:id, :name, :email, :password, :role, :training_status, :created_at, :updated_at)',
-            [
-                'id' => $userId,
-                'name' => $instructor['full_name'],
-                'email' => $email,
-                'password' => $instructor['password'],
-                'role' => 'tutor',
-                'training_status' => 'approved',
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]
-        );
+        if ($hasTrainingStatus) {
+            db_exec_sql(
+                'INSERT INTO users (id, name, email, password, role, training_status, created_at, updated_at)
+                 VALUES (:id, :name, :email, :password, :role, :training_status, :created_at, :updated_at)',
+                [
+                    'id' => $userId,
+                    'name' => $instructor['full_name'],
+                    'email' => $email,
+                    'password' => $instructor['password'],
+                    'role' => 'tutor',
+                    'training_status' => 'approved',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+        } else {
+            db_exec_sql(
+                'INSERT INTO users (id, name, email, password, role, created_at, updated_at)
+                 VALUES (:id, :name, :email, :password, :role, :created_at, :updated_at)',
+                [
+                    'id' => $userId,
+                    'name' => $instructor['full_name'],
+                    'email' => $email,
+                    'password' => $instructor['password'],
+                    'role' => 'tutor',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+        }
     }
 
     $tutor = db_one('SELECT id FROM tutors WHERE user_id = :user_id LIMIT 1', ['user_id' => $userId]);
@@ -550,7 +626,7 @@ function controller_instructor_register_start(array $data): void
     $instructor = db_one('SELECT * FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
     if ($instructor) {
         $status = (string) ($instructor['status'] ?? 'pending');
-        if ((int) ($instructor['is_verified'] ?? 0) === 1 || $status === 'approved') {
+        if (instructor_is_approved($instructor)) {
             json_response(['message' => 'This tutor account is already approved. Please login with your email and password.'], 409);
         }
 
@@ -651,7 +727,7 @@ function controller_instructor_forgot_password(array $data): void
 
     $message = 'If an approved instructor account exists for this email, a password reset link has been sent.';
     $instructor = db_one('SELECT * FROM instructors WHERE email = :email LIMIT 1', ['email' => $email]);
-    if (!$instructor || ($instructor['status'] ?? '') !== 'approved') {
+    if (!$instructor || !instructor_is_approved($instructor)) {
         json_response(['message' => $message]);
     }
 
@@ -703,7 +779,7 @@ function controller_instructor_reset_password(array $data): void
         'UPDATE instructors SET password = :password, reset_token = NULL, reset_expiry = NULL WHERE email = :email',
         ['password' => $hash, 'email' => $email]
     );
-    if (($instructor['status'] ?? '') === 'approved') {
+    if (instructor_is_approved($instructor)) {
         $instructor['password'] = $hash;
         instructor_ensure_approved_user($instructor);
     }

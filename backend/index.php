@@ -266,6 +266,10 @@ if ($method === 'GET' && $path === '/api/admin/subscriptions') {
     require_role(['admin']);
     controller_admin_subscriptions_list();
 }
+if ($method === 'GET' && $path === '/api/admin/payment-audit-logs') {
+    require_role(['admin']);
+    controller_admin_payment_audit_logs();
+}
 if ($method === 'POST' && $path === '/api/admin/levels') {
     require_role(['admin']);
     controller_admin_create_level($data);

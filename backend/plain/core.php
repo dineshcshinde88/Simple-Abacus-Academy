@@ -125,6 +125,27 @@ function is_origin_allowed(string $origin, array $allowed): bool
     return false;
 }
 
+function is_private_dev_host(string $host): bool
+{
+    if (in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+        return true;
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+        return false;
+    }
+
+    $long = ip2long($host);
+    if ($long === false) {
+        return false;
+    }
+
+    $long = sprintf('%u', $long);
+    return ($long >= sprintf('%u', ip2long('10.0.0.0')) && $long <= sprintf('%u', ip2long('10.255.255.255')))
+        || ($long >= sprintf('%u', ip2long('172.16.0.0')) && $long <= sprintf('%u', ip2long('172.31.255.255')))
+        || ($long >= sprintf('%u', ip2long('192.168.0.0')) && $long <= sprintf('%u', ip2long('192.168.255.255')));
+}
+
 function apply_cors_headers(): void
 {
     $origin = request_header('Origin');
@@ -136,7 +157,8 @@ function apply_cors_headers(): void
             $originHost = strtolower((string) ($parts['host'] ?? ''));
         }
     }
-    $isLocalDevOrigin = in_array($originHost, ['localhost', '127.0.0.1', '::1'], true);
+    $isDevelopment = strtolower((string) envv('NODE_ENV', '')) === 'development';
+    $isLocalDevOrigin = $isDevelopment && is_private_dev_host($originHost);
 
     if ($origin !== null && ($isLocalDevOrigin || (!empty($allowed) && is_origin_allowed($origin, $allowed)))) {
         header('Access-Control-Allow-Origin: ' . $origin);

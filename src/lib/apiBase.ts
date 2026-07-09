@@ -20,6 +20,10 @@ export function getApiBase(): string {
   const isLocalRuntime = runtimeHost !== "" && LOCAL_HOSTS.has(runtimeHost);
 
   if (configured) {
+    if (import.meta.env.DEV) {
+      return normalizeBaseUrl(configured);
+    }
+
     if (!isLocalRuntime && isLocalUrl(configured)) {
       return DEFAULT_PROD_API;
     }

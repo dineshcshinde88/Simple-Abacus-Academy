@@ -15,6 +15,87 @@ function admin_table_exists(PDO $pdo, string $table): bool
     return (int) $stmt->fetchColumn() > 0;
 }
 
+function admin_database_name(PDO $pdo): string
+{
+    try {
+        return (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+    } catch (Throwable $e) {
+        return '';
+    }
+}
+
+function admin_env_value(string $path, string $key): string
+{
+    if (!is_file($path)) {
+        return '';
+    }
+
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!is_array($lines)) {
+        return '';
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+        }
+
+        [$lineKey, $value] = explode('=', $line, 2);
+        if (trim($lineKey) !== $key) {
+            continue;
+        }
+
+        $value = trim($value);
+        if ($value !== '' && (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'")))) {
+            $value = substr($value, 1, -1);
+        }
+        return $value;
+    }
+
+    return '';
+}
+
+function admin_backend_pdo(PDO $adminPdo): ?PDO
+{
+    $databaseUrl = admin_env_value(__DIR__ . '/../backend/.env', 'DATABASE_URL');
+    if ($databaseUrl === '') {
+        $databaseUrl = admin_env_value(__DIR__ . '/../.env', 'DATABASE_URL');
+    }
+    if ($databaseUrl === '') {
+        return null;
+    }
+
+    $parts = parse_url($databaseUrl);
+    if (!is_array($parts)) {
+        return null;
+    }
+
+    $host = (string) ($parts['host'] ?? 'localhost');
+    $port = (string) ($parts['port'] ?? '3306');
+    $db = isset($parts['path']) ? trim((string) $parts['path'], '/') : '';
+    $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
+    $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
+
+    if ($db === '' || $user === '') {
+        return null;
+    }
+
+    if ($db === admin_database_name($adminPdo)) {
+        return $adminPdo;
+    }
+
+    try {
+        return new PDO("mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4", $user, $pass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
 function admin_format_date(?string $value): string
 {
     if (!$value) {
@@ -62,9 +143,11 @@ function admin_level_status(?string $endDate): string
     return $ts >= time() ? 'Active' : 'Completed';
 }
 
-$hasNewSubscriptions = admin_table_exists($pdo, 'student_subscriptions')
-    && admin_table_exists($pdo, 'users')
-    && admin_table_exists($pdo, 'students');
+$backendPdo = admin_backend_pdo($pdo);
+$subscriptionPdo = $backendPdo ?: $pdo;
+$hasNewSubscriptions = admin_table_exists($subscriptionPdo, 'student_subscriptions')
+    && admin_table_exists($subscriptionPdo, 'users')
+    && admin_table_exists($subscriptionPdo, 'students');
 
 if (!$hasNewSubscriptions && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $studentId = (int) ($_POST['student_id'] ?? 0);
@@ -90,13 +173,28 @@ $subscriptions = [];
 $students = [];
 
 if ($hasNewSubscriptions) {
-    $where = '';
+    $where = "WHERE ss.payment_status = 'paid'
+        AND (
+            LOWER(COALESCE(c.slug, '')) = 'abacus'
+            OR LOWER(COALESCE(c.name, '')) LIKE '%abacus%'
+            OR LOWER(COALESCE(ss.plan_name, '')) LIKE '%abacus%'
+        )";
     $params = [];
     if (in_array($statusFilter, ['paid', 'unpaid'], true)) {
         if ($statusFilter === 'unpaid') {
-            $where = "WHERE ss.payment_status IN ('unpaid', 'pending')";
+            $where = "WHERE ss.payment_status IN ('unpaid', 'pending')
+                AND (
+                    LOWER(COALESCE(c.slug, '')) = 'abacus'
+                    OR LOWER(COALESCE(c.name, '')) LIKE '%abacus%'
+                    OR LOWER(COALESCE(ss.plan_name, '')) LIKE '%abacus%'
+                )";
         } else {
-            $where = 'WHERE ss.payment_status = ?';
+            $where = "WHERE ss.payment_status = ?
+                AND (
+                    LOWER(COALESCE(c.slug, '')) = 'abacus'
+                    OR LOWER(COALESCE(c.name, '')) LIKE '%abacus%'
+                    OR LOWER(COALESCE(ss.plan_name, '')) LIKE '%abacus%'
+                )";
             $params[] = $statusFilter;
         }
     }
@@ -123,7 +221,7 @@ if ($hasNewSubscriptions) {
         {$where}
         ORDER BY ss.created_at DESC
     ";
-    $listStmt = $pdo->prepare($sql);
+    $listStmt = $subscriptionPdo->prepare($sql);
     $listStmt->execute($params);
     $subscriptions = $listStmt->fetchAll();
 } else {
@@ -168,8 +266,8 @@ if ($hasNewSubscriptions) {
     <div class="card-body">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <div>
-          <h5 class="card-title mb-1">Student Level Subscriptions</h5>
-          <div class="text-muted small">Razorpay worksheet subscription payments appear here after successful payment.</div>
+          <h5 class="card-title mb-1">Paid Abacus Level Subscriptions</h5>
+          <div class="text-muted small">Students who paid for Abacus level subscriptions are listed with their level dates.</div>
         </div>
         <form method="get" class="d-flex gap-2">
           <select name="status" class="form-select">
@@ -190,15 +288,13 @@ if ($hasNewSubscriptions) {
             <tr>
               <th>Student</th>
               <th>Email</th>
-              <th>Course</th>
-              <th>Level</th>
-              <th>Duration</th>
+              <th>Level Name</th>
+              <th>Start Date</th>
+              <th>End Date</th>
+              <th>Plan</th>
               <th>Amount</th>
               <th>Payment</th>
-              <th>Start</th>
-              <th>Expiry</th>
-              <th>Status</th>
-              <th>Razorpay ID</th>
+              <th>Level Status</th>
             </tr>
           </thead>
           <tbody>
@@ -206,25 +302,21 @@ if ($hasNewSubscriptions) {
               <tr>
                 <td><?php echo htmlspecialchars($sub['student_name'] ?? '-'); ?></td>
                 <td><?php echo htmlspecialchars($sub['student_email'] ?? '-'); ?></td>
-                <td><?php echo htmlspecialchars($sub['course_name'] ?? '-'); ?></td>
                 <td><?php echo htmlspecialchars($sub['level_name'] ?? '-'); ?></td>
-                <td><?php echo htmlspecialchars(admin_duration_label(isset($sub['duration_days']) ? (int) $sub['duration_days'] : null)); ?></td>
+                <td><?php echo htmlspecialchars(admin_format_date($sub['start_date'] ?? null)); ?></td>
+                <td><?php echo htmlspecialchars(admin_format_date($sub['expiry_date'] ?? null)); ?></td>
+                <td><?php echo htmlspecialchars($sub['plan_name'] ?? '-'); ?></td>
                 <td><?php echo htmlspecialchars(($sub['currency'] ?? 'INR') . ' ' . number_format((float) ($sub['amount'] ?? 0), 2)); ?></td>
                 <td>
                   <span class="badge bg-<?php echo admin_payment_status_badge($sub['payment_status'] ?? null); ?>">
                     <?php echo htmlspecialchars(admin_payment_status_label($sub['payment_status'] ?? null)); ?>
                   </span>
                 </td>
-                <td><?php echo htmlspecialchars(admin_format_date($sub['start_date'] ?? null)); ?></td>
-                <td><?php echo htmlspecialchars(admin_format_date($sub['expiry_date'] ?? null)); ?></td>
                 <td><?php echo htmlspecialchars(admin_level_status($sub['expiry_date'] ?? null)); ?></td>
-                <td class="small">
-                  <?php echo htmlspecialchars($sub['razorpay_payment_id'] ?: ($sub['provider_payment_id'] ?? '-')); ?>
-                </td>
               </tr>
             <?php endforeach; ?>
             <?php if (!$subscriptions): ?>
-              <tr><td colspan="10" class="text-center text-muted py-4">No subscriptions found.</td></tr>
+              <tr><td colspan="9" class="text-center text-muted py-4">No paid Abacus level subscriptions found.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>

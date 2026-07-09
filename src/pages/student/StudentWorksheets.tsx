@@ -37,7 +37,6 @@ import {
   WorksheetTopic,
 } from "@/services/worksheetSubApi";
 
-const PAGE_SIZE = 16;
 const PRACTICE_LIMIT = 10;
 const TOKEN_KEY = "abacus_auth_token";
 
@@ -120,6 +119,10 @@ const normalizeCourseTitle = (subscription: StudentSubscription) => {
   return plan.replace(/\s*worksheet\s*subscription\s*/gi, " ").replace(/\s+/g, " ").trim();
 };
 
+const isAbacusWorksheetSubscription = (subscription: StudentSubscription) =>
+  /abacus/i.test(`${subscription.planName} ${subscription.levelName || ""}`) &&
+  /worksheet/i.test(`${subscription.planName} ${subscription.levelName || ""}`);
+
 const sortByLevelName = <T extends { levelName?: string | null }>(items: T[]) =>
   [...items].sort((a, b) => {
     const aLevel = Number((a.levelName || "").match(/\d+/)?.[0] || 0);
@@ -180,7 +183,7 @@ const WorksheetCourseGroup = ({
 
         if (disabled) return <div key={item.id}>{card}</div>;
         return (
-          <Link key={item.id} to="/student/worksheets?view=topics" aria-label={`Open ${levelName} worksheet topics`}>
+          <Link key={item.id} to={`/student/worksheets?view=topics&levelId=${encodeURIComponent(item.levelId || item.id)}`} aria-label={`Open ${levelName} worksheet topics`}>
             {card}
           </Link>
         );
@@ -197,14 +200,15 @@ const WorksheetOverviewPage = ({
   dashboard?: StudentDashboardData | null;
 }) => {
   const subscriptions = dashboard?.subscriptions || [];
-  const activeSubscriptions = subscriptions.filter((item) => item.status === "active" && item.paymentStatus === "paid");
-  const expiredSubscriptions = subscriptions.filter((item) => item.status === "expired" || item.status === "cancelled");
+  const activeSubscriptions = subscriptions.filter((item) => item.status === "active" && item.paymentStatus === "paid" && isAbacusWorksheetSubscription(item));
+  const expiredSubscriptions = subscriptions.filter((item) => (item.status === "expired" || item.status === "cancelled") && isAbacusWorksheetSubscription(item));
   const fallbackActive: StudentSubscription[] =
     activeSubscriptions.length || !level
       ? []
       : [{
           id: level.id,
           planName: "Abacus Worksheet Subscription",
+          levelId: level.id,
           levelName: level.level_name,
           amount: 0,
           currency: "INR",
@@ -262,6 +266,7 @@ const StudentWorksheets = () => {
   const navigate = useNavigate();
   const { topicId, view } = useParams<{ topicId?: string; view?: string }>();
   const [searchParams] = useSearchParams();
+  const selectedLevelId = searchParams.get("levelId");
   const [level, setLevel] = useState<WorksheetLevel>();
   const [topics, setTopics] = useState<WorksheetTopic[]>([]);
   const [dashboard, setDashboard] = useState<StudentDashboardData | null>(null);
@@ -281,7 +286,7 @@ const StudentWorksheets = () => {
         });
     }
 
-    fetchWorksheetDashboard()
+    fetchWorksheetDashboard(selectedLevelId)
       .then((payload) => {
         if (!alive) return;
         setLevel(payload.level);
@@ -297,7 +302,7 @@ const StudentWorksheets = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [selectedLevelId]);
 
   const selectedTopic = topics.find((topic) => topic.id === topicId);
 
@@ -344,15 +349,15 @@ const StudentWorksheets = () => {
     }
 
     if (selectedTopic && view === "questions") return <QuestionsPage level={level} topic={selectedTopic} />;
-    if (selectedTopic && view === "practice") return <PracticePage level={level} topic={selectedTopic} />;
-    if (selectedTopic && view === "visualization") return <VisualizationPage level={level} topic={selectedTopic} />;
-    if (selectedTopic && view === "practices") return <PracticesPage level={level} topic={selectedTopic} />;
+    if (selectedTopic && view === "practice") return <PracticePage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
+    if (selectedTopic && view === "visualization") return <VisualizationPage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
+    if (selectedTopic && view === "practices") return <PracticesPage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
 
     if (searchParams.get("view") !== "topics") {
       return <WorksheetOverviewPage level={level} dashboard={dashboard} />;
     }
 
-    return <TopicListPage level={level} topics={topics} />;
+    return <TopicListPage level={level} topics={topics} levelId={selectedLevelId || level?.id || null} />;
   };
 
   return (
@@ -362,12 +367,14 @@ const StudentWorksheets = () => {
   );
 };
 
-const TopicListPage = ({ level, topics }: { level?: WorksheetLevel; topics: WorksheetTopic[] }) => {
+const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; topics: WorksheetTopic[]; levelId?: string | null }) => {
   const [search, setSearch] = useState("");
   const filtered = useMemo(
     () => topics.filter((topic) => topic.topic_name.toLowerCase().includes(search.toLowerCase())),
     [search, topics],
   );
+
+  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -402,16 +409,16 @@ const TopicListPage = ({ level, topics }: { level?: WorksheetLevel; topics: Work
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
                 <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
-                  <Link to={`/student/worksheets/${topic.id}/questions`}>View Questions [{topic.total_questions}]</Link>
+                  <Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}>View Questions [{topic.total_questions}]</Link>
                 </Button>
                 <Button asChild className="h-9 bg-[#ff6500] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#e95c00]">
-                  <Link to={`/student/worksheets/${topic.id}/practice`}>Practice Now</Link>
+                  <Link to={`/student/worksheets/${topic.id}/practice${levelQuery}`}>Practice Now</Link>
                 </Button>
                 <Button asChild className="h-9 bg-[#11894e] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#0e7442]">
-                  <Link to={`/student/worksheets/${topic.id}/visualization`}>Visualization</Link>
+                  <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link>
                 </Button>
                 <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
-                  <Link to={`/student/worksheets/${topic.id}/practices`}>View Practices</Link>
+                  <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>View Practices</Link>
                 </Button>
               </div>
             </div>
@@ -426,15 +433,11 @@ const QuestionsPage = ({ level, topic }: { level?: WorksheetLevel; topic: Worksh
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
 
   useEffect(() => {
     setLoading(true);
     fetchWorksheetQuestions(topic).then(setQuestions).finally(() => setLoading(false));
   }, [topic]);
-
-  const totalPages = Math.max(1, Math.ceil(questions.length / PAGE_SIZE));
-  const visible = questions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -443,30 +446,22 @@ const QuestionsPage = ({ level, topic }: { level?: WorksheetLevel; topic: Worksh
       <h2 className="text-lg font-bold text-slate-900">{topic.topic_name}</h2>
 
       {loading ? <LoadingGrid /> : (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {visible.map((question, index) => (
-              <Card key={question.id} className="flex min-h-36 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <span className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#5b21b6] text-xs font-bold text-white">
-                  Q{(page - 1) * PAGE_SIZE + index + 1}
-                </span>
-                <p className="flex-1 text-lg font-bold text-slate-900">{question.question}</p>
-                <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[#551896]">Answer: {question.answer}</div>
-              </Card>
-            ))}
-          </div>
-          <div className="flex items-center justify-center gap-3">
-            <Button variant="outline" disabled={page === 1} onClick={() => setPage((prev) => prev - 1)}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button>
-            <span className="text-sm font-semibold text-slate-600">Page {page} of {totalPages}</span>
-            <Button variant="outline" disabled={page === totalPages} onClick={() => setPage((prev) => prev + 1)}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button>
-          </div>
-        </>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {questions.map((question, index) => (
+            <Card key={question.id} className="flex min-h-36 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <span className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#5b21b6] text-xs font-bold text-white">
+                Q{index + 1}
+              </span>
+              <p className="flex-1 text-lg font-bold text-slate-900">{question.question}</p>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );
 };
 
-const PracticePage = ({ level, topic }: { level?: WorksheetLevel; topic: WorksheetTopic }) => {
+const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [index, setIndex] = useState(0);
@@ -489,6 +484,7 @@ const PracticePage = ({ level, topic }: { level?: WorksheetLevel; topic: Workshe
   const current = questions[index];
   const correct = questions.reduce((total, question) => total + (answers[question.id]?.trim() === question.answer ? 1 : 0), 0);
   const accuracy = questions.length ? Math.round((correct / questions.length) * 100) : 0;
+  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
 
   const goNext = () => {
     if (!current) return;
@@ -515,7 +511,7 @@ const PracticePage = ({ level, topic }: { level?: WorksheetLevel; topic: Workshe
       timeTaken: seconds,
     });
     toast.success("Practice result saved");
-    navigate(`/student/worksheets/${topic.id}/practices`);
+    navigate(`/student/worksheets/${topic.id}/practices${levelQuery}`);
   };
 
   return (
@@ -578,7 +574,7 @@ const PracticePage = ({ level, topic }: { level?: WorksheetLevel; topic: Workshe
   );
 };
 
-const VisualizationPage = ({ level, topic }: { level?: WorksheetLevel; topic: WorksheetTopic }) => {
+const VisualizationPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [index, setIndex] = useState(0);
@@ -589,6 +585,7 @@ const VisualizationPage = ({ level, topic }: { level?: WorksheetLevel; topic: Wo
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [speaking, setSpeaking] = useState(false);
   const current = questions[index];
+  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
 
   useEffect(() => {
     fetchWorksheetQuestions(topic).then((items) => setQuestions(items.slice(0, 40)));
@@ -706,7 +703,7 @@ const VisualizationPage = ({ level, topic }: { level?: WorksheetLevel; topic: Wo
       timeTaken: seconds,
     });
     toast.success(`Exam submitted: ${correct}/${questions.length}`);
-    navigate(`/student/worksheets/${topic.id}/practices`);
+    navigate(`/student/worksheets/${topic.id}/practices${levelQuery}`);
   };
 
   const beadRows = current?.answer
@@ -844,7 +841,7 @@ const VisualizationPage = ({ level, topic }: { level?: WorksheetLevel; topic: Wo
   );
 };
 
-const PracticesPage = ({ level, topic }: { level?: WorksheetLevel; topic: WorksheetTopic }) => {
+const PracticesPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
   const navigate = useNavigate();
   const [practices, setPractices] = useState<WorksheetPractice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -852,6 +849,8 @@ const PracticesPage = ({ level, topic }: { level?: WorksheetLevel; topic: Worksh
   useEffect(() => {
     fetchWorksheetPractices(topic.id).then(setPractices).finally(() => setLoading(false));
   }, [topic.id]);
+
+  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -863,7 +862,7 @@ const PracticesPage = ({ level, topic }: { level?: WorksheetLevel; topic: Worksh
             <h2 className="text-lg font-bold text-slate-900">{topic.topic_name}</h2>
             <p className="text-sm text-slate-500">Previous attempts and results.</p>
           </div>
-          <Button asChild className="bg-[#ff6500] hover:bg-[#e95c00]"><Link to={`/student/worksheets/${topic.id}/practice`}><Play className="mr-2 h-4 w-4" />Practice Now</Link></Button>
+          <Button asChild className="bg-[#ff6500] hover:bg-[#e95c00]"><Link to={`/student/worksheets/${topic.id}/practice${levelQuery}`}><Play className="mr-2 h-4 w-4" />Practice Now</Link></Button>
         </div>
         <div className="mt-5 overflow-x-auto">
           {loading ? <Skeleton className="h-48 rounded-xl" /> : practices.length ? (
@@ -900,8 +899,8 @@ const PracticesPage = ({ level, topic }: { level?: WorksheetLevel; topic: Worksh
           )}
         </div>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <Button asChild variant="outline"><Link to={`/student/worksheets/${topic.id}/questions`}><Eye className="mr-2 h-4 w-4" />View Questions</Link></Button>
-          <Button asChild className="bg-[#11894e] hover:bg-[#0e7442]"><Link to={`/student/worksheets/${topic.id}/visualization`}>Visualization</Link></Button>
+          <Button asChild variant="outline"><Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}><Eye className="mr-2 h-4 w-4" />View Questions</Link></Button>
+          <Button asChild className="bg-[#11894e] hover:bg-[#0e7442]"><Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link></Button>
         </div>
       </Card>
     </div>

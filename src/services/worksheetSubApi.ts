@@ -64,8 +64,9 @@ async function apiGet<T>(path: string): Promise<T> {
   return response.json();
 }
 
-export async function fetchWorksheetDashboard(): Promise<WorksheetDashboardPayload> {
-  return apiGet<WorksheetDashboardPayload>("/api/student/worksheet-sub");
+export async function fetchWorksheetDashboard(levelId?: string | null): Promise<WorksheetDashboardPayload> {
+  const query = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
+  return apiGet<WorksheetDashboardPayload>(`/api/student/worksheet-sub${query}`);
 }
 
 export async function fetchWorksheetQuestions(topic: WorksheetTopic): Promise<WorksheetQuestion[]> {
