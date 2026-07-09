@@ -37,7 +37,7 @@ import {
   WorksheetTopic,
 } from "@/services/worksheetSubApi";
 
-const PRACTICE_LIMIT = 10;
+const PRACTICE_LIMIT = 60;
 const TOKEN_KEY = "abacus_auth_token";
 
 type StudentSubscription = NonNullable<StudentDashboardData["subscriptions"]>[number];
@@ -452,7 +452,7 @@ const QuestionsPage = ({ level, topic }: { level?: WorksheetLevel; topic: Worksh
               <span className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#5b21b6] text-xs font-bold text-white">
                 Q{index + 1}
               </span>
-              <p className="flex-1 text-lg font-bold text-slate-900">{question.question}</p>
+              <p className="flex-1 whitespace-pre-line text-lg font-bold text-slate-900">{question.question}</p>
             </Card>
           ))}
         </div>
@@ -482,6 +482,7 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
   }, [complete]);
 
   const current = questions[index];
+  const currentOptions = current?.options || [];
   const correct = questions.reduce((total, question) => total + (answers[question.id]?.trim() === question.answer ? 1 : 0), 0);
   const accuracy = questions.length ? Math.round((correct / questions.length) * 100) : 0;
   const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
@@ -535,16 +536,35 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
           <div className="space-y-6 pt-6">
             <div className="rounded-xl bg-slate-50 p-6 text-center">
               <p className="text-xs font-bold uppercase text-slate-500">Question {Math.min(index + 1, questions.length)} of {questions.length || PRACTICE_LIMIT}</p>
-              <p className="mt-4 text-4xl font-bold text-[#551896]">{current?.question || "Loading..."}</p>
+              <p className="mt-4 whitespace-pre-line text-4xl font-bold text-[#551896]">{current?.question || "Loading..."}</p>
             </div>
-            <Input
-              inputMode="numeric"
-              value={answer}
-              placeholder="Enter answer"
-              onChange={(event) => setAnswer(event.target.value.replace(/[^0-9-]/g, ""))}
-              onKeyDown={(event) => event.key === "Enter" && goNext()}
-              className="h-12 text-lg font-semibold"
-            />
+            {currentOptions.length ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {currentOptions.map((option) => {
+                  const selected = answer === option;
+                  return (
+                    <Button
+                      key={`${current?.id}-${option}`}
+                      type="button"
+                      variant={selected ? "default" : "outline"}
+                      className={`h-12 justify-start rounded-md text-base font-semibold ${selected ? "bg-[#551896] hover:bg-[#421173]" : "border-slate-200 bg-white text-slate-800 hover:bg-[#f7f2ff]"}`}
+                      onClick={() => setAnswer(option)}
+                    >
+                      {option}
+                    </Button>
+                  );
+                })}
+              </div>
+            ) : (
+              <Input
+                inputMode="numeric"
+                value={answer}
+                placeholder="Enter answer"
+                onChange={(event) => setAnswer(event.target.value.replace(/[^0-9-]/g, ""))}
+                onKeyDown={(event) => event.key === "Enter" && goNext()}
+                className="h-12 text-lg font-semibold"
+              />
+            )}
             <div className="flex items-center justify-between">
               <Button variant="outline" disabled={index === 0} onClick={() => {
                 setIndex((prev) => Math.max(0, prev - 1));
@@ -588,7 +608,7 @@ const VisualizationPage = ({ level, topic, levelId }: { level?: WorksheetLevel; 
   const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
 
   useEffect(() => {
-    fetchWorksheetQuestions(topic).then((items) => setQuestions(items.slice(0, 40)));
+    fetchWorksheetQuestions(topic).then((items) => setQuestions(items.slice(0, 60)));
   }, [topic]);
 
   useEffect(() => {

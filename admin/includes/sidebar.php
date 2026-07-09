@@ -1,8 +1,9 @@
-﻿<?php
+<?php
 $menuItems = [
   ['label' => 'Dashboard', 'href' => 'dashboard.php', 'key' => 'dashboard'],
   ['label' => 'Students', 'href' => 'students.php', 'key' => 'students'],
   ['label' => 'Subscriptions', 'href' => 'subscriptions.php', 'key' => 'subscriptions'],
+  ['label' => 'Worksheet Import', 'href' => 'worksheet_import.php', 'key' => 'worksheet_import'],
   ['label' => 'Online Competition', 'href' => 'dashboard.php#online-competition-admin', 'key' => 'online_competition'],
   ['label' => 'Demo Bookings', 'href' => 'demo_bookings.php', 'key' => 'demo_bookings'],
   ['label' => 'Instructors', 'href' => 'instructors.php', 'key' => 'instructors'],

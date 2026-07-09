@@ -14,6 +14,7 @@ require_once __DIR__ . '/plain/controllers_misc.php';
 require_once __DIR__ . '/plain/controllers_subscriptions.php';
 require_once __DIR__ . '/plain/controllers_instructor_auth.php';
 require_once __DIR__ . '/plain/controllers_worksheet_sub.php';
+require_once __DIR__ . '/plain/worksheet_docx_importer.php';
 require_once __DIR__ . '/plain/controllers_training.php';
 require_once __DIR__ . '/plain/controllers_practice.php';
 require_once __DIR__ . '/plain/controllers_competition.php';
@@ -326,6 +327,9 @@ if ($method === 'PUT' && preg_match('#^/api/admin/worksheet-sub/questions/([^/]+
 if ($method === 'DELETE' && preg_match('#^/api/admin/worksheet-sub/questions/([^/]+)$#', $path, $m)) {
     require_role(['admin']);
     controller_admin_worksheet_sub_delete_question($m[1]);
+}
+if ($method === 'POST' && $path === '/api/admin/worksheet-sub/import-docx') {
+    controller_admin_worksheet_docx_import();
 }
 if ($method === 'GET' && $path === '/api/admin/worksheet-sub/reports') {
     require_role(['admin']);

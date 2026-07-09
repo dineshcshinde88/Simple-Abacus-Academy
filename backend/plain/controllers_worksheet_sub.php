@@ -76,6 +76,175 @@ function worksheet_sub_status(float $accuracy): string
     }
     return 'Needs Practice';
 }
+function worksheet_sub_dynamic_topic_specs(int $levelNumber): array
+{
+    $specs = [
+        2 => [
+            ['slug' => 'addition-2-digit-3-row', 'name' => 'Generated Addition - 2 Digit, 3 Row', 'operation' => 'addition', 'rows' => 3, 'digits' => [2, 2, 2]],
+            ['slug' => 'subtraction-2-digit-3-row', 'name' => 'Generated Subtraction - 2 Digit, 3 Row', 'operation' => 'subtraction', 'rows' => 3, 'digits' => [2, 2, 2]],
+        ],
+        3 => [
+            ['slug' => 'addition-3-digit-4-row', 'name' => 'Generated Addition - 3 Digit, 4 Row', 'operation' => 'addition', 'rows' => 4, 'digits' => [3, 3, 3, 3]],
+            ['slug' => 'subtraction-3-digit-4-row', 'name' => 'Generated Subtraction - 3 Digit, 4 Row', 'operation' => 'subtraction', 'rows' => 4, 'digits' => [3, 3, 3, 3]],
+        ],
+        4 => [
+            ['slug' => 'addition-4-digit-5-row', 'name' => 'Generated Addition - 4 Digit, 5 Row', 'operation' => 'addition', 'rows' => 5, 'digits' => [4, 4, 4, 4, 4]],
+            ['slug' => 'subtraction-4-digit-5-row', 'name' => 'Generated Subtraction - 4 Digit, 5 Row', 'operation' => 'subtraction', 'rows' => 5, 'digits' => [4, 4, 4, 4, 4]],
+        ],
+        5 => [
+            ['slug' => 'multiplication-2x1', 'name' => 'Generated Multiplication - 2 Digit x 1 Digit', 'operation' => 'multiplication', 'digits' => [2, 1]],
+            ['slug' => 'multiplication-2x2', 'name' => 'Generated Multiplication - 2 Digit x 2 Digit', 'operation' => 'multiplication', 'digits' => [2, 2]],
+        ],
+        6 => [
+            ['slug' => 'division-2-by-1', 'name' => 'Generated Division - 2 Digit by 1 Digit', 'operation' => 'division', 'digits' => [2, 1]],
+            ['slug' => 'division-3-by-1', 'name' => 'Generated Division - 3 Digit by 1 Digit', 'operation' => 'division', 'digits' => [3, 1]],
+        ],
+        7 => [
+            ['slug' => 'multiplication-3x2', 'name' => 'Generated Multiplication - 3 Digit x 2 Digit', 'operation' => 'multiplication', 'digits' => [3, 2]],
+            ['slug' => 'division-3-by-2', 'name' => 'Generated Division - 3 Digit by 2 Digit', 'operation' => 'division', 'digits' => [3, 2]],
+            ['slug' => 'addition-4-digit-6-row', 'name' => 'Generated Addition - 4 Digit, 6 Row', 'operation' => 'addition', 'rows' => 6, 'digits' => [4, 4, 4, 4, 4, 4]],
+        ],
+    ];
+
+    return $specs[$levelNumber] ?? [];
+}
+
+function worksheet_sub_dynamic_topic_id(string $levelId, string $slug): string
+{
+    return 'dynamic-' . substr(sha1($levelId), 0, 12) . '-' . $slug;
+}
+
+function worksheet_sub_ensure_dynamic_topics(array $level): void
+{
+    $levelName = (string) ($level['level_name'] ?? '');
+    if (!str_contains(strtolower($levelName), 'abacus')) {
+        return;
+    }
+    $levelNumber = worksheet_sub_level_number($levelName);
+    if ($levelNumber === null || (int) $levelNumber < 2 || (int) $levelNumber > 7) {
+        return;
+    }
+
+    foreach (worksheet_sub_dynamic_topic_specs((int) $levelNumber) as $spec) {
+        db_exec_sql(
+            'INSERT INTO worksheet_topics (id, level_id, topic_name, total_questions)
+             VALUES (:id, :level_id, :topic_name, 60)
+             ON DUPLICATE KEY UPDATE topic_name = VALUES(topic_name), total_questions = 60',
+            [
+                'id' => worksheet_sub_dynamic_topic_id((string) $level['id'], (string) $spec['slug']),
+                'level_id' => $level['id'],
+                'topic_name' => $spec['name'],
+            ]
+        );
+    }
+}
+
+function worksheet_sub_random_number(int $digits): int
+{
+    $digits = max(1, $digits);
+    if ($digits === 1) {
+        return random_int(1, 9);
+    }
+    return random_int(10 ** ($digits - 1), (10 ** $digits) - 1);
+}
+
+function worksheet_sub_make_options(int $answer): array
+{
+    $options = [$answer];
+    $spread = max(5, min(50, abs($answer) + 10));
+    while (count($options) < 4) {
+        $delta = random_int(1, $spread);
+        $candidate = $answer + (random_int(0, 1) ? $delta : -$delta);
+        if ($candidate < 0) {
+            $candidate = $answer + $delta;
+        }
+        if (!in_array($candidate, $options, true)) {
+            $options[] = $candidate;
+        }
+    }
+    shuffle($options);
+    return array_map('strval', $options);
+}
+
+function worksheet_sub_render_question(array $numbers, string $operation): string
+{
+    $symbol = match ($operation) {
+        'subtraction' => '-',
+        'multiplication' => 'x',
+        'division' => '÷',
+        default => '+',
+    };
+
+    if ($operation === 'multiplication' || $operation === 'division') {
+        return $numbers[0] . ' ' . $symbol . ' ' . $numbers[1];
+    }
+
+    return implode("\n", array_map(
+        static fn(int $number, int $index): string => ($index === 0 ? (string) $number : ($number >= 0 ? '+' . $number : (string) $number)),
+        $numbers,
+        array_keys($numbers)
+    ));
+}
+
+function worksheet_sub_generate_dynamic_questions(array $topic): array
+{
+    $levelNumber = worksheet_sub_level_number((string) ($topic['level_name'] ?? ''));
+    if ($levelNumber === null) {
+        return [];
+    }
+
+    $spec = null;
+    foreach (worksheet_sub_dynamic_topic_specs((int) $levelNumber) as $candidate) {
+        if (worksheet_sub_dynamic_topic_id((string) $topic['level_id'], (string) $candidate['slug']) === (string) $topic['id']) {
+            $spec = $candidate;
+            break;
+        }
+    }
+    if (!$spec) {
+        return [];
+    }
+
+    $questions = [];
+    for ($i = 1; $i <= 60; $i++) {
+        $operation = (string) $spec['operation'];
+        $digits = array_values($spec['digits']);
+        if ($operation === 'addition') {
+            $numbers = array_map(static fn(int $digit): int => worksheet_sub_random_number($digit), $digits);
+            $answer = array_sum($numbers);
+        } elseif ($operation === 'subtraction') {
+            $first = worksheet_sub_random_number((int) $digits[0]);
+            $remaining = $first;
+            $numbers = [$first];
+            foreach (array_slice($digits, 1) as $index => $digit) {
+                $rowsLeft = count($digits) - $index - 2;
+                $max = max(1, min((10 ** (int) $digit) - 1, $remaining - $rowsLeft));
+                $value = random_int(1, $max);
+                $remaining -= $value;
+                $numbers[] = -$value;
+            }
+            $answer = array_sum($numbers);
+        } elseif ($operation === 'multiplication') {
+            $numbers = [worksheet_sub_random_number((int) $digits[0]), worksheet_sub_random_number((int) $digits[1])];
+            $answer = $numbers[0] * $numbers[1];
+        } else {
+            $divisor = worksheet_sub_random_number((int) $digits[1]);
+            $quotient = worksheet_sub_random_number(max(1, (int) $digits[0] - (int) $digits[1] + 1));
+            $numbers = [$divisor * $quotient, $divisor];
+            $answer = $quotient;
+        }
+
+        $questions[] = [
+            'id' => (string) $topic['id'] . '-q' . $i . '-' . bin2hex(random_bytes(3)),
+            'topic_id' => (string) $topic['id'],
+            'question' => worksheet_sub_render_question($numbers, $operation),
+            'answer' => (string) $answer,
+            'options' => worksheet_sub_make_options((int) $answer),
+            'generated' => true,
+        ];
+    }
+
+    return $questions;
+}
 
 function worksheet_sub_level_number(?string $name): ?string
 {
@@ -233,7 +402,11 @@ function worksheet_sub_require_topic_access(array $ctx, string $topicId): array
     }
 
     $topic = db_one(
-        'SELECT id, level_id, topic_name, total_questions FROM worksheet_topics WHERE id = :id AND level_id = :level_id LIMIT 1',
+        'SELECT t.id, t.level_id, t.topic_name, t.total_questions, l.level_name
+         FROM worksheet_topics t
+         INNER JOIN worksheet_levels l ON l.id = t.level_id
+         WHERE t.id = :id AND t.level_id = :level_id
+         LIMIT 1',
         ['id' => $topicId, 'level_id' => $level['id']]
     );
     if (!$topic) {
@@ -246,6 +419,7 @@ function worksheet_sub_require_topic_access(array $ctx, string $topicId): array
 function controller_student_worksheet_sub_dashboard(array $ctx): void
 {
     [, $level] = worksheet_sub_require_student_level($ctx);
+    worksheet_sub_ensure_dynamic_topics($level);
 
     $topics = db_all(
         'SELECT id, level_id, topic_name, total_questions
@@ -260,7 +434,7 @@ function controller_student_worksheet_sub_dashboard(array $ctx): void
 
 function controller_student_worksheet_sub_questions(array $ctx, string $topicId): void
 {
-    worksheet_sub_require_topic_access($ctx, $topicId);
+    [, , $topic] = worksheet_sub_require_topic_access($ctx, $topicId);
 
     $questions = db_all(
         'SELECT id, topic_id, question, answer
@@ -269,6 +443,38 @@ function controller_student_worksheet_sub_questions(array $ctx, string $topicId)
          ORDER BY id ASC',
         ['topic_id' => $topicId]
     );
+
+    if (!$questions) {
+        $questions = worksheet_sub_generate_dynamic_questions($topic);
+    }
+
+    $hasGeneratedOptions = $questions && !empty($questions[0]['generated']);
+    if ($questions && !$hasGeneratedOptions) {
+        $params = [];
+        $placeholders = [];
+        foreach ($questions as $index => $question) {
+            $key = 'question_id_' . $index;
+            $params[$key] = $question['id'];
+            $placeholders[] = ':' . $key;
+            $questions[$index]['options'] = [];
+        }
+
+        $options = db_all(
+            'SELECT question_id, option_text
+             FROM question_options
+             WHERE question_id IN (' . implode(',', $placeholders) . ')
+             ORDER BY question_id ASC, sort_order ASC',
+            $params
+        );
+
+        $byQuestion = [];
+        foreach ($options as $option) {
+            $byQuestion[(string) $option['question_id']][] = (string) $option['option_text'];
+        }
+        foreach ($questions as $index => $question) {
+            $questions[$index]['options'] = $byQuestion[(string) $question['id']] ?? [];
+        }
+    }
 
     json_response(['questions' => $questions]);
 }

@@ -17,6 +17,7 @@ export type WorksheetQuestion = {
   topic_id: string;
   question: string;
   answer: string;
+  options?: string[];
 };
 
 export type WorksheetPractice = {
@@ -71,7 +72,16 @@ export async function fetchWorksheetDashboard(levelId?: string | null): Promise<
 
 export async function fetchWorksheetQuestions(topic: WorksheetTopic): Promise<WorksheetQuestion[]> {
   const data = await apiGet<{ questions: WorksheetQuestion[] }>(`/api/student/worksheet-sub/topics/${topic.id}/questions`);
-  return data.questions;
+  return data.questions.map((question) => ({ ...question, options: shuffleOptions(question.options || []) }));
+}
+
+function shuffleOptions(options: string[]): string[] {
+  const shuffled = [...options];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 export function loadLocalPractices(topicId: string): WorksheetPractice[] {
