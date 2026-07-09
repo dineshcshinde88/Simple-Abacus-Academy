@@ -534,47 +534,4 @@ function worksheet_import_docx_files(array $paths, bool $force = false): array
     return $results;
 }
 
-function worksheet_import_uploaded_docx_files(string $fieldName, bool $force = false): array
-{
-    if (!isset($_FILES[$fieldName]) || !is_array($_FILES[$fieldName])) {
-        throw new RuntimeException('Please upload one or more DOCX files.');
-    }
 
-    $files = $_FILES[$fieldName];
-    $names = is_array($files['name'] ?? null) ? $files['name'] : [$files['name'] ?? ''];
-    $tmpNames = is_array($files['tmp_name'] ?? null) ? $files['tmp_name'] : [$files['tmp_name'] ?? ''];
-    $errors = is_array($files['error'] ?? null) ? $files['error'] : [$files['error'] ?? UPLOAD_ERR_NO_FILE];
-
-    $paths = [];
-    foreach ($names as $i => $name) {
-        if (($errors[$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            continue;
-        }
-        $tmp = (string) ($tmpNames[$i] ?? '');
-        if ($tmp === '' || !is_uploaded_file($tmp)) {
-            continue;
-        }
-        if (strtolower(pathinfo((string) $name, PATHINFO_EXTENSION)) !== 'docx') {
-            throw new RuntimeException('Only .docx files are supported: ' . (string) $name);
-        }
-        $paths[] = $tmp;
-    }
-
-    if (!$paths) {
-        throw new RuntimeException('No valid DOCX files were uploaded.');
-    }
-
-    return worksheet_import_docx_files($paths, $force);
-}
-
-function controller_admin_worksheet_docx_import(): void
-{
-    require_role(['admin']);
-    try {
-        $force = filter_var($_POST['force'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $results = worksheet_import_uploaded_docx_files('files', $force);
-        json_response(['message' => 'Worksheet import completed', 'results' => $results], 201);
-    } catch (Throwable $e) {
-        json_response(['message' => $e->getMessage()], 422);
-    }
-}
