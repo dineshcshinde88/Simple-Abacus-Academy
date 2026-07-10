@@ -132,7 +132,14 @@ export const verifyRazorpayPayment = (
     razorpaySignature: string;
   },
 ) =>
-  apiRequest<{ message: string; subscription: SubscriptionSummaryResponse["subscription"] }>(
+  apiRequest<{
+    message: string;
+    activationStatus?: "activated" | "pending_manual_review";
+    allocationStatus?: string | null;
+    allocationError?: string | null;
+    paymentStatus?: string;
+    subscription: SubscriptionSummaryResponse["subscription"];
+  }>(
     "/api/student/subscriptions/verify",
     {
       method: "POST",

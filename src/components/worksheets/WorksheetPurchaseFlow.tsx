@@ -173,14 +173,21 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
         notes: { planId: orderResp.plan.id, levelName: selectedLevels.join(", ") },
         handler: async (response: RazorpayCheckoutResponse) => {
           try {
-            await verifyRazorpayPayment(activeToken, {
+            const verification = await verifyRazorpayPayment(activeToken, {
               attemptId: orderResp.attemptId,
               razorpayOrderId: response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
             });
-            toast({ title: "Payment successful", description: `${selectedLevels.length} level subscription${selectedLevels.length > 1 ? "s are" : " is"} active.` });
-            navigate("/student/dashboard");
+            if (verification.activationStatus === "pending_manual_review") {
+              toast({
+                title: "Payment captured",
+                description: verification.message || "Your payment is saved and activation is pending manual review.",
+              });
+            } else {
+              toast({ title: "Payment successful", description: `${selectedLevels.length} level subscription${selectedLevels.length > 1 ? "s are" : " is"} active.` });
+              navigate("/student/dashboard");
+            }
           } catch (error) {
             toast({
               title: "Payment verification failed",
