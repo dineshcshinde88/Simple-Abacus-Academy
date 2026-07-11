@@ -53,7 +53,23 @@ function controller_student_dashboard(array $ctx): void
         return !empty($student['level_id']) ? (int) db_value('SELECT COUNT(*) FROM ' . $table . ' WHERE level_id = :id', ['id' => $student['level_id']]) : 0;
     };
 
-    $worksheetsCount = $countByLevels('worksheets');
+    $worksheetsCount = 0;
+    if ($activeLevelIds && function_exists('worksheet_sub_table_exists') && worksheet_sub_table_exists('worksheet_papers')) {
+        $placeholders = [];
+        $params = [];
+        foreach ($activeLevelIds as $index => $levelId) {
+            $key = 'worksheet_level_' . $index;
+            $placeholders[] = ':' . $key;
+            $params[$key] = $levelId;
+        }
+        $worksheetsCount = (int) db_value(
+            'SELECT COUNT(*) FROM worksheet_papers WHERE level_id IN (' . implode(',', $placeholders) . ')',
+            $params
+        );
+    }
+    if ($worksheetsCount === 0) {
+        $worksheetsCount = $countByLevels('worksheets');
+    }
     $practice = ['purchasedLevels' => 0, 'completedPapers' => 0, 'pendingPapers' => 0, 'averageAccuracy' => 0.0];
     if (function_exists('ensure_practice_schema')) {
         ensure_practice_schema();

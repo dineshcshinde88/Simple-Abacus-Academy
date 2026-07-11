@@ -629,6 +629,103 @@ function worksheet_sub_generate_dynamic_questions(array $topic): array
     return $questions;
 }
 
+function worksheet_sub_table_exists(string $table): bool
+{
+    return (int) db_value(
+        'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table',
+        ['table' => $table]
+    ) > 0;
+}
+
+function worksheet_sub_repair_level_paper_topics(array $level): void
+{
+    ensure_worksheet_sub_schema();
+    if (!worksheet_sub_table_exists('worksheet_papers')) {
+        return;
+    }
+
+    $levelId = (string) ($level['id'] ?? '');
+    if ($levelId === '') {
+        return;
+    }
+
+    $papers = db_all(
+        'SELECT wp.id, wp.topic_id, wp.paper_number, wp.title, wp.total_questions
+         FROM worksheet_papers wp
+         LEFT JOIN worksheet_topics wt ON wt.id = wp.topic_id
+         WHERE wp.level_id = :level_id AND (wp.topic_id IS NULL OR wp.topic_id = "" OR wt.id IS NULL)
+         ORDER BY wp.paper_number ASC',
+        ['level_id' => $levelId]
+    );
+
+    foreach ($papers as $paper) {
+        $topicId = trim((string) ($paper['topic_id'] ?? ''));
+        if ($topicId === '') {
+            $topicId = 'paper-topic-' . substr(str_replace('-', '', (string) $paper['id']), 0, 24);
+        }
+        $title = trim((string) ($paper['title'] ?? ''));
+        if ($title === '') {
+            $title = 'Paper ' . (int) ($paper['paper_number'] ?? 0);
+        }
+        $total = max(0, (int) ($paper['total_questions'] ?? 0));
+        db_exec_sql(
+            'INSERT INTO worksheet_topics (id, level_id, topic_name, total_questions)
+             VALUES (:id, :level_id, :topic_name, :total_questions)
+             ON DUPLICATE KEY UPDATE level_id = VALUES(level_id), topic_name = VALUES(topic_name), total_questions = VALUES(total_questions)',
+            ['id' => $topicId, 'level_id' => $levelId, 'topic_name' => $title, 'total_questions' => $total]
+        );
+        db_exec_sql(
+            'UPDATE worksheet_papers SET topic_id = :topic_id, updated_at = :updated_at WHERE id = :id',
+            ['topic_id' => $topicId, 'updated_at' => now_sql(), 'id' => $paper['id']]
+        );
+    }
+
+    $paperCount = (int) db_value('SELECT COUNT(*) FROM worksheet_papers WHERE level_id = :level_id', ['level_id' => $levelId]);
+    $topicCount = (int) db_value('SELECT COUNT(*) FROM worksheet_topics WHERE level_id = :level_id', ['level_id' => $levelId]);
+    if ($paperCount > 0 && $topicCount === 0) {
+        worksheet_sub_log_access_denied('', $levelId, 'Worksheet papers exist but no topics were mapped after repair.', [
+            'levelName' => $level['level_name'] ?? null,
+            'paperCount' => $paperCount,
+            'topicCount' => $topicCount,
+        ]);
+    }
+}
+
+function worksheet_sub_level_topics(array $level): array
+{
+    worksheet_sub_repair_level_paper_topics($level);
+    $levelId = (string) ($level['id'] ?? '');
+
+    if (worksheet_sub_table_exists('worksheet_papers')) {
+        $paperTopics = db_all(
+            'SELECT
+                COALESCE(wp.topic_id, wt.id, wp.id) AS id,
+                wp.level_id,
+                COALESCE(wt.topic_name, wp.title, CONCAT("Paper ", wp.paper_number)) AS topic_name,
+                COALESCE(NULLIF(wp.total_questions, 0), COUNT(wq.id), wt.total_questions, 0) AS total_questions,
+                wp.id AS paper_id,
+                wp.paper_number
+             FROM worksheet_papers wp
+             LEFT JOIN worksheet_topics wt ON wt.id = wp.topic_id
+             LEFT JOIN worksheet_questions wq ON wq.paper_id = wp.id
+             WHERE wp.level_id = :level_id
+             GROUP BY wp.id, wp.topic_id, wt.id, wt.topic_name, wt.total_questions, wp.level_id, wp.title, wp.paper_number, wp.total_questions
+             ORDER BY wp.paper_number ASC',
+            ['level_id' => $levelId]
+        );
+        if ($paperTopics) {
+            return $paperTopics;
+        }
+    }
+
+    return db_all(
+        'SELECT id, level_id, topic_name, total_questions
+         FROM worksheet_topics
+         WHERE level_id = :level_id
+         ORDER BY id ASC',
+        ['level_id' => $levelId]
+    );
+}
 function worksheet_sub_level_number(?string $name): ?string
 {
     if (!is_string($name) || trim($name) === '') {
@@ -970,13 +1067,21 @@ function controller_student_worksheet_sub_dashboard(array $ctx): void
     [$student, $level] = worksheet_sub_require_student_level($ctx);
     worksheet_sub_ensure_dynamic_topics($level);
 
-    $topics = db_all(
-        'SELECT id, level_id, topic_name, total_questions
-         FROM worksheet_topics
-         WHERE level_id = :level_id
-         ORDER BY id ASC',
-        ['level_id' => $level['id']]
-    );
+    $topics = worksheet_sub_level_topics($level);
+
+    if (!$topics) {
+        worksheet_sub_log_access_denied(
+            (string) $student['id'],
+            (string) ($level['id'] ?? ''),
+            'Active worksheet subscription resolved, but no worksheet papers/topics were found for the level.',
+            [
+                'subscriptionId' => $level['subscription_id'] ?? null,
+                'planId' => $level['plan_id'] ?? null,
+                'programType' => $level['program_type'] ?? null,
+                'levelName' => $level['level_name'] ?? null,
+            ]
+        );
+    }
 
     if (worksheet_sub_is_vedic_level_name((string) ($level['level_name'] ?? ''))) {
         foreach ($topics as $index => $topic) {
