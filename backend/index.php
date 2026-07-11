@@ -156,24 +156,16 @@ if ($method === 'GET' && $path === '/api/student/worksheets') {
     controller_student_worksheets($ctx);
 }
 if ($method === 'GET' && $path === '/api/student/worksheet-sub') {
-    $ctx = require_role(['student']);
-    require_active_subscription($ctx['user']['id']);
-    controller_student_worksheet_sub_dashboard($ctx);
+    controller_student_worksheet_sub_dashboard(require_role(['student']));
 }
 if ($method === 'GET' && preg_match('#^/api/student/worksheet-sub/topics/([^/]+)/questions$#', $path, $m)) {
-    $ctx = require_role(['student']);
-    require_active_subscription($ctx['user']['id']);
-    controller_student_worksheet_sub_questions($ctx, $m[1]);
+    controller_student_worksheet_sub_questions(require_role(['student']), $m[1]);
 }
 if ($method === 'GET' && preg_match('#^/api/student/worksheet-sub/topics/([^/]+)/practices$#', $path, $m)) {
-    $ctx = require_role(['student']);
-    require_active_subscription($ctx['user']['id']);
-    controller_student_worksheet_sub_practices($ctx, $m[1]);
+    controller_student_worksheet_sub_practices(require_role(['student']), $m[1]);
 }
 if ($method === 'POST' && $path === '/api/student/worksheet-sub/practices') {
-    $ctx = require_role(['student']);
-    require_active_subscription($ctx['user']['id']);
-    controller_student_worksheet_sub_save_practice($ctx, $data);
+    controller_student_worksheet_sub_save_practice(require_role(['student']), $data);
 }
 if ($method === 'GET' && $path === '/api/subscriptions/me') {
     controller_student_subscriptions_me(require_role(['student']));
@@ -270,6 +262,9 @@ if ($method === 'GET' && $path === '/api/admin/subscriptions') {
 if ($method === 'GET' && $path === '/api/admin/payment-audit-logs') {
     require_role(['admin']);
     controller_admin_payment_audit_logs();
+}
+if ($method === 'POST' && preg_match('#^/api/admin/payment-attempts/([a-f0-9-]+)/activate$#i', $path, $m)) {
+    controller_admin_activate_payment_attempt(require_role(['admin']), $m[1], $data);
 }
 if ($method === 'POST' && $path === '/api/admin/levels') {
     require_role(['admin']);

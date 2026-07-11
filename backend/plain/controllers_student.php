@@ -18,7 +18,7 @@ function controller_student_dashboard(array $ctx): void
     $activeSubscriptions = array_values(array_filter(
         $subscriptionOverview['history'] ?? [],
         static fn(array $sub): bool => ($sub['status'] ?? '') === 'active'
-            && ($sub['paymentStatus'] ?? '') === 'paid'
+            && in_array(($sub['paymentStatus'] ?? ''), ['paid', 'captured', 'success'], true)
             && !empty($sub['expiryDate'])
             && strtotime((string) $sub['expiryDate']) >= time()
     ));
@@ -66,7 +66,7 @@ function controller_student_dashboard(array $ctx): void
         $purchased = (int) db_value(
             'SELECT COUNT(DISTINCT level_id)
              FROM student_subscriptions
-             WHERE student_id = :student_id AND status = "active" AND payment_status = "paid" AND expiry_date >= :now_ts',
+             WHERE student_id = :student_id AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts',
             ['student_id' => $student['id'], 'now_ts' => now_sql()]
         );
         $totalUnlockedPapers = (int) db_value(
@@ -74,7 +74,7 @@ function controller_student_dashboard(array $ctx): void
              FROM practice_papers p
              WHERE p.is_active = 1 AND p.level_id IN (
                SELECT DISTINCT level_id FROM student_subscriptions
-               WHERE student_id = :student_id AND status = "active" AND payment_status = "paid" AND expiry_date >= :now_ts
+               WHERE student_id = :student_id AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts
              )',
             ['student_id' => $student['id'], 'now_ts' => now_sql()]
         );

@@ -142,15 +142,22 @@ const StudentShop = () => {
     void run();
   }, [token]);
 
+  const activeSubscriptions = useMemo(
+    () => history.filter((sub) => sub.status === "active" && sub.paymentStatus === "paid"),
+    [history],
+  );
+
+  const displayCurrent = current?.status === "active" && current.paymentStatus === "paid"
+    ? current
+    : activeSubscriptions[0] || current;
+
   const currentPlanByLevel = useMemo(() => {
     const map = new Map<string, StudentSubscription>();
-    for (const sub of history) {
-      if (sub.levelId && sub.status === "active" && sub.paymentStatus === "paid") {
-        if (!map.has(sub.levelId)) map.set(sub.levelId, sub);
-      }
+    for (const sub of activeSubscriptions) {
+      if (sub.levelId && !map.has(sub.levelId)) map.set(sub.levelId, sub);
     }
     return map;
-  }, [history]);
+  }, [activeSubscriptions]);
 
   const handleBuy = async (plan: LevelPlan) => {
     if (!token) return;
@@ -238,32 +245,32 @@ const StudentShop = () => {
         <div className="space-y-6">
           <div className="bg-white rounded-2xl shadow-card p-6">
             <h2 className="text-lg font-heading font-bold text-slate-900">Current Subscription</h2>
-            {!current ? (
+            {!displayCurrent ? (
               <p className="mt-3 text-sm text-slate-600">No active subscription found. Choose a level plan below.</p>
             ) : (
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
                 <div>
                   <div className="text-slate-500">Plan</div>
-                  <div className="font-semibold text-slate-900">{current.planName}</div>
+                  <div className="font-semibold text-slate-900">{displayCurrent.planName}</div>
                 </div>
                 <div>
                   <div className="text-slate-500">Level</div>
-                  <div className="font-semibold text-slate-900">{current.levelName || "Not set"}</div>
+                  <div className="font-semibold text-slate-900">{displayCurrent.levelName || "Not set"}</div>
                 </div>
                 <div>
                   <div className="text-slate-500">Expiry</div>
-                  <div className="font-semibold text-slate-900">{formatDate(current.expiryDate)}</div>
+                  <div className="font-semibold text-slate-900">{formatDate(displayCurrent.expiryDate)}</div>
                 </div>
                 <div>
                   <div className="text-slate-500">Status</div>
-                  <div className={`font-semibold ${current.status === "active" ? "text-emerald-600" : "text-red-600"}`}>
-                    {current.status.toUpperCase()}
+                  <div className={`font-semibold ${displayCurrent.status === "active" ? "text-emerald-600" : "text-red-600"}`}>
+                    {displayCurrent.status.toUpperCase()}
                   </div>
                 </div>
               </div>
             )}
 
-            {current?.status !== "active" && (
+            {!activeSubscriptions.length && displayCurrent?.status !== "active" && (
               <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
                 Your subscription has expired. Please renew to restore access to level content.
               </div>

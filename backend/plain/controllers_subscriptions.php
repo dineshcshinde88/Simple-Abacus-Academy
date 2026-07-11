@@ -476,7 +476,7 @@ function sync_student_subscription_state(string $studentId): ?array
         'SELECT ss.*, l.level_name
          FROM student_subscriptions ss
          LEFT JOIN levels l ON l.id = ss.level_id
-         WHERE ss.student_id = :student_id AND ss.status = "active" AND ss.payment_status = "paid" AND ss.expiry_date >= :now_ts
+         WHERE ss.student_id = :student_id AND ss.status = "active" AND ss.payment_status IN ("paid", "captured", "success") AND ss.expiry_date >= :now_ts
          ORDER BY ss.expiry_date DESC
          LIMIT 1',
         ['student_id' => $studentId, 'now_ts' => $now]
@@ -565,6 +565,46 @@ function razorpay_request(string $method, string $path, array $payload, string $
     return ['ok' => true, 'status' => $httpCode, 'data' => $decoded];
 }
 
+function payment_attempt_metadata(array $attempt): array
+{
+    $metadata = json_decode((string) ($attempt['metadata_json'] ?? ''), true);
+    return is_array($metadata) ? $metadata : [];
+}
+
+function update_payment_attempt_metadata(string $attemptId, array $metadata): void
+{
+    db_exec_sql(
+        'UPDATE payment_attempts SET metadata_json = :metadata_json, updated_at = :updated_at WHERE id = :id',
+        [
+            'metadata_json' => json_encode($metadata, JSON_UNESCAPED_SLASHES),
+            'updated_at' => now_sql(),
+            'id' => $attemptId,
+        ]
+    );
+}
+
+function record_payment_gateway_payload(array $attempt, string $key, array $payload): void
+{
+    $metadata = payment_attempt_metadata($attempt);
+    $metadata[$key] = $payload;
+    update_payment_attempt_metadata((string) $attempt['id'], $metadata);
+}
+
+function fetch_razorpay_payment_status(string $paymentId, array $gateway): array
+{
+    if ($paymentId === '' || ($gateway['key_id'] ?? '') === '' || ($gateway['secret'] ?? '') === '') {
+        return ['ok' => false, 'message' => 'Razorpay credentials or payment id missing'];
+    }
+
+    return razorpay_request(
+        'GET',
+        '/payments/' . rawurlencode($paymentId),
+        [],
+        (string) $gateway['key_id'],
+        (string) $gateway['secret']
+    );
+}
+
 function map_subscription_row(array $row): array
 {
     return [
@@ -578,7 +618,7 @@ function map_subscription_row(array $row): array
         'startDate' => $row['start_date'] ?? null,
         'expiryDate' => $row['expiry_date'] ?? null,
         'status' => $row['status'] ?? 'expired',
-        'paymentStatus' => ($row['payment_status'] ?? '') === 'paid' ? 'paid' : 'unpaid',
+        'paymentStatus' => in_array((string) ($row['payment_status'] ?? ''), ['paid', 'captured', 'success'], true) ? 'paid' : 'unpaid',
         'razorpayOrderId' => $row['razorpay_order_id'] ?? null,
         'razorpayPaymentId' => $row['razorpay_payment_id'] ?? null,
         'createdAt' => $row['created_at'] ?? null,
@@ -651,7 +691,7 @@ function sync_paid_subscription_enrollment(string $subscriptionId): void
         'SELECT ss.*, l.course_id
          FROM student_subscriptions ss
          LEFT JOIN levels l ON l.id = ss.level_id
-         WHERE ss.id = :id AND ss.payment_status = "paid" AND ss.status = "active"
+         WHERE ss.id = :id AND ss.payment_status IN ("paid", "captured", "success") AND ss.status = "active"
          LIMIT 1',
         ['id' => $subscriptionId]
     );
@@ -741,7 +781,7 @@ function repair_student_course_enrollments(string $studentId): void
 
     $rows = db_all(
         'SELECT id FROM student_subscriptions
-         WHERE student_id = :student_id AND status = "active" AND payment_status = "paid" AND expiry_date >= :now_ts',
+         WHERE student_id = :student_id AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts',
         ['student_id' => $studentId, 'now_ts' => now_sql()]
     );
 
@@ -796,10 +836,71 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
         ['payment_attempt_id' => $attemptId]
     );
     if ($existingCount > 0) {
+        $existingSubs = db_all(
+            'SELECT ss.*, p.duration_days, p.level_id AS plan_level_id, p.name AS plan_name_ref, p.price AS plan_price, p.currency AS plan_currency
+             FROM student_subscriptions ss
+             LEFT JOIN subscription_plans p ON p.id = ss.plan_id
+             WHERE ss.payment_attempt_id = :payment_attempt_id',
+            ['payment_attempt_id' => $attemptId]
+        );
+        $paidAt = (string) ($attempt['paid_at'] ?? $attempt['created_at'] ?? '');
+        $paidTs = strtotime($paidAt);
+        if ($paidTs === false) {
+            $paidTs = time();
+        }
+        $now = now_sql();
+        foreach ($existingSubs as $sub) {
+            $days = max(1, (int) ($sub['duration_days'] ?? 90));
+            $startTs = strtotime((string) ($sub['start_date'] ?? ''));
+            if ($startTs === false) {
+                $startTs = $paidTs;
+            }
+            $expiryTs = strtotime((string) ($sub['expiry_date'] ?? ''));
+            if ($expiryTs === false || $expiryTs < time()) {
+                $expiryTs = max($startTs, $paidTs) + ($days * 86400);
+            }
+            $levelId = (string) ($sub['level_id'] ?: ($sub['plan_level_id'] ?? ''));
+            db_exec_sql(
+                'UPDATE student_subscriptions
+                 SET level_id = :level_id, status = :status, payment_status = :payment_status,
+                     start_date = :start_date, expiry_date = :expiry_date,
+                     razorpay_order_id = :razorpay_order_id, razorpay_payment_id = :razorpay_payment_id,
+                     updated_at = :updated_at
+                 WHERE id = :id',
+                [
+                    'level_id' => $levelId !== '' ? $levelId : null,
+                    'status' => 'active',
+                    'payment_status' => 'paid',
+                    'start_date' => gmdate('Y-m-d H:i:s', $startTs),
+                    'expiry_date' => gmdate('Y-m-d H:i:s', $expiryTs),
+                    'razorpay_order_id' => $attempt['provider_order_id'] ?? ($sub['razorpay_order_id'] ?? null),
+                    'razorpay_payment_id' => $attempt['provider_payment_id'] ?? ($sub['razorpay_payment_id'] ?? null),
+                    'updated_at' => $now,
+                    'id' => $sub['id'],
+                ]
+            );
+            sync_paid_subscription_enrollment((string) $sub['id']);
+            payment_audit_log(
+                'Subscription Repaired',
+                'success',
+                $studentId,
+                $attemptId,
+                (string) $sub['id'],
+                $levelId !== '' ? $levelId : null,
+                'Existing subscription row repaired for captured payment.',
+                [
+                    'userId' => $studentId,
+                    'paymentId' => $attempt['provider_payment_id'] ?? null,
+                    'orderId' => $attempt['provider_order_id'] ?? null,
+                    'startDate' => gmdate('Y-m-d H:i:s', $startTs),
+                    'expiryDate' => gmdate('Y-m-d H:i:s', $expiryTs),
+                ]
+            );
+        }
         repair_student_course_enrollments($studentId);
         db_exec_sql(
-            'UPDATE payment_attempts SET allocation_status = :allocation_status, allocation_error = NULL, updated_at = :updated_at WHERE id = :id',
-            ['allocation_status' => 'assigned', 'updated_at' => now_sql(), 'id' => $attemptId]
+            'UPDATE payment_attempts SET status = :status, allocation_status = :allocation_status, allocation_error = NULL, updated_at = :updated_at WHERE id = :id',
+            ['status' => 'paid', 'allocation_status' => 'assigned', 'updated_at' => now_sql(), 'id' => $attemptId]
         );
         return;
     }
@@ -847,7 +948,7 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
 
         $existing = db_one(
             'SELECT * FROM student_subscriptions
-             WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active" AND payment_status = "paid"
+             WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active" AND payment_status IN ("paid", "captured", "success")
              ORDER BY expiry_date DESC
              LIMIT 1',
             [
@@ -907,7 +1008,7 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
             $subscriptionId,
             $plan['level_id'] ?: null,
             'Paid payment repaired into active subscription.',
-            ['planId' => $plan['id'], 'planName' => $plan['name']]
+            ['planId' => $plan['id'], 'planName' => $plan['name'], 'paymentId' => $paymentId, 'orderId' => $orderId, 'startDate' => $startDate, 'expiryDate' => $endDate, 'levelId' => $plan['level_id'] ?: null, 'programType' => (stripos((string) ($plan['name'] ?? ''), 'vedic') !== false ? 'vedic' : 'abacus')]
         );
 
         sync_paid_subscription_enrollment($subscriptionId);
@@ -942,7 +1043,7 @@ function repair_paid_payment_attempt_subscriptions(string $studentId): void
         'SELECT pa.*
          FROM payment_attempts pa
          WHERE pa.student_id = :student_id
-           AND pa.status = "paid"
+           AND pa.status IN ("paid", "captured", "success")
            AND NOT EXISTS (
              SELECT 1 FROM student_subscriptions ss WHERE ss.payment_attempt_id = pa.id
            )
@@ -1365,9 +1466,10 @@ function controller_student_create_razorpay_order(array $ctx, array $data): void
     ]);
 }
 
-function finalize_paid_payment_attempt(array $attempt, string $paymentId, string $signature = ''): array
+function finalize_paid_payment_attempt(array $attempt, string $paymentId, string $signature = '', ?array &$activationResult = null): array
 {
     ensure_billing_schema();
+    $activationResult = ['status' => 'activated', 'message' => 'Subscription activated'];
 
     $attemptId = (string) $attempt['id'];
     $studentId = (string) $attempt['student_id'];
@@ -1377,7 +1479,17 @@ function finalize_paid_payment_attempt(array $attempt, string $paymentId, string
         create_missing_subscriptions_for_paid_attempt($attempt);
         repair_paid_payment_attempt_subscriptions($studentId);
         repair_student_course_enrollments($studentId);
-        return get_student_subscription_overview($studentId);
+        $overview = get_student_subscription_overview($studentId);
+        $freshAttempt = db_one('SELECT allocation_status, allocation_error FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attemptId]);
+        if (($freshAttempt['allocation_status'] ?? '') !== 'assigned') {
+            $activationResult = [
+                'status' => 'pending_manual_review',
+                'message' => 'Payment is captured, but subscription activation is pending manual review.',
+                'allocationStatus' => $freshAttempt['allocation_status'] ?? null,
+                'allocationError' => $freshAttempt['allocation_error'] ?? null,
+            ];
+        }
+        return $overview;
     }
 
     $metadata = json_decode((string) ($attempt['metadata_json'] ?? ''), true);
@@ -1437,7 +1549,7 @@ function finalize_paid_payment_attempt(array $attempt, string $paymentId, string
             $days = (int) ($plan['duration_days'] ?? 0);
             $existing = db_one(
                 'SELECT * FROM student_subscriptions
-                 WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active" AND payment_status = "paid"
+                 WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active" AND payment_status IN ("paid", "captured", "success")
                  ORDER BY expiry_date DESC
                  LIMIT 1',
                 [
@@ -1499,7 +1611,7 @@ function finalize_paid_payment_attempt(array $attempt, string $paymentId, string
                 $subscriptionId,
                 $plan['level_id'] ?: null,
                 'Active subscription created for paid order.',
-                ['planId' => $plan['id'], 'planName' => $plan['name']]
+                ['planId' => $plan['id'], 'planName' => $plan['name'], 'paymentId' => $paymentId, 'orderId' => $orderId, 'startDate' => $startDate, 'expiryDate' => $endDate, 'levelId' => $plan['level_id'] ?: null, 'programType' => (stripos((string) ($plan['name'] ?? ''), 'vedic') !== false ? 'vedic' : 'abacus')]
             );
 
             db_exec_sql(
@@ -1554,9 +1666,16 @@ function finalize_paid_payment_attempt(array $attempt, string $paymentId, string
             $e->getMessage(),
             ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId]
         );
-        json_response(['message' => 'Unable to activate subscription'], 500);
+        $activationResult = [
+            'status' => 'pending_manual_review',
+            'message' => 'Payment is captured, but subscription activation is pending manual review.',
+            'allocationStatus' => 'failed',
+            'allocationError' => $e->getMessage(),
+        ];
+        return get_student_subscription_overview($studentId);
     }
 
+    $activationResult = ['status' => 'activated', 'message' => 'Subscription activated', 'allocationStatus' => 'assigned'];
     return get_student_subscription_overview($studentId);
 }
 
@@ -1586,44 +1705,186 @@ function controller_student_verify_razorpay_payment(array $ctx, array $data): vo
         json_response(['message' => 'Payment attempt not found'], 404);
     }
 
+    record_payment_gateway_payload($attempt, 'checkout_success', [
+        'razorpayOrderId' => $orderId,
+        'razorpayPaymentId' => $paymentId,
+        'razorpaySignature' => $signature,
+        'receivedAt' => gmdate('c'),
+    ]);
+    $attempt['metadata_json'] = json_encode(payment_attempt_metadata($attempt) + ['checkout_success' => [
+        'razorpayOrderId' => $orderId,
+        'razorpayPaymentId' => $paymentId,
+        'razorpaySignature' => $signature,
+        'receivedAt' => gmdate('c'),
+    ]], JSON_UNESCAPED_SLASHES);
+
     if (($attempt['provider_order_id'] ?? '') !== $orderId) {
+        payment_audit_log(
+            'Payment Verification',
+            'failed',
+            (string) $student['id'],
+            $attemptId,
+            null,
+            null,
+            'Payment order mismatch during checkout verification.',
+            ['expectedOrderId' => $attempt['provider_order_id'] ?? null, 'receivedOrderId' => $orderId, 'razorpayPaymentId' => $paymentId]
+        );
         json_response(['message' => 'Payment order mismatch'], 422);
     }
 
     $gateway = get_payment_gateway_config('razorpay');
     if ($gateway['secret'] === '') {
+        payment_audit_log(
+            'Payment Verification',
+            'failed',
+            (string) $student['id'],
+            $attemptId,
+            null,
+            null,
+            'Razorpay secret is not configured for payment verification.',
+            ['keyIdConfigured' => ($gateway['key_id'] ?? '') !== '']
+        );
         json_response(['message' => 'Razorpay secret is not configured'], 500);
     }
 
+    $paymentResp = fetch_razorpay_payment_status($paymentId, $gateway);
+    $paymentEntity = (array) ($paymentResp['data'] ?? []);
+    if ($paymentResp['ok'] ?? false) {
+        record_payment_gateway_payload($attempt, 'razorpay_payment', $paymentEntity);
+        $attempt = db_one('SELECT * FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attemptId]) ?: $attempt;
+    } else {
+        payment_audit_log(
+            'Payment Verification',
+            'warning',
+            (string) $student['id'],
+            $attemptId,
+            null,
+            null,
+            (string) ($paymentResp['message'] ?? 'Unable to fetch Razorpay payment status.'),
+            ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId]
+        );
+    }
+
     $expected = hash_hmac('sha256', $orderId . '|' . $paymentId, $gateway['secret']);
-    if (!hash_equals($expected, $signature)) {
+    $signatureMatches = hash_equals($expected, $signature);
+    $gatewayOrderId = trim((string) ($paymentEntity['order_id'] ?? ''));
+    $gatewayStatus = strtolower(trim((string) ($paymentEntity['status'] ?? '')));
+    $isCaptured = ($paymentResp['ok'] ?? false) && $gatewayOrderId === $orderId && $gatewayStatus === 'captured';
+
+    if (!$signatureMatches && !$isCaptured) {
         db_exec_sql(
             'UPDATE payment_attempts
-             SET status = :status, provider_payment_id = :payment_id, provider_signature = :signature, updated_at = :updated_at
+             SET status = :status, provider_payment_id = :payment_id, provider_signature = :signature, allocation_status = :allocation_status, allocation_error = :allocation_error, updated_at = :updated_at
              WHERE id = :id',
             [
                 'status' => 'failed',
                 'payment_id' => $paymentId,
                 'signature' => $signature,
+                'allocation_status' => 'failed',
+                'allocation_error' => 'Payment signature verification failed and Razorpay captured status was not confirmed.',
                 'updated_at' => now_sql(),
                 'id' => $attemptId,
             ]
         );
         payment_audit_log(
-            'Payment Success',
+            'Payment Verification',
             'failed',
             (string) $student['id'],
             $attemptId,
             null,
             null,
             'Payment signature verification failed.',
-            ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId]
+            ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId, 'gatewayStatus' => $gatewayStatus ?: null]
         );
-        json_response(['message' => 'Payment signature verification failed'], 422);
+        json_response(['message' => 'Payment signature verification failed. Please contact support with your payment ID.'], 422);
     }
 
-    $overview = finalize_paid_payment_attempt($attempt, $paymentId, $signature);
-    json_response(['message' => 'Subscription activated', 'subscription' => $overview]);
+    if (!$signatureMatches && $isCaptured) {
+        payment_audit_log(
+            'Payment Verification',
+            'warning',
+            (string) $student['id'],
+            $attemptId,
+            null,
+            null,
+            'Signature mismatch, but Razorpay confirms the payment is captured for this order.',
+            ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId, 'gatewayStatus' => $gatewayStatus]
+        );
+    }
+
+    if (($paymentResp['ok'] ?? false) && $gatewayOrderId !== $orderId) {
+        db_exec_sql(
+            'UPDATE payment_attempts
+             SET status = :status, provider_payment_id = :payment_id, provider_signature = :signature, allocation_status = :allocation_status, allocation_error = :allocation_error, updated_at = :updated_at
+             WHERE id = :id',
+            [
+                'status' => 'failed',
+                'payment_id' => $paymentId,
+                'signature' => $signature,
+                'allocation_status' => 'failed',
+                'allocation_error' => 'Razorpay payment belongs to a different order.',
+                'updated_at' => now_sql(),
+                'id' => $attemptId,
+            ]
+        );
+        payment_audit_log(
+            'Payment Verification',
+            'failed',
+            (string) $student['id'],
+            $attemptId,
+            null,
+            null,
+            'Razorpay payment order_id does not match the local order.',
+            ['localOrderId' => $orderId, 'gatewayOrderId' => $gatewayOrderId, 'razorpayPaymentId' => $paymentId]
+        );
+        json_response(['message' => 'Payment order mismatch. Please contact support with your payment ID.'], 422);
+    }
+
+    if (($paymentResp['ok'] ?? false) && $gatewayStatus !== 'captured') {
+        db_exec_sql(
+            'UPDATE payment_attempts
+             SET status = :status, provider_payment_id = :payment_id, provider_signature = :signature, allocation_status = :allocation_status, allocation_error = :allocation_error, updated_at = :updated_at
+             WHERE id = :id',
+            [
+                'status' => 'pending',
+                'payment_id' => $paymentId,
+                'signature' => $signature,
+                'allocation_status' => 'pending_manual_review',
+                'allocation_error' => 'Razorpay payment status is ' . ($gatewayStatus !== '' ? $gatewayStatus : 'unknown') . ', not captured.',
+                'updated_at' => now_sql(),
+                'id' => $attemptId,
+            ]
+        );
+        payment_audit_log(
+            'Payment Verification',
+            'warning',
+            (string) $student['id'],
+            $attemptId,
+            null,
+            null,
+            'Payment verified but Razorpay has not marked it captured yet.',
+            ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId, 'gatewayStatus' => $gatewayStatus]
+        );
+        json_response([
+            'message' => 'Payment is not captured yet. We saved it for manual review.',
+            'activationStatus' => 'pending_manual_review',
+            'subscription' => get_student_subscription_overview((string) $student['id']),
+        ], 202);
+    }
+
+    $activation = null;
+    $overview = finalize_paid_payment_attempt($attempt, $paymentId, $signature, $activation);
+    $message = (string) ($activation['message'] ?? 'Subscription activated');
+    $statusCode = (($activation['status'] ?? 'activated') === 'activated') ? 200 : 202;
+
+    json_response([
+        'message' => $message,
+        'activationStatus' => $activation['status'] ?? 'activated',
+        'allocationStatus' => $activation['allocationStatus'] ?? 'assigned',
+        'allocationError' => $activation['allocationError'] ?? null,
+        'paymentStatus' => 'captured',
+        'subscription' => $overview,
+    ], $statusCode);
 }
 
 function handle_payment_webhook(array $data): array
@@ -1637,18 +1898,18 @@ function handle_payment_webhook(array $data): array
     }
 
     $rawBody = (string) ($GLOBALS['request_raw_body'] ?? '');
+    $webhookSignature = (string) (request_header('X-Razorpay-Signature') ?? request_header('payment-signature') ?? '');
     $webhookSecret = (string) envv('RAZORPAY_WEBHOOK_SECRET', envv('PAYMENT_WEBHOOK_SECRET', ''));
     if ($webhookSecret !== '') {
-        $receivedSignature = (string) (request_header('X-Razorpay-Signature') ?? request_header('payment-signature') ?? '');
         $expectedSignature = hash_hmac('sha256', $rawBody, $webhookSecret);
-        if ($receivedSignature === '' || !hash_equals($expectedSignature, $receivedSignature)) {
+        if ($webhookSignature === '' || !hash_equals($expectedSignature, $webhookSignature)) {
             error_log('Razorpay webhook signature verification failed for event ' . $event);
             json_response(['message' => 'Invalid webhook signature'], 401);
         }
     }
 
-    $paidEvents = ['payment.captured', 'payment.authorized', 'order.paid'];
-    if (!in_array($event, $paidEvents, true)) {
+    $trackedEvents = ['payment.captured', 'payment.authorized', 'order.paid'];
+    if (!in_array($event, $trackedEvents, true)) {
         return ['processed' => false, 'message' => 'Webhook ignored'];
     }
 
@@ -1656,9 +1917,20 @@ function handle_payment_webhook(array $data): array
     $order = is_array($data['payload']['order']['entity'] ?? null) ? $data['payload']['order']['entity'] : [];
     $orderId = trim((string) ($payment['order_id'] ?? $order['id'] ?? $data['razorpayOrderId'] ?? ''));
     $paymentId = trim((string) ($payment['id'] ?? $data['razorpayPaymentId'] ?? ''));
+    $paymentStatus = strtolower(trim((string) ($payment['status'] ?? ($event === 'order.paid' ? 'captured' : ''))));
 
     if ($orderId === '' || $paymentId === '') {
         error_log('Razorpay webhook missing order/payment id: ' . json_encode(['event' => $event], JSON_UNESCAPED_SLASHES));
+        payment_audit_log(
+            'Webhook Received',
+            'failed',
+            null,
+            null,
+            null,
+            null,
+            'Razorpay webhook missing order/payment id.',
+            ['event' => $event, 'paymentStatus' => $paymentStatus ?: null]
+        );
         return ['processed' => false, 'message' => 'Webhook missing order/payment id'];
     }
 
@@ -1668,16 +1940,201 @@ function handle_payment_webhook(array $data): array
     );
     if (!$attempt) {
         error_log('Razorpay webhook payment attempt not found for order ' . $orderId);
+        payment_audit_log(
+            'Webhook Received',
+            'failed',
+            null,
+            null,
+            null,
+            null,
+            'Razorpay webhook payment attempt not found.',
+            ['event' => $event, 'razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId, 'paymentStatus' => $paymentStatus ?: null]
+        );
         return ['processed' => false, 'message' => 'Payment attempt not found'];
     }
 
-    $overview = finalize_paid_payment_attempt($attempt, $paymentId, '');
+    record_payment_gateway_payload($attempt, 'webhook_' . str_replace('.', '_', $event), [
+        'event' => $event,
+        'razorpayOrderId' => $orderId,
+        'razorpayPaymentId' => $paymentId,
+        'webhookSignature' => $webhookSignature !== '' ? $webhookSignature : null,
+        'paymentStatus' => $paymentStatus ?: null,
+        'receivedAt' => gmdate('c'),
+        'payload' => $data['payload'] ?? $data,
+    ]);
+
+    payment_audit_log(
+        'Webhook Received',
+        'info',
+        (string) ($attempt['student_id'] ?? ''),
+        (string) ($attempt['id'] ?? ''),
+        null,
+        null,
+        'Razorpay webhook received.',
+        ['event' => $event, 'razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId, 'paymentStatus' => $paymentStatus ?: null]
+    );
+
+    if ($paymentStatus !== 'captured') {
+        db_exec_sql(
+            'UPDATE payment_attempts
+             SET status = :status, provider_payment_id = :payment_id, allocation_status = :allocation_status, allocation_error = :allocation_error, updated_at = :updated_at
+             WHERE id = :id',
+            [
+                'status' => 'pending',
+                'payment_id' => $paymentId,
+                'allocation_status' => 'pending_manual_review',
+                'allocation_error' => 'Webhook received but Razorpay status is ' . ($paymentStatus !== '' ? $paymentStatus : 'unknown') . ', not captured.',
+                'updated_at' => now_sql(),
+                'id' => $attempt['id'],
+            ]
+        );
+        payment_audit_log(
+            'Webhook Payment Status',
+            'warning',
+            (string) ($attempt['student_id'] ?? ''),
+            (string) ($attempt['id'] ?? ''),
+            null,
+            null,
+            'Webhook payment is not captured yet; kept pending for manual review.',
+            ['event' => $event, 'razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId, 'paymentStatus' => $paymentStatus ?: null]
+        );
+        return [
+            'processed' => true,
+            'message' => 'Payment is not captured yet; kept pending for manual review',
+            'studentId' => $attempt['student_id'] ?? null,
+            'activationStatus' => 'pending_manual_review',
+        ];
+    }
+
+    $attempt = db_one('SELECT * FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attempt['id']]) ?: $attempt;
+    $activation = null;
+    $overview = finalize_paid_payment_attempt($attempt, $paymentId, '', $activation);
+
     return [
         'processed' => true,
-        'message' => 'Payment processed',
+        'message' => $activation['message'] ?? 'Payment processed',
         'studentId' => $attempt['student_id'] ?? null,
+        'activationStatus' => $activation['status'] ?? 'activated',
+        'allocationStatus' => $activation['allocationStatus'] ?? 'assigned',
+        'allocationError' => $activation['allocationError'] ?? null,
         'subscription' => $overview,
     ];
+}
+function controller_admin_activate_payment_attempt(array $ctx, string $attemptId, array $data): void
+{
+    ensure_billing_schema();
+
+    $attemptId = trim($attemptId);
+    if ($attemptId === '') {
+        json_response(['message' => 'Payment attempt id is required'], 422);
+    }
+
+    $attempt = db_one('SELECT * FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attemptId]);
+    if (!$attempt) {
+        json_response(['message' => 'Payment attempt not found'], 404);
+    }
+    if (($attempt['provider'] ?? '') !== 'razorpay') {
+        json_response(['message' => 'Only Razorpay payment attempts can be manually activated here'], 422);
+    }
+
+    $paymentId = trim((string) ($data['razorpayPaymentId'] ?? $data['paymentId'] ?? $attempt['provider_payment_id'] ?? ''));
+    $signature = trim((string) ($data['razorpaySignature'] ?? $attempt['provider_signature'] ?? ''));
+    if ($paymentId === '') {
+        json_response(['message' => 'Razorpay payment id is required for manual activation'], 422);
+    }
+
+    $gateway = get_payment_gateway_config('razorpay');
+    if ($gateway['secret'] === '') {
+        json_response(['message' => 'Razorpay secret is not configured'], 500);
+    }
+
+    $paymentResp = fetch_razorpay_payment_status($paymentId, $gateway);
+    if (!($paymentResp['ok'] ?? false)) {
+        payment_audit_log(
+            'Manual Activation',
+            'failed',
+            (string) ($attempt['student_id'] ?? ''),
+            $attemptId,
+            null,
+            null,
+            (string) ($paymentResp['message'] ?? 'Unable to fetch Razorpay payment status.'),
+            ['razorpayPaymentId' => $paymentId, 'adminUserId' => $ctx['user']['id'] ?? null]
+        );
+        json_response(['message' => (string) ($paymentResp['message'] ?? 'Unable to fetch Razorpay payment status')], 502);
+    }
+
+    $paymentEntity = (array) ($paymentResp['data'] ?? []);
+    record_payment_gateway_payload($attempt, 'manual_activation_payment', $paymentEntity);
+    $gatewayOrderId = trim((string) ($paymentEntity['order_id'] ?? ''));
+    $gatewayStatus = strtolower(trim((string) ($paymentEntity['status'] ?? '')));
+    $localOrderId = trim((string) ($attempt['provider_order_id'] ?? ''));
+
+    if ($gatewayOrderId === '' || $gatewayOrderId !== $localOrderId) {
+        payment_audit_log(
+            'Manual Activation',
+            'failed',
+            (string) ($attempt['student_id'] ?? ''),
+            $attemptId,
+            null,
+            null,
+            'Razorpay payment order_id does not match the local order during manual activation.',
+            ['localOrderId' => $localOrderId, 'gatewayOrderId' => $gatewayOrderId, 'razorpayPaymentId' => $paymentId, 'adminUserId' => $ctx['user']['id'] ?? null]
+        );
+        json_response(['message' => 'Razorpay payment belongs to a different order'], 422);
+    }
+
+    if ($gatewayStatus !== 'captured') {
+        db_exec_sql(
+            'UPDATE payment_attempts
+             SET status = :status, provider_payment_id = :payment_id, provider_signature = :signature, allocation_status = :allocation_status, allocation_error = :allocation_error, updated_at = :updated_at
+             WHERE id = :id',
+            [
+                'status' => 'pending',
+                'payment_id' => $paymentId,
+                'signature' => $signature !== '' ? $signature : null,
+                'allocation_status' => 'pending_manual_review',
+                'allocation_error' => 'Manual activation blocked because Razorpay status is ' . ($gatewayStatus !== '' ? $gatewayStatus : 'unknown') . ', not captured.',
+                'updated_at' => now_sql(),
+                'id' => $attemptId,
+            ]
+        );
+        payment_audit_log(
+            'Manual Activation',
+            'warning',
+            (string) ($attempt['student_id'] ?? ''),
+            $attemptId,
+            null,
+            null,
+            'Manual activation blocked because Razorpay payment is not captured.',
+            ['gatewayStatus' => $gatewayStatus, 'razorpayPaymentId' => $paymentId, 'adminUserId' => $ctx['user']['id'] ?? null]
+        );
+        json_response(['message' => 'Payment is not captured yet. Kept pending for manual review.'], 202);
+    }
+
+    $attempt = db_one('SELECT * FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attemptId]) ?: $attempt;
+    payment_audit_log(
+        'Manual Activation',
+        'info',
+        (string) ($attempt['student_id'] ?? ''),
+        $attemptId,
+        null,
+        null,
+        'Admin retrying subscription activation for captured Razorpay payment.',
+        ['razorpayPaymentId' => $paymentId, 'adminUserId' => $ctx['user']['id'] ?? null]
+    );
+
+    $activation = null;
+    $overview = finalize_paid_payment_attempt($attempt, $paymentId, $signature, $activation);
+    $statusCode = (($activation['status'] ?? 'activated') === 'activated') ? 200 : 202;
+
+    json_response([
+        'message' => $activation['message'] ?? 'Subscription activated',
+        'activationStatus' => $activation['status'] ?? 'activated',
+        'allocationStatus' => $activation['allocationStatus'] ?? 'assigned',
+        'allocationError' => $activation['allocationError'] ?? null,
+        'paymentStatus' => 'captured',
+        'subscription' => $overview,
+    ], $statusCode);
 }
 
 function controller_admin_get_payment_config(array $ctx): void
@@ -1888,7 +2345,7 @@ function controller_admin_update_subscription(string $subscriptionId, array $dat
     if ($paymentStatus === 'pending') {
         $paymentStatus = 'unpaid';
     }
-    if (!in_array($paymentStatus, ['paid', 'unpaid'], true)) {
+    if (!in_array($paymentStatus, ['paid', 'captured', 'success', 'unpaid'], true)) {
         json_response(['message' => 'Invalid paymentStatus'], 422);
     }
 
@@ -1985,7 +2442,7 @@ function controller_run_subscription_reminders(): void
          INNER JOIN students s ON s.id = ss.student_id
          INNER JOIN users u ON u.id = s.user_id
          WHERE ss.status IN ("active", "expired")
-           AND ss.payment_status = "paid"
+           AND ss.payment_status IN ("paid", "captured", "success")
            AND ss.expiry_date >= :since_ts
            AND ss.expiry_date <= :until_ts',
         [

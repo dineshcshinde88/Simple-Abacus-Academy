@@ -47,6 +47,8 @@ This backend now runs as plain PHP (no Laravel runtime boot required).
   - `GET /api/admin/payment-config?provider=razorpay`
   - `PUT /api/admin/payment-config`
   - `GET /api/admin/subscriptions`
+  - `GET /api/admin/payment-audit-logs`
+  - `POST /api/admin/payment-attempts/{attemptId}/activate` (retry activation after Razorpay captured payment)
   - `PUT /api/admin/subscriptions/{subscriptionId}`
   - `POST /api/admin/plans` (now expects `levelId` for level-wise plans)
 

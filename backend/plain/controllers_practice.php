@@ -195,7 +195,7 @@ function student_has_level_subscription(string $studentId, string $levelId): boo
     $active = db_one(
         'SELECT id FROM student_subscriptions
          WHERE student_id = :student_id AND level_id = :level_id
-           AND status = "active" AND payment_status = "paid" AND expiry_date >= :now_ts
+           AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts
          LIMIT 1',
         ['student_id' => $studentId, 'level_id' => $levelId, 'now_ts' => $now]
     );
@@ -206,7 +206,7 @@ function student_has_level_subscription(string $studentId, string $levelId): boo
     $manual = db_one(
         'SELECT id FROM subscriptions
          WHERE student_id = :student_id AND level_id = :level_id
-           AND status = "active" AND payment_status = "paid" AND expiry_date >= :now_ts
+           AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts
          LIMIT 1',
         ['student_id' => $studentId, 'level_id' => $levelId, 'now_ts' => $now]
     );
