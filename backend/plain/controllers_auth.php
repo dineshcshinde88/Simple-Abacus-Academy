@@ -95,9 +95,31 @@ function auth_table_column(string $table, string $snakeColumn, string $camelColu
     }
     return $snakeColumn;
 }
+function ensure_user_compatibility_schema(): void
+{
+    if (auth_table_type('users') === 'BASE TABLE') {
+        return;
+    }
+
+    if (auth_table_exists('User')) {
+        db_exec_sql(
+            'CREATE OR REPLACE VIEW users AS
+             SELECT
+               `User`.id AS id,
+               `User`.name AS name,
+               `User`.email AS email,
+               `User`.password AS password,
+               `User`.role AS role,
+               `User`.createdAt AS created_at,
+               `User`.updatedAt AS updated_at
+             FROM `User`'
+        );
+    }
+}
 
 function ensure_student_registration_schema(): void
 {
+    ensure_user_compatibility_schema();
     if (auth_table_type('students') === 'BASE TABLE') {
         auth_ensure_column('students', 'course', "VARCHAR(120) NOT NULL DEFAULT '' AFTER user_id");
         auth_ensure_column('students', 'phone_country', "VARCHAR(10) NOT NULL DEFAULT '+91' AFTER course");
@@ -240,6 +262,7 @@ function ensure_student_profile_for_user_id(string $userId, bool $syncLegacySubs
 }
 function controller_auth_register(array $data): void
 {
+    ensure_user_compatibility_schema();
     $name = trim((string) ($data['name'] ?? ''));
     $email = strtolower(trim((string) ($data['email'] ?? '')));
     $password = (string) ($data['password'] ?? '');
@@ -342,6 +365,7 @@ function controller_auth_register(array $data): void
 
 function controller_auth_login(array $data): void
 {
+    ensure_user_compatibility_schema();
     $email = strtolower(trim((string) ($data['email'] ?? '')));
     $password = (string) ($data['password'] ?? '');
     $role = isset($data['role']) ? (string) $data['role'] : '';
@@ -442,6 +466,7 @@ function controller_auth_me(array $ctx): void
 
 function controller_auth_change_password(array $ctx, array $data): void
 {
+    ensure_user_compatibility_schema();
     $currentPassword = (string) ($data['currentPassword'] ?? '');
     $newPassword = (string) ($data['newPassword'] ?? '');
     $confirmPassword = (string) ($data['confirmPassword'] ?? '');
@@ -475,6 +500,7 @@ function controller_auth_change_password(array $ctx, array $data): void
 
 function controller_auth_forgot_password(array $data): void
 {
+    ensure_user_compatibility_schema();
     $email = strtolower(trim((string) ($data['email'] ?? '')));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         json_response(['message' => 'Please enter a valid email address'], 422);
@@ -530,6 +556,7 @@ function controller_auth_forgot_password(array $data): void
 
 function controller_auth_reset_password(array $data): void
 {
+    ensure_user_compatibility_schema();
     $email = strtolower(trim((string) ($data['email'] ?? '')));
     $token = (string) ($data['token'] ?? '');
     $password = (string) ($data['password'] ?? '');

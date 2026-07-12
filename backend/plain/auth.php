@@ -44,6 +44,10 @@ function require_auth(): array
         json_response(['message' => 'Invalid or expired token'], 401);
     }
 
+    if (function_exists('ensure_user_compatibility_schema')) {
+        ensure_user_compatibility_schema();
+    }
+
     $user = db_one('SELECT id, name, email, role FROM users WHERE id = :id LIMIT 1', ['id' => $id]);
     if (!$user) {
         json_response(['message' => 'Unauthorized'], 401);

@@ -2,16 +2,16 @@
 -- Scope: one affected student only.
 -- Safe behavior: no DELETE, no DROP, no payment/order/Razorpay changes.
 -- Run only after taking a database backup.
--- Live schema used by backend: users table + Student profile table.
+-- Live schema confirmed: User table + Student profile table.
 
 START TRANSACTION;
 
-SET @user_id := 'c70a4b4f-c20e-4bd6-8f08-f2e5d13c9f70';
+SET @user_id := 'c70a4b4f-620e-4bd6-8f08-f2e5d13c9f70';
 SET @now := UTC_TIMESTAMP();
 
 -- 1) Confirm the user exists and is a student.
 SELECT id, name, email, role
-FROM users
+FROM `User`
 WHERE id = @user_id;
 
 -- 2) Reuse existing Student row if present; otherwise create one.
@@ -49,7 +49,7 @@ SELECT
   'expired',
   @now,
   @now
-FROM users u
+FROM `User` u
 WHERE u.id = @user_id
   AND u.role = 'student'
   AND @existing_student_id IS NULL;
