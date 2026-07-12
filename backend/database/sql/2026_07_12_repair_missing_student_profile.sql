@@ -2,6 +2,7 @@
 -- Scope: one affected student only.
 -- Safe behavior: no DELETE, no DROP, no payment/order/Razorpay changes.
 -- Run only after taking a database backup.
+-- Live schema used by backend: users table + Student profile table.
 
 START TRANSACTION;
 
@@ -10,7 +11,7 @@ SET @now := UTC_TIMESTAMP();
 
 -- 1) Confirm the user exists and is a student.
 SELECT id, name, email, role
-FROM `User`
+FROM users
 WHERE id = @user_id;
 
 -- 2) Reuse existing Student row if present; otherwise create one.
@@ -48,7 +49,7 @@ SELECT
   'expired',
   @now,
   @now
-FROM `User` u
+FROM users u
 WHERE u.id = @user_id
   AND u.role = 'student'
   AND @existing_student_id IS NULL;
@@ -82,7 +83,7 @@ SET s.levelId = ss.level_id,
     s.updatedAt = @now
 WHERE s.id = @student_id;
 
--- 6) Return after-repair data for verification before COMMIT result is inspected.
+-- 6) Return after-repair data for verification.
 SELECT 'student_after_repair' AS result_type,
        s.id,
        s.userId,
