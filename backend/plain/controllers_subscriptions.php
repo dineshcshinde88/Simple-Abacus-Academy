@@ -834,6 +834,12 @@ function activateWorksheetSubscription(array $payload): array
     if ($studentId === '') {
         throw new RuntimeException('Subscription activation failed: user_id/student_id is missing.');
     }
+    if (function_exists('ensure_student_profile_for_user_id')) {
+        $resolvedStudent = ensure_student_profile_for_user_id($studentId, true);
+        if ($resolvedStudent && !empty($resolvedStudent['id'])) {
+            $studentId = (string) $resolvedStudent['id'];
+        }
+    }
     if ($planId === '') {
         throw new RuntimeException('Subscription activation failed: plan_id is missing.');
     }

@@ -70,7 +70,7 @@ function current_student(string $userId): ?array
         ensure_billing_schema();
     }
 
-    return db_one(
+    $student = db_one(
         'SELECT s.*, u.name AS user_name, u.email AS user_email, u.role AS user_role, l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug
          FROM students s
          INNER JOIN users u ON u.id = s.user_id
@@ -80,6 +80,22 @@ function current_student(string $userId): ?array
          LIMIT 1',
         ['user_id' => $userId]
     );
+
+    if (!$student && function_exists('ensure_student_profile_for_user_id')) {
+        ensure_student_profile_for_user_id($userId, true);
+        $student = db_one(
+            'SELECT s.*, u.name AS user_name, u.email AS user_email, u.role AS user_role, l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug
+             FROM students s
+             INNER JOIN users u ON u.id = s.user_id
+             LEFT JOIN levels l ON l.id = s.level_id
+             LEFT JOIN courses c ON c.id = l.course_id
+             WHERE s.user_id = :user_id
+             LIMIT 1',
+            ['user_id' => $userId]
+        );
+    }
+
+    return $student;
 }
 
 function current_tutor(string $userId): ?array

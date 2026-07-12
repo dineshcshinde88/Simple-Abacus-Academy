@@ -171,6 +171,73 @@ function ensure_student_registration_schema(): void
     }
 }
 
+function ensure_student_profile_for_user_id(string $userId, bool $syncLegacySubscriptions = true): ?array
+{
+    $userId = trim($userId);
+    if ($userId === '') {
+        return null;
+    }
+
+    ensure_student_registration_schema();
+
+    $user = db_one('SELECT id, role FROM users WHERE id = :id LIMIT 1', ['id' => $userId]);
+    if (!$user || (string) ($user['role'] ?? '') !== 'student') {
+        return null;
+    }
+
+    $existing = db_one('SELECT * FROM students WHERE user_id = :user_id LIMIT 1', ['user_id' => $userId]);
+    if ($existing) {
+        return $existing;
+    }
+
+    $studentsWriteTable = auth_writable_table(['students', 'student', 'Student']);
+    $studentUserColumn = auth_table_column($studentsWriteTable, 'user_id', 'userId');
+    $studentPhoneCountryColumn = auth_table_column($studentsWriteTable, 'phone_country', 'phoneCountry');
+    $studentMotherTongueColumn = auth_table_column($studentsWriteTable, 'mother_tongue', 'motherTongue');
+    $studentCreatedColumn = auth_table_column($studentsWriteTable, 'created_at', 'createdAt');
+    $studentUpdatedColumn = auth_table_column($studentsWriteTable, 'updated_at', 'updatedAt');
+
+    $studentId = uuid_v4();
+    $now = now_sql();
+
+    db_exec_sql(
+        "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, course, {$studentPhoneCountryColumn}, phone, gender, {$studentMotherTongueColumn}, dob, {$studentCreatedColumn}, {$studentUpdatedColumn})
+         VALUES (:id, :user_id, :course, :phone_country, :phone, :gender, :mother_tongue, :dob, :created_at, :updated_at)",
+        [
+            'id' => $studentId,
+            'user_id' => $userId,
+            'course' => '',
+            'phone_country' => '+91',
+            'phone' => '',
+            'gender' => '',
+            'mother_tongue' => '',
+            'dob' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]
+    );
+
+    if ($syncLegacySubscriptions) {
+        try {
+            db_exec_sql(
+                'UPDATE student_subscriptions SET student_id = :student_id, updated_at = :updated_at WHERE student_id = :user_id',
+                ['student_id' => $studentId, 'updated_at' => $now, 'user_id' => $userId]
+            );
+        } catch (Throwable $e) {
+            error_log('[StudentProfileRepair] unable to relink legacy subscriptions for user=' . $userId . ': ' . $e->getMessage());
+        }
+    }
+
+    if (function_exists('sync_student_subscription_state')) {
+        try {
+            sync_student_subscription_state($studentId);
+        } catch (Throwable $e) {
+            error_log('[StudentProfileRepair] unable to sync subscription state for student=' . $studentId . ': ' . $e->getMessage());
+        }
+    }
+
+    return db_one('SELECT * FROM students WHERE id = :id LIMIT 1', ['id' => $studentId]);
+}
 function controller_auth_register(array $data): void
 {
     $name = trim((string) ($data['name'] ?? ''));
