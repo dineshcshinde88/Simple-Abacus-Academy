@@ -817,6 +817,180 @@ function paid_attempt_plan_ids(array $attempt): array
     return array_values(array_unique($planIds));
 }
 
+function activateWorksheetSubscription(array $payload): array
+{
+    ensure_billing_schema();
+
+    $studentId = trim((string) ($payload['userId'] ?? $payload['studentId'] ?? ''));
+    $planId = trim((string) ($payload['planId'] ?? ''));
+    $levelId = trim((string) ($payload['levelId'] ?? ''));
+    $orderId = trim((string) ($payload['orderId'] ?? ''));
+    $paymentId = trim((string) ($payload['paymentId'] ?? ''));
+    $paymentStatus = strtolower(trim((string) ($payload['paymentStatus'] ?? 'captured')));
+    $gateway = strtolower(trim((string) ($payload['gateway'] ?? 'razorpay')));
+    $attemptId = trim((string) ($payload['paymentAttemptId'] ?? ''));
+    $signature = trim((string) ($payload['signature'] ?? ''));
+
+    if ($studentId === '') {
+        throw new RuntimeException('Subscription activation failed: user_id/student_id is missing.');
+    }
+    if ($planId === '') {
+        throw new RuntimeException('Subscription activation failed: plan_id is missing.');
+    }
+    if ($orderId === '') {
+        throw new RuntimeException('Subscription activation failed: order_id is missing.');
+    }
+    if ($paymentId === '') {
+        throw new RuntimeException('Subscription activation failed: payment_id is missing.');
+    }
+    if (!in_array($paymentStatus, ['paid', 'captured', 'success'], true)) {
+        throw new RuntimeException('Subscription activation blocked: payment status is ' . ($paymentStatus !== '' ? $paymentStatus : 'unknown') . ', not captured.');
+    }
+
+    $plan = db_one('SELECT * FROM subscription_plans WHERE id = :id LIMIT 1', ['id' => $planId]);
+    if (!$plan) {
+        throw new RuntimeException('Subscription activation failed: subscription plan was not found.');
+    }
+    if ($levelId === '') {
+        $levelId = (string) ($plan['level_id'] ?? '');
+    }
+    if ($levelId === '') {
+        throw new RuntimeException('Subscription activation failed: level_id is missing for purchased worksheet plan.');
+    }
+
+    $attempt = null;
+    if ($attemptId !== '') {
+        $attempt = db_one('SELECT * FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attemptId]);
+    }
+    if (!$attempt && $gateway !== '' && $orderId !== '') {
+        $attempt = db_one(
+            'SELECT * FROM payment_attempts WHERE provider = :provider AND provider_order_id = :order_id LIMIT 1',
+            ['provider' => $gateway, 'order_id' => $orderId]
+        );
+    }
+
+    $now = now_sql();
+    $metadata = [];
+    if ($attempt && !empty($attempt['metadata_json'])) {
+        $decoded = json_decode((string) $attempt['metadata_json'], true);
+        if (is_array($decoded)) {
+            $metadata = $decoded;
+        }
+    }
+    $metadata['plan_ids'] = array_values(array_unique(array_filter(array_merge(
+        isset($metadata['plan_ids']) && is_array($metadata['plan_ids']) ? $metadata['plan_ids'] : [],
+        [$planId]
+    ))));
+    $metadata['product_id'] = $payload['productId'] ?? ($metadata['product_id'] ?? null);
+    $metadata['program_type'] = $payload['programType'] ?? ($metadata['program_type'] ?? (stripos((string) ($plan['name'] ?? ''), 'vedic') !== false ? 'vedic' : 'abacus'));
+    $metadata['level_id'] = $levelId;
+    $metadata['gateway'] = $gateway;
+    $metadata['payment_status'] = $paymentStatus;
+
+    if ($attempt) {
+        $attemptId = (string) $attempt['id'];
+        db_exec_sql(
+            'UPDATE payment_attempts
+             SET student_id = :student_id, plan_id = :plan_id, provider = :provider, amount = :amount, currency = :currency,
+                 status = :status, allocation_status = :allocation_status, allocation_error = NULL,
+                 provider_order_id = :order_id, provider_payment_id = :payment_id, provider_signature = :signature,
+                 metadata_json = :metadata_json, paid_at = COALESCE(paid_at, :paid_at), updated_at = :updated_at
+             WHERE id = :id',
+            [
+                'student_id' => $studentId,
+                'plan_id' => $planId,
+                'provider' => $gateway,
+                'amount' => (float) ($plan['price'] ?? ($attempt['amount'] ?? 0)),
+                'currency' => $plan['currency'] ?: ($attempt['currency'] ?: 'INR'),
+                'status' => 'paid',
+                'allocation_status' => 'assigning',
+                'order_id' => $orderId,
+                'payment_id' => $paymentId,
+                'signature' => $signature !== '' ? $signature : ($attempt['provider_signature'] ?? null),
+                'metadata_json' => json_encode($metadata, JSON_UNESCAPED_SLASHES),
+                'paid_at' => $payload['startDate'] ?? $now,
+                'updated_at' => $now,
+                'id' => $attemptId,
+            ]
+        );
+    } else {
+        $attemptId = uuid_v4();
+        db_exec_sql(
+            'INSERT INTO payment_attempts
+             (id, student_id, plan_id, provider, amount, currency, status, allocation_status, provider_order_id, provider_payment_id, provider_signature, metadata_json, paid_at, created_at, updated_at)
+             VALUES
+             (:id, :student_id, :plan_id, :provider, :amount, :currency, :status, :allocation_status, :order_id, :payment_id, :signature, :metadata_json, :paid_at, :created_at, :updated_at)',
+            [
+                'id' => $attemptId,
+                'student_id' => $studentId,
+                'plan_id' => $planId,
+                'provider' => $gateway,
+                'amount' => (float) ($plan['price'] ?? 0),
+                'currency' => $plan['currency'] ?: 'INR',
+                'status' => 'paid',
+                'allocation_status' => 'assigning',
+                'order_id' => $orderId,
+                'payment_id' => $paymentId,
+                'signature' => $signature !== '' ? $signature : null,
+                'metadata_json' => json_encode($metadata, JSON_UNESCAPED_SLASHES),
+                'paid_at' => $payload['startDate'] ?? $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]
+        );
+    }
+
+    payment_audit_log(
+        'Shared Subscription Activation',
+        'info',
+        $studentId,
+        $attemptId,
+        null,
+        $levelId,
+        'Running production-safe worksheet subscription activation service.',
+        [
+            'productId' => $payload['productId'] ?? null,
+            'planId' => $planId,
+            'programType' => $metadata['program_type'] ?? null,
+            'paymentId' => $paymentId,
+            'orderId' => $orderId,
+            'gateway' => $gateway,
+            'paymentStatus' => $paymentStatus,
+            'startDate' => $payload['startDate'] ?? null,
+            'endDate' => $payload['endDate'] ?? null,
+        ]
+    );
+
+    $attempt = db_one('SELECT * FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attemptId]);
+    if (!$attempt) {
+        throw new RuntimeException('Subscription activation failed: payment record could not be loaded after save.');
+    }
+
+    create_missing_subscriptions_for_paid_attempt($attempt);
+    repair_paid_payment_attempt_subscriptions($studentId);
+    repair_student_course_enrollments($studentId);
+
+    $subscription = db_one(
+        'SELECT * FROM student_subscriptions WHERE payment_attempt_id = :payment_attempt_id ORDER BY created_at DESC LIMIT 1',
+        ['payment_attempt_id' => $attemptId]
+    );
+    if (!$subscription) {
+        throw new RuntimeException('Subscription activation failed: subscription row was not created for captured payment.');
+    }
+
+    payment_audit_log(
+        'Worksheet Access Granted',
+        'success',
+        $studentId,
+        $attemptId,
+        (string) $subscription['id'],
+        $levelId,
+        'Purchased worksheet level is active after shared activation service.',
+        ['planId' => $planId, 'paymentId' => $paymentId, 'orderId' => $orderId]
+    );
+
+    return get_student_subscription_overview($studentId);
+}
 function create_missing_subscriptions_for_paid_attempt(array $attempt): void
 {
     ensure_billing_schema();
@@ -1035,6 +1209,261 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
     );
 }
 
+function mock_payment_enabled(): bool
+{
+    $env = strtolower(trim((string) envv('APP_ENV', '')));
+    $enabled = strtolower(trim((string) envv('MOCK_PAYMENT_ENABLED', '')));
+    return $env === 'development' && in_array($enabled, ['1', 'true', 'yes', 'on'], true);
+}
+
+function require_mock_payment_enabled(): void
+{
+    if (!mock_payment_enabled()) {
+        json_response(['message' => 'Mock payment is disabled outside local development.'], 403);
+    }
+}
+
+function mock_payment_level_options(): array
+{
+    $options = [
+        ['key' => 'foundation', 'label' => 'Foundation', 'level' => 'Level 0 (Foundation)'],
+    ];
+    for ($i = 1; $i <= 7; $i++) {
+        $options[] = ['key' => 'level-' . $i, 'label' => 'Level ' . $i, 'level' => 'Level ' . $i];
+    }
+    return $options;
+}
+
+function mock_payment_resolve_level(string $levelKey): array
+{
+    foreach (mock_payment_level_options() as $option) {
+        if ($option['key'] === $levelKey) {
+            return $option;
+        }
+    }
+    json_response(['message' => 'Invalid mock payment level selected.'], 422);
+}
+
+function mock_payment_plan_for_level(string $levelKey): array
+{
+    $level = mock_payment_resolve_level($levelKey);
+    $plan = ensure_single_worksheet_subscription_plan('abacus-worksheet', $level['level'], 90);
+    if (!$plan) {
+        json_response(['message' => 'Unable to create or find worksheet subscription plan for ' . $level['label']], 500);
+    }
+    return [$level, $plan];
+}
+
+function mock_payment_log(string $step, string $status, string $studentId, ?string $attemptId, ?string $subscriptionId, ?string $levelId, string $message, array $context = []): void
+{
+    error_log('[MockPayment] ' . $step . ' ' . $status . ' student=' . $studentId . ' ' . $message . ' ' . json_encode($context, JSON_UNESCAPED_SLASHES));
+    payment_audit_log($step, $status, $studentId, $attemptId, $subscriptionId, $levelId, $message, $context);
+}
+
+function controller_dev_mock_payment_status(array $ctx): void
+{
+    require_mock_payment_enabled();
+    json_response([
+        'enabled' => true,
+        'levels' => array_map(static fn(array $option): array => [
+            'key' => $option['key'],
+            'label' => $option['label'],
+        ], mock_payment_level_options()),
+    ]);
+}
+
+function controller_dev_mock_payment_activate(array $ctx, array $data): void
+{
+    require_mock_payment_enabled();
+    ensure_billing_schema();
+
+    $student = current_student((string) ($ctx['user']['id'] ?? ''));
+    $studentId = (string) ($student['id'] ?? '');
+    if ($studentId === '') {
+        json_response(['message' => 'Logged-in student could not be resolved for mock payment.'], 401);
+    }
+
+    $levelKey = strtolower(trim((string) ($data['levelKey'] ?? 'foundation')));
+    [$level, $plan] = mock_payment_plan_for_level($levelKey);
+
+    $timestamp = (string) time();
+    $attemptId = uuid_v4();
+    $orderId = 'mock_order_' . $timestamp;
+    $paymentId = 'mock_pay_' . $timestamp;
+    $now = now_sql();
+    $metadata = [
+        'gateway' => 'mock',
+        'payment_status' => 'success',
+        'plan_ids' => [$plan['id']],
+        'level_key' => $levelKey,
+        'level_label' => $level['label'],
+        'mock' => true,
+    ];
+
+    db_exec_sql(
+        'INSERT INTO payment_attempts
+         (id, student_id, plan_id, provider, amount, currency, status, allocation_status, provider_order_id, provider_payment_id, provider_signature, metadata_json, paid_at, created_at, updated_at)
+         VALUES
+         (:id, :student_id, :plan_id, :provider, :amount, :currency, :status, :allocation_status, :provider_order_id, :provider_payment_id, :provider_signature, :metadata_json, :paid_at, :created_at, :updated_at)',
+        [
+            'id' => $attemptId,
+            'student_id' => $studentId,
+            'plan_id' => $plan['id'],
+            'provider' => 'mock',
+            'amount' => (float) ($plan['price'] ?? 99),
+            'currency' => $plan['currency'] ?: 'INR',
+            'status' => 'paid',
+            'allocation_status' => 'assigning',
+            'provider_order_id' => $orderId,
+            'provider_payment_id' => $paymentId,
+            'provider_signature' => 'mock_signature_' . $timestamp,
+            'metadata_json' => json_encode($metadata, JSON_UNESCAPED_SLASHES),
+            'paid_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]
+    );
+
+    mock_payment_log('Payment Created', 'success', $studentId, $attemptId, null, $plan['level_id'] ?? null, 'Mock payment record created.', [
+        'orderId' => $orderId,
+        'paymentId' => $paymentId,
+        'level' => $level['label'],
+        'planId' => $plan['id'],
+    ]);
+
+    $attempt = db_one('SELECT * FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attemptId]);
+    if (!$attempt) {
+        json_response(['message' => 'Mock payment record was not found after creation.'], 500);
+    }
+
+    try {
+        activateWorksheetSubscription([
+            'userId' => $studentId,
+            'productId' => $plan['course_id'] ?? null,
+            'planId' => $plan['id'],
+            'programType' => 'abacus',
+            'levelId' => $plan['level_id'] ?? null,
+            'paymentId' => $paymentId,
+            'orderId' => $orderId,
+            'paymentStatus' => 'success',
+            'gateway' => 'mock',
+            'startDate' => $now,
+            'endDate' => null,
+            'paymentAttemptId' => $attemptId,
+            'signature' => 'mock_signature_' . $timestamp,
+        ]);
+    } catch (Throwable $e) {
+        db_exec_sql(
+            'UPDATE payment_attempts SET allocation_status = :allocation_status, allocation_error = :allocation_error, updated_at = :updated_at WHERE id = :id',
+            ['allocation_status' => 'failed', 'allocation_error' => substr($e->getMessage(), 0, 1000), 'updated_at' => now_sql(), 'id' => $attemptId]
+        );
+        mock_payment_log('Subscription Created', 'failed', $studentId, $attemptId, null, $plan['level_id'] ?? null, $e->getMessage(), ['level' => $level['label']]);
+        json_response(['message' => 'Mock payment captured, but subscription activation failed: ' . $e->getMessage()], 500);
+    }
+
+    $subscription = db_one(
+        'SELECT * FROM student_subscriptions WHERE payment_attempt_id = :payment_attempt_id ORDER BY created_at DESC LIMIT 1',
+        ['payment_attempt_id' => $attemptId]
+    );
+    $paperCount = (int) db_value('SELECT COUNT(*) FROM worksheet_papers WHERE level_id = :level_id', ['level_id' => $plan['level_id'] ?? '']);
+    $questionCount = (int) db_value(
+        'SELECT COUNT(*)
+         FROM worksheet_questions wq
+         INNER JOIN worksheet_papers wp ON wp.id = wq.paper_id
+         WHERE wp.level_id = :level_id',
+        ['level_id' => $plan['level_id'] ?? '']
+    );
+    $overview = get_student_subscription_overview($studentId);
+
+    mock_payment_log('Subscription Created', $subscription ? 'success' : 'failed', $studentId, $attemptId, $subscription['id'] ?? null, $plan['level_id'] ?? null, $subscription ? 'Mock payment activated subscription.' : 'Subscription row missing after activation.', [
+        'startDate' => $subscription['start_date'] ?? null,
+        'expiryDate' => $subscription['expiry_date'] ?? null,
+    ]);
+    mock_payment_log('Worksheet Mapping', $paperCount > 0 ? 'success' : 'failed', $studentId, $attemptId, $subscription['id'] ?? null, $plan['level_id'] ?? null, 'Worksheet mapping checked for purchased level.', [
+        'paperCount' => $paperCount,
+        'questionCount' => $questionCount,
+    ]);
+    mock_payment_log('Dashboard Data', 'success', $studentId, $attemptId, $subscription['id'] ?? null, $plan['level_id'] ?? null, 'Dashboard overview recalculated after mock payment.', [
+        'subscriptions' => count($overview['subscription']['history'] ?? []),
+    ]);
+
+    json_response([
+        'message' => 'Mock payment completed and subscription activated.',
+        'gateway' => 'mock',
+        'payment_status' => 'success',
+        'order_id' => $orderId,
+        'payment_id' => $paymentId,
+        'attemptId' => $attemptId,
+        'level' => $level,
+        'plan' => [
+            'id' => $plan['id'],
+            'name' => $plan['name'],
+            'levelId' => $plan['level_id'] ?? null,
+            'levelName' => $plan['level_name'] ?? null,
+        ],
+        'subscription' => $subscription,
+        'paperCount' => $paperCount,
+        'questionCount' => $questionCount,
+        'overview' => $overview,
+    ]);
+}
+
+function controller_dev_mock_payment_clear(array $ctx, string $mode): void
+{
+    require_mock_payment_enabled();
+    ensure_billing_schema();
+
+    $student = current_student((string) ($ctx['user']['id'] ?? ''));
+    $studentId = (string) ($student['id'] ?? '');
+    if ($studentId === '') {
+        json_response(['message' => 'Logged-in student could not be resolved for mock payment cleanup.'], 401);
+    }
+
+    $mockSubs = db_all(
+        'SELECT ss.id
+         FROM student_subscriptions ss
+         INNER JOIN payment_attempts pa ON pa.id = ss.payment_attempt_id
+         WHERE ss.student_id = :student_id AND pa.provider = "mock"',
+        ['student_id' => $studentId]
+    );
+    $subIds = array_map(static fn(array $row): string => (string) $row['id'], $mockSubs);
+
+    $deletedPractices = 0;
+    if ($mode === 'clear-test-data') {
+        $deletedPractices = db_exec_sql(
+            'DELETE wpra
+             FROM worksheet_practices wpra
+             INNER JOIN worksheet_papers wp ON wp.id = wpra.topic_id
+             WHERE wpra.student_id = :student_id',
+            ['student_id' => $studentId]
+        );
+    }
+
+    if ($subIds) {
+        $placeholders = implode(',', array_fill(0, count($subIds), '?'));
+        db_exec_sql("DELETE FROM student_courses WHERE subscription_id IN ({$placeholders})", $subIds);
+        db_exec_sql("DELETE FROM student_subscriptions WHERE id IN ({$placeholders})", $subIds);
+    }
+
+    $deletedPayments = db_exec_sql(
+        'DELETE FROM payment_attempts WHERE student_id = :student_id AND provider = "mock"',
+        ['student_id' => $studentId]
+    );
+
+    mock_payment_log('Clear Test Data', 'success', $studentId, null, null, null, 'Mock payment test data cleared.', [
+        'mode' => $mode,
+        'subscriptionsDeleted' => count($subIds),
+        'paymentsDeleted' => $deletedPayments,
+        'practicesDeleted' => $deletedPractices,
+    ]);
+
+    json_response([
+        'message' => 'Mock payment test data cleared.',
+        'subscriptionsDeleted' => count($subIds),
+        'paymentsDeleted' => $deletedPayments,
+        'practicesDeleted' => $deletedPractices,
+    ]);
+}
 function repair_paid_payment_attempt_subscriptions(string $studentId): void
 {
     ensure_billing_schema();
@@ -1471,72 +1900,30 @@ function finalize_paid_payment_attempt(array $attempt, string $paymentId, string
     ensure_billing_schema();
     $activationResult = ['status' => 'activated', 'message' => 'Subscription activated'];
 
-    $attemptId = (string) $attempt['id'];
-    $studentId = (string) $attempt['student_id'];
+    $attemptId = (string) ($attempt['id'] ?? '');
+    $studentId = (string) ($attempt['student_id'] ?? '');
     $orderId = (string) ($attempt['provider_order_id'] ?? '');
-
-    if (($attempt['status'] ?? '') === 'paid') {
-        create_missing_subscriptions_for_paid_attempt($attempt);
-        repair_paid_payment_attempt_subscriptions($studentId);
-        repair_student_course_enrollments($studentId);
-        $overview = get_student_subscription_overview($studentId);
-        $freshAttempt = db_one('SELECT allocation_status, allocation_error FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attemptId]);
-        if (($freshAttempt['allocation_status'] ?? '') !== 'assigned') {
-            $activationResult = [
-                'status' => 'pending_manual_review',
-                'message' => 'Payment is captured, but subscription activation is pending manual review.',
-                'allocationStatus' => $freshAttempt['allocation_status'] ?? null,
-                'allocationError' => $freshAttempt['allocation_error'] ?? null,
-            ];
-        }
-        return $overview;
-    }
-
-    $metadata = json_decode((string) ($attempt['metadata_json'] ?? ''), true);
-    $planIds = [];
-    if (is_array($metadata) && isset($metadata['plan_ids']) && is_array($metadata['plan_ids'])) {
-        $planIds = array_values(array_filter(array_map(static fn($id): string => trim((string) $id), $metadata['plan_ids'])));
-    }
-    if (!$planIds) {
-        $planIds = [(string) $attempt['plan_id']];
-    }
-
-    $placeholders = implode(',', array_fill(0, count($planIds), '?'));
-    $plans = db_all("SELECT * FROM subscription_plans WHERE id IN ({$placeholders})", $planIds);
-    if (count($plans) !== count($planIds)) {
-        json_response(['message' => 'Plan not found for this payment'], 404);
-    }
-
-    foreach ($plans as $plan) {
-        if ((int) ($plan['duration_days'] ?? 0) <= 0) {
-            json_response(['message' => 'Invalid plan duration'], 422);
-        }
-    }
-
+    $gateway = (string) ($attempt['provider'] ?? 'razorpay');
     $now = now_sql();
-    $nowTs = time();
-    $pdo = db_conn();
-    $pdo->beginTransaction();
 
-    try {
-        payment_audit_log(
-            'Payment Success',
-            'success',
-            $studentId,
-            $attemptId,
-            null,
-            null,
-            'Payment signature/webhook verified successfully.',
-            ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId]
-        );
+    if ($attemptId === '' || $studentId === '' || $orderId === '') {
+        $activationResult = [
+            'status' => 'pending_manual_review',
+            'message' => 'Payment is captured, but required activation identifiers are missing.',
+            'allocationStatus' => 'failed',
+            'allocationError' => 'Missing payment_attempt_id, student_id, or order_id.',
+        ];
+        return $studentId !== '' ? get_student_subscription_overview($studentId) : ['current' => null, 'history' => []];
+    }
+
+    $planIds = paid_attempt_plan_ids($attempt);
+    if (!$planIds) {
         db_exec_sql(
-            'UPDATE payment_attempts
-             SET status = :status, allocation_status = :allocation_status, allocation_error = NULL,
-                 provider_payment_id = :payment_id, provider_signature = :signature, paid_at = :paid_at, updated_at = :updated_at
-             WHERE id = :id',
+            'UPDATE payment_attempts SET status = :status, allocation_status = :allocation_status, allocation_error = :allocation_error, provider_payment_id = :payment_id, provider_signature = :signature, paid_at = COALESCE(paid_at, :paid_at), updated_at = :updated_at WHERE id = :id',
             [
                 'status' => 'paid',
-                'allocation_status' => 'assigning',
+                'allocation_status' => 'failed',
+                'allocation_error' => 'Captured payment has no plan ids for subscription activation.',
                 'payment_id' => $paymentId,
                 'signature' => $signature !== '' ? $signature : ($attempt['provider_signature'] ?? null),
                 'paid_at' => $now,
@@ -1544,102 +1931,85 @@ function finalize_paid_payment_attempt(array $attempt, string $paymentId, string
                 'id' => $attemptId,
             ]
         );
+        payment_audit_log('Shared Subscription Activation', 'failed', $studentId, $attemptId, null, null, 'Captured payment has no plan ids for subscription activation.');
+        $activationResult = [
+            'status' => 'pending_manual_review',
+            'message' => 'Payment is captured, but subscription activation is pending manual review.',
+            'allocationStatus' => 'failed',
+            'allocationError' => 'Captured payment has no plan ids for subscription activation.',
+        ];
+        return get_student_subscription_overview($studentId);
+    }
 
-        foreach ($plans as $plan) {
-            $days = (int) ($plan['duration_days'] ?? 0);
-            $existing = db_one(
-                'SELECT * FROM student_subscriptions
-                 WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active" AND payment_status IN ("paid", "captured", "success")
-                 ORDER BY expiry_date DESC
-                 LIMIT 1',
-                [
-                    'student_id' => $studentId,
-                    'level_id' => $plan['level_id'] ?? null,
-                ]
-            );
-
-            $baseExpiryTs = $nowTs;
-            if ($existing && !empty($existing['expiry_date'])) {
-                $existingExpiry = strtotime((string) $existing['expiry_date']);
-                if ($existingExpiry !== false && $existingExpiry > $baseExpiryTs) {
-                    $baseExpiryTs = $existingExpiry;
-                }
-            }
-
-            $startDate = gmdate('Y-m-d H:i:s', $nowTs);
-            $endDate = gmdate('Y-m-d H:i:s', $baseExpiryTs + ($days * 86400));
-
-            db_exec_sql(
-                'UPDATE student_subscriptions
-                 SET status = :status, updated_at = :updated_at
-                 WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active"',
-                ['status' => 'expired', 'updated_at' => $now, 'student_id' => $studentId, 'level_id' => $plan['level_id'] ?: null]
-            );
-
-            $subscriptionId = uuid_v4();
-            db_exec_sql(
-                'INSERT INTO student_subscriptions
-                 (id, student_id, plan_id, level_id, plan_name, amount, currency, start_date, expiry_date, status, payment_status, payment_attempt_id, razorpay_order_id, razorpay_payment_id, created_at, updated_at)
-                 VALUES
-                 (:id, :student_id, :plan_id, :level_id, :plan_name, :amount, :currency, :start_date, :expiry_date, :status, :payment_status, :payment_attempt_id, :razorpay_order_id, :razorpay_payment_id, :created_at, :updated_at)',
-                [
-                    'id' => $subscriptionId,
-                    'student_id' => $studentId,
-                    'plan_id' => $plan['id'],
-                    'level_id' => $plan['level_id'] ?: null,
-                    'plan_name' => $plan['name'],
-                    'amount' => (float) ($plan['price'] ?? 0),
-                    'currency' => $plan['currency'] ?: ($attempt['currency'] ?: 'INR'),
-                    'start_date' => $startDate,
-                    'expiry_date' => $endDate,
-                    'status' => 'active',
-                    'payment_status' => 'paid',
-                    'payment_attempt_id' => $attemptId,
-                    'razorpay_order_id' => $orderId,
-                    'razorpay_payment_id' => $paymentId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]
-            );
-
-            sync_paid_subscription_enrollment($subscriptionId);
-            payment_audit_log(
-                'User Subscription Created',
-                'success',
-                $studentId,
-                $attemptId,
-                $subscriptionId,
-                $plan['level_id'] ?: null,
-                'Active subscription created for paid order.',
-                ['planId' => $plan['id'], 'planName' => $plan['name'], 'paymentId' => $paymentId, 'orderId' => $orderId, 'startDate' => $startDate, 'expiryDate' => $endDate, 'levelId' => $plan['level_id'] ?: null, 'programType' => (stripos((string) ($plan['name'] ?? ''), 'vedic') !== false ? 'vedic' : 'abacus')]
-            );
-
-            db_exec_sql(
-                'UPDATE students
-                 SET level_id = :level_id, subscription_plan = :plan_name, subscription_start = :start_date, subscription_end = :end_date, subscription_status = :status, updated_at = :updated_at
-                 WHERE id = :student_id',
-                [
-                    'level_id' => billing_student_assignable_level_id($plan['level_id'] ?: null),
-                    'plan_name' => count($plans) === 1 ? $plan['name'] : count($plans) . ' worksheet levels',
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                    'status' => 'active',
-                    'updated_at' => $now,
-                    'student_id' => $studentId,
-                ]
-            );
-        }
-
+    $placeholders = implode(',', array_fill(0, count($planIds), '?'));
+    $plans = db_all("SELECT * FROM subscription_plans WHERE id IN ({$placeholders})", $planIds);
+    if (count($plans) !== count($planIds)) {
         db_exec_sql(
-            'UPDATE payment_attempts SET allocation_status = :allocation_status, allocation_error = NULL, updated_at = :updated_at WHERE id = :id',
-            ['allocation_status' => 'assigned', 'updated_at' => $now, 'id' => $attemptId]
+            'UPDATE payment_attempts SET status = :status, allocation_status = :allocation_status, allocation_error = :allocation_error, provider_payment_id = :payment_id, provider_signature = :signature, paid_at = COALESCE(paid_at, :paid_at), updated_at = :updated_at WHERE id = :id',
+            [
+                'status' => 'paid',
+                'allocation_status' => 'failed',
+                'allocation_error' => 'Captured payment references missing subscription plans.',
+                'payment_id' => $paymentId,
+                'signature' => $signature !== '' ? $signature : ($attempt['provider_signature'] ?? null),
+                'paid_at' => $now,
+                'updated_at' => $now,
+                'id' => $attemptId,
+            ]
         );
-        $pdo->commit();
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
+        payment_audit_log('Shared Subscription Activation', 'failed', $studentId, $attemptId, null, null, 'Captured payment references missing subscription plans.', ['planIds' => $planIds]);
+        $activationResult = [
+            'status' => 'pending_manual_review',
+            'message' => 'Payment is captured, but subscription activation is pending manual review.',
+            'allocationStatus' => 'failed',
+            'allocationError' => 'Captured payment references missing subscription plans.',
+        ];
+        return get_student_subscription_overview($studentId);
+    }
+
+    foreach ($plans as $plan) {
+        if ((int) ($plan['duration_days'] ?? 0) <= 0) {
+            $activationResult = [
+                'status' => 'pending_manual_review',
+                'message' => 'Payment is captured, but subscription activation is pending manual review.',
+                'allocationStatus' => 'failed',
+                'allocationError' => 'Invalid plan duration for ' . ($plan['name'] ?? $plan['id']),
+            ];
+            payment_audit_log('Shared Subscription Activation', 'failed', $studentId, $attemptId, null, $plan['level_id'] ?? null, $activationResult['allocationError'], ['planId' => $plan['id'] ?? null]);
+            return get_student_subscription_overview($studentId);
         }
-        error_log('Payment activation/course assignment failed for attempt ' . $attemptId . ': ' . $e->getMessage());
+    }
+
+    $primaryPlan = $plans[0];
+    try {
+        payment_audit_log(
+            'Payment Success',
+            'success',
+            $studentId,
+            $attemptId,
+            null,
+            $primaryPlan['level_id'] ?? null,
+            'Payment signature/webhook verified successfully; activating through shared subscription service.',
+            ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId, 'planIds' => $planIds]
+        );
+
+        $overview = activateWorksheetSubscription([
+            'userId' => $studentId,
+            'productId' => $primaryPlan['course_id'] ?? null,
+            'planId' => $primaryPlan['id'],
+            'programType' => stripos((string) ($primaryPlan['name'] ?? ''), 'vedic') !== false ? 'vedic' : 'abacus',
+            'levelId' => $primaryPlan['level_id'] ?? null,
+            'paymentId' => $paymentId,
+            'orderId' => $orderId,
+            'paymentStatus' => 'captured',
+            'gateway' => $gateway !== '' ? $gateway : 'razorpay',
+            'startDate' => $attempt['paid_at'] ?? $now,
+            'endDate' => null,
+            'paymentAttemptId' => $attemptId,
+            'signature' => $signature,
+        ]);
+    } catch (Throwable $e) {
+        error_log('Payment activation failed for attempt ' . $attemptId . ': ' . $e->getMessage());
         db_exec_sql(
             'UPDATE payment_attempts
              SET status = :status, allocation_status = :allocation_status, allocation_error = :allocation_error,
@@ -1657,14 +2027,14 @@ function finalize_paid_payment_attempt(array $attempt, string $paymentId, string
             ]
         );
         payment_audit_log(
-            'Course Assigned',
+            'Shared Subscription Activation',
             'failed',
             $studentId,
             $attemptId,
             null,
-            null,
+            $primaryPlan['level_id'] ?? null,
             $e->getMessage(),
-            ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId]
+            ['razorpayOrderId' => $orderId, 'razorpayPaymentId' => $paymentId, 'planIds' => $planIds]
         );
         $activationResult = [
             'status' => 'pending_manual_review',
@@ -1675,10 +2045,20 @@ function finalize_paid_payment_attempt(array $attempt, string $paymentId, string
         return get_student_subscription_overview($studentId);
     }
 
-    $activationResult = ['status' => 'activated', 'message' => 'Subscription activated', 'allocationStatus' => 'assigned'];
-    return get_student_subscription_overview($studentId);
-}
+    $freshAttempt = db_one('SELECT allocation_status, allocation_error FROM payment_attempts WHERE id = :id LIMIT 1', ['id' => $attemptId]);
+    if (($freshAttempt['allocation_status'] ?? '') !== 'assigned') {
+        $activationResult = [
+            'status' => 'pending_manual_review',
+            'message' => 'Payment is captured, but subscription activation is pending manual review.',
+            'allocationStatus' => $freshAttempt['allocation_status'] ?? null,
+            'allocationError' => $freshAttempt['allocation_error'] ?? null,
+        ];
+        return $overview;
+    }
 
+    $activationResult = ['status' => 'activated', 'message' => 'Subscription activated', 'allocationStatus' => 'assigned'];
+    return $overview;
+}
 function controller_student_verify_razorpay_payment(array $ctx, array $data): void
 {
     ensure_billing_schema();

@@ -38,7 +38,7 @@ import {
 } from "@/services/worksheetSubApi";
 
 const PRACTICE_LIMIT = 60;
-const VEDIC_PRACTICE_SECONDS = 600;
+const WORKSHEET_PRACTICE_SECONDS = 600;
 const TOKEN_KEY = "abacus_auth_token";
 
 type StudentSubscription = NonNullable<StudentDashboardData["subscriptions"]>[number];
@@ -370,96 +370,55 @@ const StudentWorksheets = () => {
   );
 };
 
-const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; topics: WorksheetTopic[]; levelId?: string | null }) => {
-  const [search, setSearch] = useState("");
-  const filtered = useMemo(
-    () => topics.filter((topic) => topic.topic_name.toLowerCase().includes(search.toLowerCase())),
-    [search, topics],
-  );
+const paperNumberForTopic = (topic: WorksheetTopic, fallback: number) => {
+  const match = topic.topic_name.match(/paper\s*(\d+)/i);
+  return match ? Number(match[1]) : fallback;
+};
 
+const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; topics: WorksheetTopic[]; levelId?: string | null }) => {
   const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
+  const papers = useMemo(
+    () => [...topics].sort((a, b) => paperNumberForTopic(a, 0) - paperNumberForTopic(b, 0)),
+    [topics],
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/student/dashboard" }, { label: "Worksheet Subscription" }]} />
       <LevelBox level={level} />
 
-      <div className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-base font-bold text-slate-900">Worksheet Topics</h2>
-          <p className="text-sm text-slate-500">Select a topic to view questions, practice or visualize steps.</p>
-        </div>
-        <div className="relative w-full md:w-80">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search topics" className="pl-9" />
-        </div>
+      <div className="rounded-xl bg-white p-4 shadow-sm">
+        <h2 className="text-base font-bold text-slate-900">Worksheet Papers</h2>
+        <p className="text-sm text-slate-500">Select a paper to start the 60-question practice.</p>
       </div>
 
-      <div className="space-y-4">
-        {filtered.length === 0 && (
-          <Card className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
-            <p className="font-semibold text-slate-800">No worksheet topics are available for this subscription yet.</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {papers.length === 0 && (
+          <Card className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm sm:col-span-2 lg:col-span-3 xl:col-span-4">
+            <p className="font-semibold text-slate-800">No worksheet papers are available for this subscription yet.</p>
           </Card>
         )}
-        {filtered.map((topic, index) => {
-          const isVedic = topic.mode === "vedic" || /vedic/i.test(level?.level_name || "");
-          const currentTier = topic.competition?.unlockedTier || 15;
+        {papers.map((topic, index) => {
+          const paperNumber = paperNumberForTopic(topic, index + 1);
           return (
-            <Card key={topic.id} className="group rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-slate-950 sm:text-base">
-                    {index + 1}. {topic.topic_name}
-                  </h3>
-                  <p className="mt-1 text-xs font-medium text-slate-500">
-                    {topic.total_questions} questions available{isVedic ? ` - Competition unlocked: ${currentTier}s` : ""}
-                  </p>
+            <Link key={topic.id} to={`/student/worksheets/${topic.id}/practice${levelQuery}`} className="block">
+              <Card className="h-full rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#551896] hover:shadow-lg">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#551896] text-sm font-bold text-white">
+                  {paperNumber}
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
-                  {isVedic ? (
-                    <>
-                      <Button asChild className="h-9 bg-[#ff6500] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#e95c00]">
-                        <Link to={`/student/worksheets/${topic.id}/practice${levelQuery}`}>Practice Mode</Link>
-                      </Button>
-                      <Button asChild className="h-9 bg-[#551896] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#421173]">
-                        <Link to={`/student/worksheets/${topic.id}/competition${levelQuery}`}>Competition Mode</Link>
-                      </Button>
-                      <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
-                        <Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}>Topic/Sub-topic List</Link>
-                      </Button>
-                      <Button asChild className="h-9 bg-[#11894e] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#0e7442]">
-                        <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>Progress Report</Link>
-                      </Button>
-                      <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
-                        <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>Score History</Link>
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
-                        <Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}>View Questions [{topic.total_questions}]</Link>
-                      </Button>
-                      <Button asChild className="h-9 bg-[#ff6500] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#e95c00]">
-                        <Link to={`/student/worksheets/${topic.id}/practice${levelQuery}`}>Practice Now</Link>
-                      </Button>
-                      <Button asChild className="h-9 bg-[#11894e] px-3 text-xs text-white shadow-sm transition hover:scale-[1.02] hover:bg-[#0e7442]">
-                        <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link>
-                      </Button>
-                      <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
-                        <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>View Practices</Link>
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </Card>
+                <h3 className="mt-4 text-lg font-bold text-slate-950">Paper {paperNumber}</h3>
+                <p className="mt-1 text-sm font-medium text-slate-500">{topic.total_questions || 60} questions</p>
+                <Button className="mt-4 w-full bg-[#ff6500] hover:bg-[#e95c00]">
+                  <Play className="mr-2 h-4 w-4" />Open Paper
+                </Button>
+              </Card>
+            </Link>
           );
         })}
       </div>
     </div>
   );
 };
-
 const QuestionsPage = ({ level, topic }: { level?: WorksheetLevel; topic: WorksheetTopic }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
@@ -498,8 +457,7 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const isVedic = topic.mode === "vedic" || /vedic/i.test(level?.level_name || "");
-  const [seconds, setSeconds] = useState(isVedic ? VEDIC_PRACTICE_SECONDS : 0);
+  const [seconds, setSeconds] = useState(WORKSHEET_PRACTICE_SECONDS);
   const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -511,7 +469,6 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
     if (complete) return undefined;
     const timer = window.setInterval(() => {
       setSeconds((prev) => {
-        if (!isVedic) return prev + 1;
         if (prev <= 1) {
           window.clearInterval(timer);
           setComplete(true);
@@ -521,7 +478,7 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [complete, isVedic]);
+  }, [complete]);
 
   const current = questions[index];
   const currentOptions = current?.options || [];
@@ -551,12 +508,18 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
       accuracy: finalAccuracy,
       totalQuestions: questions.length,
       correctAnswers: finalCorrect,
-      timeTaken: isVedic ? VEDIC_PRACTICE_SECONDS - seconds : seconds,
+      timeTaken: WORKSHEET_PRACTICE_SECONDS - seconds,
       mode: "practice",
     });
     toast.success("Practice result saved");
     navigate(`/student/worksheets/${topic.id}/practices${levelQuery}`);
   };
+
+  useEffect(() => {
+    if (complete && questions.length > 0 && !saving) {
+      void save();
+    }
+  }, [complete]);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -593,7 +556,7 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
                       className={`h-12 justify-start rounded-md text-base font-semibold ${selected ? "bg-[#551896] hover:bg-[#421173]" : "border-slate-200 bg-white text-slate-800 hover:bg-[#f7f2ff]"}`}
                       onClick={() => {
                         setAnswer(option);
-                        if (isVedic) window.setTimeout(() => goNext(option), 200);
+                        window.setTimeout(() => goNext(option), 200);
                       }}
                     >
                       {option}
@@ -611,14 +574,8 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
                 className="h-12 text-lg font-semibold"
               />
             )}
-            <div className="flex items-center justify-between">
-              {!isVedic ? (
-                <Button variant="outline" disabled={index === 0} onClick={() => {
-                  setIndex((prev) => Math.max(0, prev - 1));
-                  setAnswer(answers[questions[index - 1]?.id] || "");
-                }}>Previous</Button>
-              ) : <span />}
-              <Button className="bg-[#ff6500] hover:bg-[#e95c00]" disabled={!current} onClick={() => goNext()}>
+            <div className="flex justify-end">
+              <Button className="bg-[#ff6500] hover:bg-[#e95c00]" disabled={!current || !answer} onClick={() => goNext()}>
                 {index === questions.length - 1 ? "Finish Practice" : "Next Question"}
               </Button>
             </div>
@@ -630,7 +587,7 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
             <div className="mx-auto grid max-w-xl gap-3 sm:grid-cols-3">
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Score</p><p className="text-xl font-bold">{correct}/{questions.length}</p></div>
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Accuracy</p><p className="text-xl font-bold">{accuracy}%</p></div>
-              <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Time</p><p className="text-xl font-bold">{formatTime(isVedic ? VEDIC_PRACTICE_SECONDS - seconds : seconds)}</p></div>
+              <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Time</p><p className="text-xl font-bold">{formatTime(WORKSHEET_PRACTICE_SECONDS - seconds)}</p></div>
             </div>
             <Button disabled={saving} className="bg-[#11894e] hover:bg-[#0e7442]" onClick={save}>
               {saving ? "Saving..." : "Save Result"}

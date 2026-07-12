@@ -155,6 +155,23 @@ if ($method === 'GET' && $path === '/api/student/worksheets') {
     require_active_subscription($ctx['user']['id']);
     controller_student_worksheets($ctx);
 }
+if (function_exists('mock_payment_enabled') && mock_payment_enabled()) {
+    if ($method === 'GET' && $path === '/api/dev/mock-payment/status') {
+        controller_dev_mock_payment_status(require_role(['student']));
+    }
+    if ($method === 'POST' && $path === '/api/dev/mock-payment/activate') {
+        controller_dev_mock_payment_activate(require_role(['student']), $data);
+    }
+    if ($method === 'POST' && $path === '/api/dev/mock-payment/reset-subscription') {
+        controller_dev_mock_payment_clear(require_role(['student']), 'reset-subscription');
+    }
+    if ($method === 'POST' && $path === '/api/dev/mock-payment/delete-mock-payments') {
+        controller_dev_mock_payment_clear(require_role(['student']), 'delete-mock-payments');
+    }
+    if ($method === 'POST' && $path === '/api/dev/mock-payment/clear-test-data') {
+        controller_dev_mock_payment_clear(require_role(['student']), 'clear-test-data');
+    }
+}
 if ($method === 'GET' && $path === '/api/student/worksheet-sub') {
     controller_student_worksheet_sub_dashboard(require_role(['student']));
 }

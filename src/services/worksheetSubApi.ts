@@ -89,9 +89,33 @@ export async function fetchWorksheetQuestions(
   if (options?.speedTier) params.set("speedTier", String(options.speedTier));
   const query = params.toString() ? `?${params.toString()}` : "";
   const data = await apiGet<{ questions: WorksheetQuestion[] }>(`/api/student/worksheet-sub/topics/${topic.id}/questions${query}`);
-  return data.questions.map((question) => ({ ...question, options: shuffleOptions(question.options || []) }));
+  return data.questions.map((question) => ({ ...question, options: shuffleOptions(resolveQuestionOptions(question)) }));
 }
 
+function resolveQuestionOptions(question: WorksheetQuestion): string[] {
+  const answer = String(question.answer ?? "").trim();
+  const existing = (question.options || []).map((item) => String(item).trim()).filter(Boolean);
+  const unique = Array.from(new Set([...existing, answer].filter(Boolean)));
+  if (unique.length >= 4) return unique.slice(0, 4);
+
+  const answerNumber = Number(answer);
+  if (!Number.isNaN(answerNumber)) {
+    const candidates = [answerNumber + 1, answerNumber - 1, answerNumber + 2, answerNumber - 2, answerNumber + 10, answerNumber - 10]
+      .map((value) => String(value));
+    for (const candidate of candidates) {
+      if (!unique.includes(candidate)) unique.push(candidate);
+      if (unique.length >= 4) break;
+    }
+  }
+
+  let suffix = 1;
+  while (unique.length < 4) {
+    const candidate = answer ? `${answer}${suffix}` : String(suffix);
+    if (!unique.includes(candidate)) unique.push(candidate);
+    suffix += 1;
+  }
+  return unique;
+}
 function shuffleOptions(options: string[]): string[] {
   const shuffled = [...options];
   for (let i = shuffled.length - 1; i > 0; i -= 1) {
