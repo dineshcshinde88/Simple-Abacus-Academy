@@ -82,6 +82,35 @@ function ensure_worksheet_sub_schema(): void
     worksheet_sub_ensure_practice_column('mode', 'VARCHAR(30) NOT NULL DEFAULT "practice" AFTER status');
     worksheet_sub_ensure_practice_column('speed_tier', 'INT NULL AFTER mode');
     db_exec_sql(
+        'CREATE TABLE IF NOT EXISTS worksheet_attempts (
+            id VARCHAR(191) NOT NULL PRIMARY KEY,
+            student_id VARCHAR(191) NOT NULL,
+            level_id VARCHAR(191) NULL,
+            paper_id VARCHAR(191) NULL,
+            topic_id VARCHAR(191) NULL,
+            worksheet_name VARCHAR(255) NOT NULL,
+            mode VARCHAR(30) NOT NULL DEFAULT "practice",
+            total_questions INT NOT NULL DEFAULT 0,
+            attempted INT NOT NULL DEFAULT 0,
+            correct_answers INT NOT NULL DEFAULT 0,
+            wrong_answers INT NOT NULL DEFAULT 0,
+            score INT NOT NULL DEFAULT 0,
+            percentage DECIMAL(5,2) NOT NULL DEFAULT 0,
+            status VARCHAR(40) NOT NULL DEFAULT "Needs Practice",
+            answers_json LONGTEXT NULL,
+            review_json LONGTEXT NULL,
+            started_at DATETIME NULL,
+            completed_at DATETIME NOT NULL,
+            duration_seconds INT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX idx_worksheet_attempts_student (student_id),
+            INDEX idx_worksheet_attempts_paper (paper_id),
+            INDEX idx_worksheet_attempts_topic (topic_id),
+            INDEX idx_worksheet_attempts_completed (completed_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+    db_exec_sql(
         'CREATE TABLE IF NOT EXISTS worksheet_competition_unlocks (
             id VARCHAR(191) NOT NULL PRIMARY KEY,
             student_id VARCHAR(191) NOT NULL,
@@ -1259,6 +1288,124 @@ function controller_student_worksheet_sub_questions(array $ctx, string $topicId)
     json_response(['questions' => $questions]);
 }
 
+function worksheet_attempt_payload(array $row): array
+{
+    return [
+        'id' => $row['id'],
+        'student_id' => $row['student_id'] ?? null,
+        'topic_id' => $row['topic_id'] ?? ($row['paper_id'] ?? ''),
+        'paper_id' => $row['paper_id'] ?? null,
+        'worksheet_name' => $row['worksheet_name'] ?? 'Worksheet',
+        'mode' => $row['mode'] ?? 'practice',
+        'total_questions' => (int) ($row['total_questions'] ?? 0),
+        'attempted' => (int) ($row['attempted'] ?? 0),
+        'correct_answers' => (int) ($row['correct_answers'] ?? 0),
+        'wrong_answers' => (int) ($row['wrong_answers'] ?? 0),
+        'score' => (int) ($row['score'] ?? 0),
+        'accuracy' => (float) ($row['percentage'] ?? 0),
+        'percentage' => (float) ($row['percentage'] ?? 0),
+        'time_taken' => (int) ($row['duration_seconds'] ?? 0),
+        'duration_seconds' => (int) ($row['duration_seconds'] ?? 0),
+        'status' => $row['status'] ?? 'Needs Practice',
+        'started_at' => $row['started_at'] ?? null,
+        'completed_at' => $row['completed_at'] ?? ($row['created_at'] ?? null),
+        'created_at' => $row['created_at'] ?? null,
+        'review' => json_decode((string) ($row['review_json'] ?? '[]'), true) ?: [],
+    ];
+}
+
+function worksheet_sub_save_paper_attempt(array $student, array $topic, array $data): array
+{
+    $topicId = (string) ($topic['id'] ?? '');
+    $paperId = (string) ($topic['paper_id'] ?? $topicId);
+    $levelId = (string) ($topic['level_id'] ?? '');
+    $mode = strtolower(trim((string) ($data['mode'] ?? 'practice')));
+    $mode = in_array($mode, ['practice', 'visualization', 'competition'], true) ? $mode : 'practice';
+    $answers = is_array($data['answers'] ?? null) ? $data['answers'] : [];
+    $duration = max(0, (int) ($data['durationSeconds'] ?? $data['timeTaken'] ?? 0));
+    $startedAt = trim((string) ($data['startedAt'] ?? ''));
+    $startedSql = $startedAt !== '' && strtotime($startedAt) !== false ? gmdate('Y-m-d H:i:s', strtotime($startedAt)) : null;
+    $completedAt = now_sql();
+
+    $hasQuestionNumber = worksheet_sub_table_has_column('worksheet_questions', 'question_number');
+    $orderBy = $hasQuestionNumber ? 'COALESCE(question_number, 999999), id ASC' : 'id ASC';
+    $questions = db_all(
+        'SELECT id, question, answer, ' . ($hasQuestionNumber ? 'question_number' : 'NULL AS question_number') . '
+         FROM worksheet_questions
+         WHERE paper_id = :paper_id
+         ORDER BY ' . $orderBy,
+        ['paper_id' => $paperId]
+    );
+
+    $correct = 0;
+    $attempted = 0;
+    $review = [];
+    foreach ($questions as $index => $question) {
+        $qid = (string) $question['id'];
+        $selected = isset($answers[$qid]) ? trim((string) $answers[$qid]) : '';
+        $expected = trim((string) ($question['answer'] ?? ''));
+        $isAttempted = $selected !== '';
+        $isCorrect = $isAttempted && $selected === $expected;
+        if ($isAttempted) {
+            $attempted++;
+        }
+        if ($isCorrect) {
+            $correct++;
+        }
+        $review[] = [
+            'questionId' => $qid,
+            'questionNumber' => (int) ($question['question_number'] ?? ($index + 1)),
+            'questionText' => $question['question'] ?? '',
+            'studentAnswer' => $selected,
+            'selectedAnswer' => $selected,
+            'correctAnswer' => $expected,
+            'isCorrect' => $isCorrect,
+        ];
+    }
+
+    $total = count($questions);
+    $wrong = max(0, $attempted - $correct);
+    $percentage = $total > 0 ? round(($correct / $total) * 100, 2) : 0;
+    $status = $percentage >= 40 ? 'Pass' : 'Fail';
+    $id = uuid_v4();
+    $now = now_sql();
+
+    db_exec_sql(
+        'INSERT INTO worksheet_attempts
+         (id, student_id, level_id, paper_id, topic_id, worksheet_name, mode, total_questions, attempted, correct_answers, wrong_answers,
+          score, percentage, status, answers_json, review_json, started_at, completed_at, duration_seconds, created_at, updated_at)
+         VALUES
+         (:id, :student_id, :level_id, :paper_id, :topic_id, :worksheet_name, :mode, :total_questions, :attempted, :correct_answers, :wrong_answers,
+          :score, :percentage, :status, :answers_json, :review_json, :started_at, :completed_at, :duration_seconds, :created_at, :updated_at)',
+        [
+            'id' => $id,
+            'student_id' => $student['id'],
+            'level_id' => $levelId !== '' ? $levelId : null,
+            'paper_id' => $paperId,
+            'topic_id' => $topicId,
+            'worksheet_name' => (string) ($topic['topic_name'] ?? 'Worksheet'),
+            'mode' => $mode,
+            'total_questions' => $total,
+            'attempted' => $attempted,
+            'correct_answers' => $correct,
+            'wrong_answers' => $wrong,
+            'score' => $correct,
+            'percentage' => $percentage,
+            'status' => $status,
+            'answers_json' => json_encode($answers, JSON_UNESCAPED_SLASHES),
+            'review_json' => json_encode($review, JSON_UNESCAPED_SLASHES),
+            'started_at' => $startedSql,
+            'completed_at' => $completedAt,
+            'duration_seconds' => $duration,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]
+    );
+
+    $row = db_one('SELECT * FROM worksheet_attempts WHERE id = :id LIMIT 1', ['id' => $id]);
+    return worksheet_attempt_payload($row ?: []);
+}
+
 function controller_student_worksheet_sub_practices(array $ctx, string $topicId): void
 {
     $access = worksheet_sub_require_topic_access($ctx, $topicId);
@@ -1267,7 +1414,13 @@ function controller_student_worksheet_sub_practices(array $ctx, string $topicId)
     $content = $access[2];
 
     if (worksheet_sub_is_foundation_or_level1($level) || (($content['content_type'] ?? '') === 'paper')) {
-        json_response(['practices' => []]);
+        $rows = db_all(
+            'SELECT * FROM worksheet_attempts
+             WHERE student_id = :student_id AND (paper_id = :paper_id OR topic_id = :topic_id)
+             ORDER BY completed_at DESC, created_at DESC',
+            ['student_id' => $student['id'], 'paper_id' => $topicId, 'topic_id' => $topicId]
+        );
+        json_response(['practices' => array_map('worksheet_attempt_payload', $rows)]);
     }
 
     $rows = db_all(
@@ -1297,7 +1450,7 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
     $accuracy = max(0, min(100, (float) ($data['accuracy'] ?? 0)));
     $timeTaken = max(0, (int) ($data['timeTaken'] ?? 0));
     $mode = strtolower(trim((string) ($data['mode'] ?? 'practice')));
-    $mode = $mode === 'competition' ? 'competition' : 'practice';
+    $mode = in_array($mode, ['practice', 'visualization', 'competition'], true) ? $mode : 'practice';
     $speedTier = isset($data['speedTier']) ? max(1, min(15, (int) $data['speedTier'])) : null;
 
     if ($topicId === '' || $totalQuestions <= 0) {
@@ -1309,23 +1462,8 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
     $topic = $access[2];
 
     if (worksheet_sub_is_foundation_or_level1($level) || (($topic['content_type'] ?? '') === 'paper')) {
-        json_response([
-            'practice' => [
-                'id' => 'paper-' . time(),
-                'student_id' => $student['id'],
-                'topic_id' => $topicId,
-                'score' => $score,
-                'accuracy' => $accuracy,
-                'total_questions' => $totalQuestions,
-                'correct_answers' => $correctAnswers,
-                'time_taken' => $timeTaken,
-                'status' => worksheet_sub_status($accuracy),
-                'mode' => $mode,
-                'speed_tier' => $speedTier,
-                'created_at' => now_sql(),
-                'paper_based' => true,
-            ],
-        ]);
+        $attempt = worksheet_sub_save_paper_attempt($student, $topic, $data);
+        json_response(['practice' => $attempt], 201);
     }
 
     if ($mode === 'competition') {

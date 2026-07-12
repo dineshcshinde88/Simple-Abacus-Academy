@@ -460,6 +460,62 @@ const QuestionsPage = ({ level, topic }: { level?: WorksheetLevel; topic: Worksh
   );
 };
 
+const ResultSummary = ({ result, onReview, showReview }: { result: WorksheetPractice; onReview: () => void; showReview: boolean }) => {
+  const total = result.total_questions || 0;
+  const attempted = result.attempted ?? ((result.correct_answers || 0) + (result.wrong_answers || 0));
+  const percentage = result.percentage ?? result.accuracy ?? 0;
+  return (
+    <div className="space-y-6 pt-8">
+      <div className="text-center">
+        <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" />
+        <h3 className="mt-3 text-2xl font-bold text-slate-900">Result Summary</h3>
+        <p className="mt-1 text-sm text-slate-500">{result.worksheet_name || "Worksheet"}</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ["Total Questions", total],
+          ["Attempted", attempted],
+          ["Correct", result.correct_answers],
+          ["Wrong", result.wrong_answers ?? Math.max(0, attempted - result.correct_answers)],
+          ["Final Score", `${result.score}/${total}`],
+          ["Percentage", `${percentage}%`],
+          ["Status", result.status],
+          ["Time Taken", formatTime(result.duration_seconds ?? result.time_taken)],
+          ["Completed", result.completed_at ? new Date(result.completed_at).toLocaleString() : "-"],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl bg-slate-50 p-4">
+            <p className="text-xs uppercase text-slate-500">{label}</p>
+            <p className="mt-1 text-lg font-bold text-slate-900">{value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap justify-center gap-3">
+        <Button className="bg-[#551896] hover:bg-[#421173]" onClick={onReview}>Review Answers</Button>
+        <Button asChild variant="outline"><Link to="/student/worksheets">Back to Worksheets</Link></Button>
+      </div>
+      {showReview ? (
+        <div className="space-y-3">
+          {(result.review || []).map((item) => (
+            <div key={item.questionId} className="rounded-lg border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-500">Question {item.questionNumber}</p>
+                  <p className="mt-1 whitespace-pre-line text-lg font-bold text-slate-900">{item.questionText}</p>
+                </div>
+                {item.isCorrect ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <span className="text-lg font-bold text-red-600">Wrong</span>}
+              </div>
+              <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                <div className="rounded-md bg-slate-50 px-3 py-2">Student Answer: <strong>{item.studentAnswer || item.selectedAnswer || "Skipped"}</strong></div>
+                <div className="rounded-md bg-emerald-50 px-3 py-2 text-emerald-800">Correct Answer: <strong>{item.correctAnswer}</strong></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
@@ -467,68 +523,78 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
   const [answer, setAnswer] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [seconds, setSeconds] = useState(WORKSHEET_PRACTICE_SECONDS);
-  const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<WorksheetPractice | null>(null);
+  const [showReview, setShowReview] = useState(false);
+  const [startedAt] = useState(() => new Date().toISOString());
 
   useEffect(() => {
     fetchWorksheetQuestions(topic).then((items) => setQuestions(items.slice(0, PRACTICE_LIMIT)));
   }, [topic]);
 
+  const current = questions[index];
+  const currentOptions = current?.options || [];
+  const correct = questions.reduce((total, question) => total + (answers[question.id]?.trim() === question.answer ? 1 : 0), 0);
+  const accuracy = questions.length ? Math.round((correct / questions.length) * 100) : 0;
+
+  const submitFinal = async (finalAnswers: Record<string, string>) => {
+    if (saving || result || !questions.length) return;
+    setSaving(true);
+    const pendingKey = `worksheet-submit-${topic.id}`;
+    window.sessionStorage.setItem(pendingKey, JSON.stringify({ answers: finalAnswers, startedAt }));
+    try {
+      const finalCorrect = questions.reduce((total, question) => total + (finalAnswers[question.id]?.trim() === question.answer ? 1 : 0), 0);
+      const finalAccuracy = questions.length ? Math.round((finalCorrect / questions.length) * 100) : 0;
+      const duration = WORKSHEET_PRACTICE_SECONDS - seconds;
+      const saved = await submitWorksheetPractice({
+        topicId: topic.id,
+        score: finalCorrect,
+        accuracy: finalAccuracy,
+        totalQuestions: questions.length,
+        correctAnswers: finalCorrect,
+        timeTaken: duration,
+        durationSeconds: duration,
+        mode: "practice",
+        contentType: topic.content_type,
+        answers: finalAnswers,
+        startedAt,
+      });
+      setResult(saved);
+      window.sessionStorage.removeItem(pendingKey);
+      toast.success("Practice result saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Result save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   useEffect(() => {
-    if (complete) return undefined;
+    if (result) return undefined;
     const timer = window.setInterval(() => {
       setSeconds((prev) => {
         if (prev <= 1) {
           window.clearInterval(timer);
-          setComplete(true);
+          void submitFinal(answers);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [complete]);
-
-  const current = questions[index];
-  const currentOptions = current?.options || [];
-  const correct = questions.reduce((total, question) => total + (answers[question.id]?.trim() === question.answer ? 1 : 0), 0);
-  const accuracy = questions.length ? Math.round((correct / questions.length) * 100) : 0;
-  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
+  }, [result, answers, questions.length, saving]);
 
   const goNext = (selectedAnswer = answer) => {
-    if (!current) return;
+    if (!current || saving || result) return;
     const nextAnswers = { ...answers, [current.id]: selectedAnswer.trim() };
     setAnswers(nextAnswers);
     setAnswer("");
     if (index >= questions.length - 1) {
-      setComplete(true);
+      void submitFinal(nextAnswers);
       return;
     }
     setIndex((prev) => prev + 1);
   };
-
-  const save = async () => {
-    setSaving(true);
-    const finalCorrect = questions.reduce((total, question) => total + (answers[question.id]?.trim() === question.answer ? 1 : 0), 0);
-    const finalAccuracy = questions.length ? Math.round((finalCorrect / questions.length) * 100) : 0;
-    await submitWorksheetPractice({
-      topicId: topic.id,
-      score: finalCorrect,
-      accuracy: finalAccuracy,
-      totalQuestions: questions.length,
-      correctAnswers: finalCorrect,
-      timeTaken: WORKSHEET_PRACTICE_SECONDS - seconds,
-      mode: "practice",
-    });
-    toast.success("Practice result saved");
-    navigate(`/student/worksheets/${topic.id}/practices${levelQuery}`);
-  };
-
-  useEffect(() => {
-    if (complete && questions.length > 0 && !saving) {
-      void save();
-    }
-  }, [complete]);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -541,13 +607,15 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
             <h2 className="text-lg font-bold text-slate-900">{topic.topic_name}</h2>
             <p className="text-sm text-slate-500">One question at a time with automatic scoring.</p>
           </div>
-          <div className="flex gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#f7f2ff] px-3 py-2 text-sm font-bold text-[#551896]"><Clock className="h-4 w-4" />{formatTime(seconds)}</span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-2 text-sm font-bold text-[#ff6500]"><BarChart3 className="h-4 w-4" />{accuracy}%</span>
-          </div>
+          {!result ? (
+            <div className="flex gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#f7f2ff] px-3 py-2 text-sm font-bold text-[#551896]"><Clock className="h-4 w-4" />{formatTime(seconds)}</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-2 text-sm font-bold text-[#ff6500]"><BarChart3 className="h-4 w-4" />{accuracy}%</span>
+            </div>
+          ) : null}
         </div>
 
-        {!complete ? (
+        {result ? <ResultSummary result={result} showReview={showReview} onReview={() => setShowReview((value) => !value)} /> : (
           <div className="space-y-6 pt-6">
             <div className="rounded-xl bg-slate-50 p-6 text-center">
               <p className="text-xs font-bold uppercase text-slate-500">Question {Math.min(index + 1, questions.length)} of {questions.length || PRACTICE_LIMIT}</p>
@@ -555,23 +623,20 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
             </div>
             {currentOptions.length ? (
               <div className="grid gap-3 sm:grid-cols-2">
-                {currentOptions.map((option) => {
-                  const selected = answer === option;
-                  return (
-                    <Button
-                      key={`${current?.id}-${option}`}
-                      type="button"
-                      variant={selected ? "default" : "outline"}
-                      className={`h-12 justify-start rounded-md text-base font-semibold ${selected ? "bg-[#551896] hover:bg-[#421173]" : "border-slate-200 bg-white text-slate-800 hover:bg-[#f7f2ff]"}`}
-                      onClick={() => {
-                        setAnswer(option);
-                        window.setTimeout(() => goNext(option), 200);
-                      }}
-                    >
-                      {option}
-                    </Button>
-                  );
-                })}
+                {currentOptions.map((option) => (
+                  <Button
+                    key={`${current?.id}-${option}`}
+                    type="button"
+                    variant={answer === option ? "default" : "outline"}
+                    className={`h-12 justify-start rounded-md text-base font-semibold ${answer === option ? "bg-[#551896] hover:bg-[#421173]" : "border-slate-200 bg-white text-slate-800 hover:bg-[#f7f2ff]"}`}
+                    onClick={() => {
+                      setAnswer(option);
+                      window.setTimeout(() => goNext(option), 200);
+                    }}
+                  >
+                    {option}
+                  </Button>
+                ))}
               </div>
             ) : (
               <Input
@@ -584,30 +649,16 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
               />
             )}
             <div className="flex justify-end">
-              <Button className="bg-[#ff6500] hover:bg-[#e95c00]" disabled={!current || !answer} onClick={() => goNext()}>
-                {index === questions.length - 1 ? "Finish Practice" : "Next Question"}
+              <Button className="bg-[#ff6500] hover:bg-[#e95c00]" disabled={!current || !answer || saving} onClick={() => goNext()}>
+                {saving ? "Saving..." : index === questions.length - 1 ? "Finish Practice" : "Next Question"}
               </Button>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-5 pt-8 text-center">
-            <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" />
-            <h3 className="text-2xl font-bold text-slate-900">Practice Complete</h3>
-            <div className="mx-auto grid max-w-xl gap-3 sm:grid-cols-3">
-              <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Score</p><p className="text-xl font-bold">{correct}/{questions.length}</p></div>
-              <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Accuracy</p><p className="text-xl font-bold">{accuracy}%</p></div>
-              <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Time</p><p className="text-xl font-bold">{formatTime(WORKSHEET_PRACTICE_SECONDS - seconds)}</p></div>
-            </div>
-            <Button disabled={saving} className="bg-[#11894e] hover:bg-[#0e7442]" onClick={save}>
-              {saving ? "Saving..." : "Save Result"}
-            </Button>
           </div>
         )}
       </Card>
     </div>
   );
 };
-
 const CompetitionPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
   const navigate = useNavigate();
   const tiers = topic.competition?.tiers || Array.from({ length: 15 }, (_, index) => ({ seconds: 15 - index, unlocked: index === 0, current: index === 0 }));
@@ -620,6 +671,9 @@ const CompetitionPage = ({ level, topic, levelId }: { level?: WorksheetLevel; to
   const [elapsed, setElapsed] = useState(0);
   const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<WorksheetPractice | null>(null);
+  const [showReview, setShowReview] = useState(false);
+  const [startedAt] = useState(() => new Date().toISOString());
   const current = questions[index];
   const currentOptions = current?.options || [];
   const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
@@ -747,6 +801,9 @@ const VisualizationPage = ({ level, topic, levelId }: { level?: WorksheetLevel; 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [seconds, setSeconds] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<WorksheetPractice | null>(null);
+  const [showReview, setShowReview] = useState(false);
+  const [startedAt] = useState(() => new Date().toISOString());
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [speaking, setSpeaking] = useState(false);
   const current = questions[index];
@@ -854,27 +911,51 @@ const VisualizationPage = ({ level, topic, levelId }: { level?: WorksheetLevel; 
   };
 
   const submitExam = async () => {
-    if (!questions.length) return;
+    if (!questions.length || submitting || result) return;
     setSubmitting(true);
     const finalAnswers = current ? { ...answers, [current.id]: answer.trim() } : answers;
     const correct = questions.reduce((total, question) => total + (finalAnswers[question.id]?.trim() === question.answer ? 1 : 0), 0);
     const accuracy = Math.round((correct / questions.length) * 100);
-    await submitWorksheetPractice({
-      topicId: topic.id,
-      score: correct,
-      accuracy,
-      totalQuestions: questions.length,
-      correctAnswers: correct,
-      timeTaken: seconds,
-    });
-    toast.success(`Exam submitted: ${correct}/${questions.length}`);
-    navigate(`/student/worksheets/${topic.id}/practices${levelQuery}`);
+    const pendingKey = `worksheet-submit-${topic.id}`;
+    window.sessionStorage.setItem(pendingKey, JSON.stringify({ answers: finalAnswers, startedAt }));
+    try {
+      const saved = await submitWorksheetPractice({
+        topicId: topic.id,
+        score: correct,
+        accuracy,
+        totalQuestions: questions.length,
+        correctAnswers: correct,
+        timeTaken: seconds,
+        durationSeconds: seconds,
+        mode: "visualization",
+        contentType: topic.content_type,
+        answers: finalAnswers,
+        startedAt,
+      });
+      setResult(saved);
+      window.sessionStorage.removeItem(pendingKey);
+      toast.success(`Exam submitted: ${correct}/${questions.length}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Result save failed");
+    } finally {
+      setSubmitting(false);
+    }
   };
-
   const beadRows = current?.answer
     ? current.answer.replace(/\D/g, "").slice(-5).padStart(5, "0").split("").map((digit) => Number(digit))
     : [0, 0, 0, 0, 0];
 
+  if (result) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6">
+        <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Visualization Result" }]} />
+        <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
+        <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
+          <ResultSummary result={result} showReview={showReview} onReview={() => setShowReview((value) => !value)} />
+        </Card>
+      </div>
+    );
+  }
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Visualization" }]} />

@@ -30,21 +30,39 @@ export type WorksheetQuestion = {
   options?: string[];
 };
 
+export type WorksheetAttemptReview = {
+  questionId: string;
+  questionNumber: number;
+  questionText: string;
+  studentAnswer?: string;
+  selectedAnswer?: string;
+  correctAnswer: string;
+  isCorrect: boolean;
+};
+
 export type WorksheetPractice = {
   id: string;
   student_id?: string;
   topic_id: string;
+  paper_id?: string | null;
+  worksheet_name?: string;
   score: number;
   accuracy: number;
+  percentage?: number;
   total_questions: number;
+  attempted?: number;
   correct_answers: number;
+  wrong_answers?: number;
   time_taken: number;
-  status: "Excellent" | "Good" | "Needs Practice";
-  mode?: "practice" | "competition";
+  duration_seconds?: number;
+  status: "Excellent" | "Good" | "Needs Practice" | "Pass" | "Fail";
+  mode?: "practice" | "visualization" | "competition";
   speed_tier?: number | null;
+  started_at?: string | null;
+  completed_at?: string | null;
   created_at: string;
+  review?: WorksheetAttemptReview[];
 };
-
 export type WorksheetDashboardPayload = {
   level: WorksheetLevel;
   topics: WorksheetTopic[];
@@ -57,11 +75,13 @@ type SubmitPracticePayload = {
   totalQuestions: number;
   correctAnswers: number;
   timeTaken: number;
-  mode?: "practice" | "competition";
+  mode?: "practice" | "visualization" | "competition";
   speedTier?: number | null;
   contentType?: "topic" | "paper";
+  answers?: Record<string, string>;
+  startedAt?: string;
+  durationSeconds?: number;
 };
-
 const API_BASE = getApiBase();
 const TOKEN_KEY = "abacus_auth_token";
 const LOCAL_PRACTICES_KEY = "worksheet_sub_practices_v2";
@@ -166,18 +186,18 @@ export async function submitWorksheetPractice(payload: SubmitPracticePayload): P
     score: payload.score,
     accuracy: payload.accuracy,
     total_questions: payload.totalQuestions,
+    attempted: Object.values(payload.answers || {}).filter((value) => String(value).trim() !== "").length,
     correct_answers: payload.correctAnswers,
+    wrong_answers: Math.max(0, Object.values(payload.answers || {}).filter((value) => String(value).trim() !== "").length - payload.correctAnswers),
     time_taken: payload.timeTaken,
+    duration_seconds: payload.durationSeconds ?? payload.timeTaken,
     status,
     mode: payload.mode || "practice",
     speed_tier: payload.speedTier ?? null,
+    started_at: payload.startedAt || null,
+    completed_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
   };
-
-  if (payload.contentType === "paper") {
-    saveLocalPractice(localRecord);
-    return localRecord;
-  }
 
   try {
     const response = await fetch(`${API_BASE}/api/student/worksheet-sub/practices`, {
@@ -189,6 +209,9 @@ export async function submitWorksheetPractice(payload: SubmitPracticePayload): P
     const data = (await response.json()) as { practice: WorksheetPractice };
     return data.practice;
   } catch {
+    if (payload.contentType === "paper") {
+      throw new Error("Result save failed. Please check your connection and submit again.");
+    }
     saveLocalPractice(localRecord);
     return localRecord;
   }
