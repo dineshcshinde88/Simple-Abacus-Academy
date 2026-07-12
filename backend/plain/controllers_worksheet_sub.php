@@ -827,6 +827,23 @@ function worksheet_sub_student_levels(array $student): array
         repair_student_course_enrollments($studentId);
     }
 
+    if (function_exists('getActiveWorksheetSubscription')) {
+        $active = getActiveWorksheetSubscription($studentId);
+        if ($active && !empty($active['is_active']) && !empty($active['level_id'])) {
+            return [[
+                'id' => $active['level_id'],
+                'level_name' => $active['level_name'] ?? 'Worksheet Subscription',
+                'subscription_id' => $active['subscription_id'] ?? null,
+                'plan_id' => $active['plan_id'] ?? null,
+                'program_type' => $active['program_type'] ?? null,
+                'start_date' => $active['start_date'] ?? null,
+                'expiry_date' => $active['end_date'] ?? null,
+                'payment_id' => $active['payment_id'] ?? null,
+                'order_id' => $active['order_id'] ?? null,
+            ]];
+        }
+    }
+
     $rows = db_all(
         'SELECT
             ss.id AS subscription_id,

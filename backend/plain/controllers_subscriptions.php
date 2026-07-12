@@ -995,7 +995,7 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
 {
     ensure_billing_schema();
 
-    if (($attempt['status'] ?? '') !== 'paid') {
+    if (!in_array((string) ($attempt['status'] ?? ''), ['paid', 'captured', 'success'], true)) {
         return;
     }
 
@@ -1473,11 +1473,27 @@ function repair_paid_payment_attempt_subscriptions(string $studentId): void
          FROM payment_attempts pa
          WHERE pa.student_id = :student_id
            AND pa.status IN ("paid", "captured", "success")
-           AND NOT EXISTS (
-             SELECT 1 FROM student_subscriptions ss WHERE ss.payment_attempt_id = pa.id
+           AND (
+             NOT EXISTS (
+               SELECT 1 FROM student_subscriptions ss WHERE ss.payment_attempt_id = pa.id
+             )
+             OR EXISTS (
+               SELECT 1
+               FROM student_subscriptions ss
+               WHERE ss.payment_attempt_id = pa.id
+                 AND (
+                   ss.level_id IS NULL
+                   OR ss.start_date IS NULL
+                   OR ss.start_date = "0000-00-00 00:00:00"
+                   OR ss.expiry_date IS NULL
+                   OR ss.expiry_date = "0000-00-00 00:00:00"
+                   OR ss.payment_status NOT IN ("paid", "captured", "success")
+                   OR (ss.status <> "active" AND ss.expiry_date >= :now_ts)
+                 )
+             )
            )
          ORDER BY COALESCE(pa.paid_at, pa.created_at) ASC, pa.created_at ASC',
-        ['student_id' => $studentId]
+        ['student_id' => $studentId, 'now_ts' => now_sql()]
     );
 
     foreach ($attempts as $attempt) {
@@ -1499,11 +1515,203 @@ function repair_paid_payment_attempt_subscriptions(string $studentId): void
     }
 }
 
+
+function subscription_success_payment_status(string $status): bool
+{
+    return in_array(strtolower(trim($status)), ['paid', 'captured', 'success'], true);
+}
+
+function subscription_level_number(?string $name): ?string
+{
+    $name = strtolower(trim((string) $name));
+    if ($name === '') {
+        return null;
+    }
+    if (preg_match('/level\s*0|foundation/i', $name)) {
+        return '0';
+    }
+    if (preg_match('/level\s*(\d+)/i', $name, $m) === 1) {
+        return (string) ((int) $m[1]);
+    }
+    return null;
+}
+
+function subscription_program_type_from_text(string $text): ?string
+{
+    $text = strtolower($text);
+    if (str_contains($text, 'vedic')) {
+        return 'vedic';
+    }
+    if (str_contains($text, 'abacus')) {
+        return 'abacus';
+    }
+    return null;
+}
+
+function subscription_resolve_worksheet_level(?string $levelId, string $levelName, string $planName, string $courseSlug, string $courseName): ?array
+{
+    if (function_exists('ensure_worksheet_sub_schema')) {
+        ensure_worksheet_sub_schema();
+    }
+
+    $levelId = trim((string) $levelId);
+    if ($levelId !== '') {
+        $level = db_one('SELECT id, level_name FROM worksheet_levels WHERE id = :id LIMIT 1', ['id' => $levelId]);
+        if ($level) {
+            return $level;
+        }
+    }
+
+    $haystack = trim($courseSlug . ' ' . $courseName . ' ' . $levelName . ' ' . $planName);
+    $programType = subscription_program_type_from_text($haystack);
+    $levelNumber = subscription_level_number($levelName !== '' ? $levelName : $planName);
+    if ($programType === null || $levelNumber === null) {
+        return null;
+    }
+
+    $levels = db_all('SELECT id, level_name FROM worksheet_levels ORDER BY level_name ASC');
+    foreach ($levels as $level) {
+        $candidateName = (string) ($level['level_name'] ?? '');
+        if (subscription_program_type_from_text($candidateName) !== $programType) {
+            continue;
+        }
+        if (subscription_level_number($candidateName) === $levelNumber) {
+            return $level;
+        }
+    }
+
+    return null;
+}
+
+function subscription_is_active_window(?string $startDate, ?string $endDate, bool $lifetime = false): bool
+{
+    $startTs = strtotime((string) $startDate);
+    if ($startTs === false) {
+        return false;
+    }
+    if ($lifetime && ($endDate === null || trim((string) $endDate) === '')) {
+        return true;
+    }
+    $endTs = strtotime((string) $endDate);
+    return $endTs !== false && $endTs >= time();
+}
+
+function getActiveWorksheetSubscription(string $studentId): ?array
+{
+    ensure_billing_schema();
+    if (function_exists('repair_paid_payment_attempt_subscriptions')) {
+        repair_paid_payment_attempt_subscriptions($studentId);
+    }
+
+    $rows = db_all(
+        'SELECT ss.*, p.duration_days, p.name AS plan_name_ref, p.level_id AS plan_level_id,
+                l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug,
+                pa.provider, pa.provider_order_id, pa.provider_payment_id, pa.status AS attempt_status
+         FROM student_subscriptions ss
+         LEFT JOIN subscription_plans p ON p.id = ss.plan_id
+         LEFT JOIN levels l ON l.id = COALESCE(ss.level_id, p.level_id)
+         LEFT JOIN courses c ON c.id = l.course_id
+         LEFT JOIN payment_attempts pa ON pa.id = ss.payment_attempt_id
+         WHERE ss.student_id = :student_id
+         ORDER BY ss.expiry_date DESC, ss.updated_at DESC, ss.created_at DESC',
+        ['student_id' => $studentId]
+    );
+
+    $now = now_sql();
+    foreach ($rows as $row) {
+        $paymentStatus = strtolower((string) ($row['payment_status'] ?? ''));
+        $subscriptionStatus = strtolower((string) ($row['status'] ?? ''));
+        $planName = (string) ($row['plan_name_ref'] ?? $row['plan_name'] ?? '');
+        $levelName = (string) ($row['level_name'] ?? '');
+        $courseSlug = (string) ($row['course_slug'] ?? '');
+        $courseName = (string) ($row['course_name'] ?? '');
+        $haystack = strtolower($courseSlug . ' ' . $courseName . ' ' . $levelName . ' ' . $planName . ' ' . (string) ($row['plan_name'] ?? ''));
+        if (!str_contains($haystack, 'worksheet') || (!str_contains($haystack, 'abacus') && !str_contains($haystack, 'vedic'))) {
+            continue;
+        }
+
+        $level = subscription_resolve_worksheet_level($row['level_id'] ?: ($row['plan_level_id'] ?? null), $levelName, $planName, $courseSlug, $courseName);
+        $isLifetime = (int) ($row['duration_days'] ?? 0) <= 0;
+        $isActive = $subscriptionStatus === 'active'
+            && subscription_success_payment_status($paymentStatus)
+            && subscription_is_active_window($row['start_date'] ?? null, $row['expiry_date'] ?? null, $isLifetime)
+            && $level !== null;
+
+        if (!$isActive) {
+            payment_audit_log(
+                'Active Subscription Resolver',
+                'warning',
+                $studentId,
+                $row['payment_attempt_id'] ?? null,
+                $row['id'] ?? null,
+                $row['level_id'] ?? null,
+                'Worksheet subscription row was not active/resolvable.',
+                [
+                    'subscriptionStatus' => $subscriptionStatus,
+                    'paymentStatus' => $paymentStatus,
+                    'startDate' => $row['start_date'] ?? null,
+                    'endDate' => $row['expiry_date'] ?? null,
+                    'planName' => $planName,
+                    'levelName' => $levelName,
+                    'courseSlug' => $courseSlug,
+                    'resolvedLevel' => $level,
+                ]
+            );
+            continue;
+        }
+
+        $programType = subscription_program_type_from_text((string) ($level['level_name'] ?? '') . ' ' . $courseSlug . ' ' . $courseName) ?: 'abacus';
+        if ((string) ($row['level_id'] ?? '') !== (string) ($level['id'] ?? '')) {
+            db_exec_sql(
+                'UPDATE student_subscriptions SET level_id = :level_id, updated_at = :updated_at WHERE id = :id',
+                ['level_id' => $level['id'], 'updated_at' => $now, 'id' => $row['id']]
+            );
+        }
+
+        return [
+            'subscription_id' => $row['id'],
+            'id' => $row['id'],
+            'user_id' => $studentId,
+            'student_id' => $studentId,
+            'product_id' => $row['course_id'] ?? null,
+            'plan_id' => $row['plan_id'] ?? null,
+            'planId' => $row['plan_id'] ?? null,
+            'program_type' => $programType,
+            'level_id' => $level['id'] ?? null,
+            'levelId' => $level['id'] ?? null,
+            'level_name' => $level['level_name'] ?? $levelName,
+            'levelName' => $level['level_name'] ?? $levelName,
+            'plan_name' => $planName !== '' ? $planName : (string) ($row['plan_name'] ?? ''),
+            'planName' => $planName !== '' ? $planName : (string) ($row['plan_name'] ?? ''),
+            'amount' => (float) ($row['amount'] ?? 0),
+            'currency' => $row['currency'] ?? 'INR',
+            'subscription_status' => $subscriptionStatus,
+            'status' => $subscriptionStatus,
+            'payment_status' => $paymentStatus,
+            'paymentStatus' => subscription_success_payment_status($paymentStatus) ? 'paid' : 'unpaid',
+            'start_date' => $row['start_date'] ?? null,
+            'startDate' => $row['start_date'] ?? null,
+            'end_date' => $row['expiry_date'] ?? null,
+            'expiryDate' => $row['expiry_date'] ?? null,
+            'is_active' => true,
+            'payment_id' => $row['razorpay_payment_id'] ?? ($row['provider_payment_id'] ?? null),
+            'razorpayPaymentId' => $row['razorpay_payment_id'] ?? ($row['provider_payment_id'] ?? null),
+            'order_id' => $row['razorpay_order_id'] ?? ($row['provider_order_id'] ?? null),
+            'razorpayOrderId' => $row['razorpay_order_id'] ?? ($row['provider_order_id'] ?? null),
+            'gateway' => $row['provider'] ?? 'razorpay',
+            'is_test_payment' => strtolower((string) ($row['provider'] ?? 'razorpay')) === 'mock',
+        ];
+    }
+
+    return null;
+}
 function get_student_subscription_overview(string $studentId): array
 {
     repair_paid_payment_attempt_subscriptions($studentId);
     $current = sync_student_subscription_state($studentId);
     repair_student_course_enrollments($studentId);
+
+    $activeWorksheet = getActiveWorksheetSubscription($studentId);
 
     $historyRows = db_all(
         'SELECT ss.*, l.level_name
@@ -1516,8 +1724,9 @@ function get_student_subscription_overview(string $studentId): array
     );
 
     return [
-        'current' => $current ? map_subscription_row($current) : null,
+        'current' => $activeWorksheet ?: ($current ? map_subscription_row($current) : null),
         'history' => array_map(static fn(array $row): array => map_subscription_row($row), $historyRows),
+        'activeWorksheet' => $activeWorksheet,
     ];
 }
 

@@ -31,6 +31,33 @@ function controller_student_dashboard(array $ctx): void
             && !empty($sub['expiryDate'])
             && strtotime((string) $sub['expiryDate']) >= time()
     ));
+    $activeWorksheet = $subscriptionOverview['activeWorksheet'] ?? null;
+    if (is_array($activeWorksheet) && !empty($activeWorksheet['is_active'])) {
+        $alreadyIncluded = false;
+        foreach ($activeSubscriptions as $sub) {
+            if (($sub['id'] ?? null) === ($activeWorksheet['subscription_id'] ?? $activeWorksheet['id'] ?? null)) {
+                $alreadyIncluded = true;
+                break;
+            }
+        }
+        if (!$alreadyIncluded) {
+            array_unshift($activeSubscriptions, [
+                'id' => $activeWorksheet['subscription_id'] ?? $activeWorksheet['id'] ?? '',
+                'planId' => $activeWorksheet['plan_id'] ?? $activeWorksheet['planId'] ?? null,
+                'planName' => $activeWorksheet['plan_name'] ?? $activeWorksheet['planName'] ?? 'Worksheet Subscription',
+                'levelId' => $activeWorksheet['level_id'] ?? $activeWorksheet['levelId'] ?? null,
+                'levelName' => $activeWorksheet['level_name'] ?? $activeWorksheet['levelName'] ?? null,
+                'amount' => (float) ($activeWorksheet['amount'] ?? 0),
+                'currency' => $activeWorksheet['currency'] ?? 'INR',
+                'startDate' => $activeWorksheet['start_date'] ?? $activeWorksheet['startDate'] ?? null,
+                'expiryDate' => $activeWorksheet['end_date'] ?? $activeWorksheet['expiryDate'] ?? null,
+                'status' => 'active',
+                'paymentStatus' => 'paid',
+                'razorpayOrderId' => $activeWorksheet['order_id'] ?? $activeWorksheet['razorpayOrderId'] ?? null,
+                'razorpayPaymentId' => $activeWorksheet['payment_id'] ?? $activeWorksheet['razorpayPaymentId'] ?? null,
+            ]);
+        }
+    }
 
     $status = count($activeSubscriptions) > 0 ? 'active' : (string) ($student['subscription_status'] ?? 'expired');
     if ($status !== 'active' && !empty($student['subscription_end']) && strtotime((string) $student['subscription_end']) < time()) {
