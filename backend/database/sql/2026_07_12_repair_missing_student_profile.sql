@@ -73,9 +73,12 @@ SET @active_subscription_id := (
 );
 
 -- 5) Sync Student profile fields from active subscription.
+-- Student.levelId has a foreign key to the old Level table, while worksheet subscriptions may use levels.id.
+-- Only write Student.levelId when the purchased level exists in Level; worksheet access remains driven by student_subscriptions.level_id.
 UPDATE `Student` s
 JOIN student_subscriptions ss ON ss.id = @active_subscription_id
-SET s.levelId = ss.level_id,
+LEFT JOIN `Level` legacy_level ON legacy_level.id = ss.level_id
+SET s.levelId = legacy_level.id,
     s.subscriptionPlan = ss.plan_name,
     s.subscriptionStart = ss.start_date,
     s.subscriptionEnd = ss.expiry_date,

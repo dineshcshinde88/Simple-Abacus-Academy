@@ -641,8 +641,13 @@ function billing_student_assignable_level_id(?string $levelId): ?string
         return null;
     }
 
+    if (billing_table_type('Student') === 'BASE TABLE' && billing_table_has_column('Student', 'levelId')) {
+        $existsInLegacyLevel = (int) db_value('SELECT COUNT(*) FROM `Level` WHERE id = :id', ['id' => $levelId]);
+        return $existsInLegacyLevel > 0 ? $levelId : null;
+    }
+
     if (billing_table_type('student') === 'BASE TABLE' && billing_table_has_column('student', 'levelId')) {
-        $existsInLegacyLevel = (int) db_value('SELECT COUNT(*) FROM level WHERE id = :id', ['id' => $levelId]);
+        $existsInLegacyLevel = (int) db_value('SELECT COUNT(*) FROM `level` WHERE id = :id', ['id' => $levelId]);
         return $existsInLegacyLevel > 0 ? $levelId : null;
     }
 
