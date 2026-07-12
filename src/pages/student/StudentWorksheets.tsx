@@ -413,11 +413,13 @@ const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; top
                 <Button asChild className="h-9 bg-[#11894e] px-3 text-xs text-white shadow-sm hover:bg-[#0e7442]">
                   <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link>
                 </Button>
-                <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
-                  <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>
-                    <History className="mr-1 h-3.5 w-3.5" />View Practices
-                  </Link>
-                </Button>
+                {topic.content_type !== "paper" ? (
+                  <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
+                    <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>
+                      <History className="mr-1 h-3.5 w-3.5" />View Practices
+                    </Link>
+                  </Button>
+                ) : null}
               </div>
             </div>
           </Card>

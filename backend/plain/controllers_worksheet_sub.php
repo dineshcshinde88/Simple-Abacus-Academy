@@ -193,7 +193,7 @@ function worksheet_sub_vedic_topic_specs(int $levelNumber): array
             ['slug' => 'fraction-addition', 'name' => 'Fraction Addition', 'kind' => 'fraction', 'op' => '+'],
             ['slug' => 'fraction-subtraction', 'name' => 'Fraction Subtraction', 'kind' => 'fraction', 'op' => '-'],
             ['slug' => 'fraction-multiplication', 'name' => 'Fraction Multiplication', 'kind' => 'fraction', 'op' => 'x'],
-            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => 'ï¿½'],
+            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => 'ÃƒÂ¯Ã‚Â¿Ã‚Â½'],
             ['slug' => 'vertical-crosswise-3d', 'name' => 'Vertical Crosswise (3D)', 'kind' => 'multiply_no_zero', 'a' => [111, 888], 'b' => [111, 888]],
             ['slug' => 'mixed-base-100-3d-x-2d', 'name' => 'Mixed Base 100 (3D x 2D)', 'kind' => 'multiply', 'a' => [101, 112], 'b' => [88, 99]],
             ['slug' => 'mixed-base-100-2d-x-3d', 'name' => 'Mixed Base 100 (2D x 3D)', 'kind' => 'multiply', 'a' => [88, 99], 'b' => [101, 112]],
@@ -365,13 +365,13 @@ function worksheet_sub_vedic_generate_one(array $spec): array
             do { $b = random_int($spec['b'][0], $spec['b'][1]); } while ($kind === 'division_decimal_no_zero_divisor' && $b % 10 === 0);
         }
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' ï¿½ ' . $b;
+        $question = $a . ' ÃƒÂ¯Ã‚Â¿Ã‚Â½ ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b + 1))];
     } elseif ($kind === 'fixed_division_decimal') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
         $b = (int) $spec['b'];
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' ï¿½ ' . $b;
+        $question = $a . ' ÃƒÂ¯Ã‚Â¿Ã‚Â½ ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b * 2))];
     } elseif ($kind === 'factor_multiply') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
@@ -384,7 +384,7 @@ function worksheet_sub_vedic_generate_one(array $spec): array
         $q = random_int(max(1, intdiv($spec['a'][0], $b)), max(2, intdiv($spec['a'][1], $b)));
         $a = $q * $b;
         $answer = (string) $q;
-        $question = $a . ' ï¿½ ' . $b;
+        $question = $a . ' ÃƒÂ¯Ã‚Â¿Ã‚Â½ ' . $b;
         $distractors = [(string) ($q + 1), (string) max(1, $q - 1), (string) ($q + random_int(2, 9))];
     } elseif ($kind === 'fraction') {
         do {
@@ -550,7 +550,7 @@ function worksheet_sub_render_question(array $numbers, string $operation): strin
     $symbol = match ($operation) {
         'subtraction' => '-',
         'multiplication' => 'x',
-        'division' => 'ï¿½',
+        'division' => 'ÃƒÂ¯Ã‚Â¿Ã‚Â½',
         default => '+',
     };
 
@@ -987,17 +987,15 @@ function worksheet_sub_request_level_id(): ?string
 
 function worksheet_sub_topic_level_id(string $topicId): ?string
 {
-    $topic = db_one('SELECT level_id FROM worksheet_topics WHERE id = :id LIMIT 1', ['id' => $topicId]);
-    if ($topic) {
-        return (string) $topic['level_id'];
-    }
     if (worksheet_sub_table_exists('worksheet_papers')) {
         $paper = db_one('SELECT level_id FROM worksheet_papers WHERE id = :id LIMIT 1', ['id' => $topicId]);
         if ($paper) {
             return (string) $paper['level_id'];
         }
     }
-    return null;
+
+    $topic = db_one('SELECT level_id FROM worksheet_topics WHERE id = :id LIMIT 1', ['id' => $topicId]);
+    return $topic ? (string) $topic['level_id'] : null;
 }
 
 function worksheet_sub_student_has_level(array $student, string $levelId): bool
@@ -1054,16 +1052,13 @@ function worksheet_sub_require_topic_access(array $ctx, string $topicId): array
         json_response(['message' => 'This worksheet level is locked. Please purchase the matching worksheet level subscription.'], 403);
     }
 
-    $topic = db_one(
-        'SELECT t.id, t.level_id, t.topic_name, t.total_questions, l.level_name, NULL AS paper_id, NULL AS paper_number, "topic" AS content_type
-         FROM worksheet_topics t
-         INNER JOIN worksheet_levels l ON l.id = t.level_id
-         WHERE t.id = :id AND t.level_id = :level_id
-         LIMIT 1',
-        ['id' => $topicId, 'level_id' => $level['id']]
-    );
+    $topic = null;
 
-    if (!$topic && worksheet_sub_table_exists('worksheet_papers')) {
+    if (worksheet_sub_is_foundation_or_level1($level) && !worksheet_sub_table_exists('worksheet_papers')) {
+        json_response(['message' => 'Worksheet papers table is missing for this subscription level.'], 500);
+    }
+
+    if (worksheet_sub_table_exists('worksheet_papers')) {
         $hasQuestionPaperId = worksheet_sub_table_has_column('worksheet_questions', 'paper_id');
         $questionJoin = $hasQuestionPaperId ? 'LEFT JOIN worksheet_questions wq ON wq.paper_id = wp.id' : '';
         $questionCount = $hasQuestionPaperId ? 'COUNT(wq.id)' : '0';
@@ -1087,8 +1082,19 @@ function worksheet_sub_require_topic_access(array $ctx, string $topicId): array
         );
     }
 
+    if (!$topic && !worksheet_sub_is_foundation_or_level1($level)) {
+        $topic = db_one(
+            'SELECT t.id, t.level_id, t.topic_name, t.total_questions, l.level_name, NULL AS paper_id, NULL AS paper_number, "topic" AS content_type
+             FROM worksheet_topics t
+             INNER JOIN worksheet_levels l ON l.id = t.level_id
+             WHERE t.id = :id AND t.level_id = :level_id
+             LIMIT 1',
+            ['id' => $topicId, 'level_id' => $level['id']]
+        );
+    }
+
     if (!$topic) {
-        json_response(['message' => 'Worksheet content not found for your subscription'], 404);
+        json_response(['message' => 'Worksheet paper not found for your subscription'], 404);
     }
 
     return [$student, $level, $topic];
@@ -1255,7 +1261,14 @@ function controller_student_worksheet_sub_questions(array $ctx, string $topicId)
 
 function controller_student_worksheet_sub_practices(array $ctx, string $topicId): void
 {
-    [$student] = worksheet_sub_require_topic_access($ctx, $topicId);
+    $access = worksheet_sub_require_topic_access($ctx, $topicId);
+    $student = $access[0];
+    $level = $access[1];
+    $content = $access[2];
+
+    if (worksheet_sub_is_foundation_or_level1($level) || (($content['content_type'] ?? '') === 'paper')) {
+        json_response(['practices' => []]);
+    }
 
     $rows = db_all(
         'SELECT id, student_id, topic_id, score, accuracy, total_questions, correct_answers, time_taken, status, mode, speed_tier, created_at
@@ -1292,7 +1305,29 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
     }
 
     $access = worksheet_sub_require_topic_access($ctx, $topicId);
+    $level = $access[1];
     $topic = $access[2];
+
+    if (worksheet_sub_is_foundation_or_level1($level) || (($topic['content_type'] ?? '') === 'paper')) {
+        json_response([
+            'practice' => [
+                'id' => 'paper-' . time(),
+                'student_id' => $student['id'],
+                'topic_id' => $topicId,
+                'score' => $score,
+                'accuracy' => $accuracy,
+                'total_questions' => $totalQuestions,
+                'correct_answers' => $correctAnswers,
+                'time_taken' => $timeTaken,
+                'status' => worksheet_sub_status($accuracy),
+                'mode' => $mode,
+                'speed_tier' => $speedTier,
+                'created_at' => now_sql(),
+                'paper_based' => true,
+            ],
+        ]);
+    }
+
     if ($mode === 'competition') {
         if (!worksheet_sub_is_vedic_level_name((string) ($topic['level_name'] ?? ''))) {
             json_response(['message' => 'Competition mode is available only for Vedic Maths worksheet topics.'], 422);

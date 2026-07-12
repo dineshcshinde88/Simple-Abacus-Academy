@@ -59,6 +59,7 @@ type SubmitPracticePayload = {
   timeTaken: number;
   mode?: "practice" | "competition";
   speedTier?: number | null;
+  contentType?: "topic" | "paper";
 };
 
 const API_BASE = getApiBase();
@@ -172,6 +173,11 @@ export async function submitWorksheetPractice(payload: SubmitPracticePayload): P
     speed_tier: payload.speedTier ?? null,
     created_at: new Date().toISOString(),
   };
+
+  if (payload.contentType === "paper") {
+    saveLocalPractice(localRecord);
+    return localRecord;
+  }
 
   try {
     const response = await fetch(`${API_BASE}/api/student/worksheet-sub/practices`, {
