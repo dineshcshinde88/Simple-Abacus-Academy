@@ -14,7 +14,6 @@ import {
   Play,
   RotateCcw,
   Save,
-  Search,
   Send,
   Volume2,
 } from "lucide-react";
@@ -370,17 +369,8 @@ const StudentWorksheets = () => {
   );
 };
 
-const paperNumberForTopic = (topic: WorksheetTopic, fallback: number) => {
-  const match = topic.topic_name.match(/paper\s*(\d+)/i);
-  return match ? Number(match[1]) : fallback;
-};
-
 const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; topics: WorksheetTopic[]; levelId?: string | null }) => {
   const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
-  const papers = useMemo(
-    () => [...topics].sort((a, b) => paperNumberForTopic(a, 0) - paperNumberForTopic(b, 0)),
-    [topics],
-  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -388,33 +378,50 @@ const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; top
       <LevelBox level={level} />
 
       <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="text-base font-bold text-slate-900">Worksheet Papers</h2>
-        <p className="text-sm text-slate-500">Select a paper to start the 60-question practice.</p>
+        <h2 className="text-base font-bold text-slate-900">Worksheet Topics</h2>
+        <p className="text-sm text-slate-500">Select a topic to view questions, practice, visualize steps or review attempts.</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {papers.length === 0 && (
-          <Card className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm sm:col-span-2 lg:col-span-3 xl:col-span-4">
-            <p className="font-semibold text-slate-800">No worksheet papers are available for this subscription yet.</p>
+      <div className="space-y-4">
+        {topics.length === 0 && (
+          <Card className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
+            <p className="font-semibold text-slate-800">No worksheet topics are available for this subscription yet.</p>
           </Card>
         )}
-        {papers.map((topic, index) => {
-          const paperNumber = paperNumberForTopic(topic, index + 1);
-          return (
-            <Link key={topic.id} to={`/student/worksheets/${topic.id}/practice${levelQuery}`} className="block">
-              <Card className="h-full rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#551896] hover:shadow-lg">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#551896] text-sm font-bold text-white">
-                  {paperNumber}
-                </div>
-                <h3 className="mt-4 text-lg font-bold text-slate-950">Paper {paperNumber}</h3>
-                <p className="mt-1 text-sm font-medium text-slate-500">{topic.total_questions || 60} questions</p>
-                <Button className="mt-4 w-full bg-[#ff6500] hover:bg-[#e95c00]">
-                  <Play className="mr-2 h-4 w-4" />Open Paper
+        {topics.map((topic, index) => (
+          <Card key={topic.id} className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-slate-950 sm:text-base">
+                  {index + 1}. {topic.topic_name}
+                </h3>
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  {topic.total_questions || 0} questions available
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
+                <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
+                  <Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}>
+                    <Eye className="mr-1 h-3.5 w-3.5" />View Questions
+                  </Link>
                 </Button>
-              </Card>
-            </Link>
-          );
-        })}
+                <Button asChild className="h-9 bg-[#ff6500] px-3 text-xs text-white shadow-sm hover:bg-[#e95c00]">
+                  <Link to={`/student/worksheets/${topic.id}/practice${levelQuery}`}>
+                    <Play className="mr-1 h-3.5 w-3.5" />Practice Now
+                  </Link>
+                </Button>
+                <Button asChild className="h-9 bg-[#11894e] px-3 text-xs text-white shadow-sm hover:bg-[#0e7442]">
+                  <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link>
+                </Button>
+                <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
+                  <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>
+                    <History className="mr-1 h-3.5 w-3.5" />View Practices
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
     </div>
   );

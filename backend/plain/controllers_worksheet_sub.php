@@ -193,7 +193,7 @@ function worksheet_sub_vedic_topic_specs(int $levelNumber): array
             ['slug' => 'fraction-addition', 'name' => 'Fraction Addition', 'kind' => 'fraction', 'op' => '+'],
             ['slug' => 'fraction-subtraction', 'name' => 'Fraction Subtraction', 'kind' => 'fraction', 'op' => '-'],
             ['slug' => 'fraction-multiplication', 'name' => 'Fraction Multiplication', 'kind' => 'fraction', 'op' => 'x'],
-            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => '÷'],
+            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => 'ï¿½'],
             ['slug' => 'vertical-crosswise-3d', 'name' => 'Vertical Crosswise (3D)', 'kind' => 'multiply_no_zero', 'a' => [111, 888], 'b' => [111, 888]],
             ['slug' => 'mixed-base-100-3d-x-2d', 'name' => 'Mixed Base 100 (3D x 2D)', 'kind' => 'multiply', 'a' => [101, 112], 'b' => [88, 99]],
             ['slug' => 'mixed-base-100-2d-x-3d', 'name' => 'Mixed Base 100 (2D x 3D)', 'kind' => 'multiply', 'a' => [88, 99], 'b' => [101, 112]],
@@ -365,13 +365,13 @@ function worksheet_sub_vedic_generate_one(array $spec): array
             do { $b = random_int($spec['b'][0], $spec['b'][1]); } while ($kind === 'division_decimal_no_zero_divisor' && $b % 10 === 0);
         }
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' ÷ ' . $b;
+        $question = $a . ' ï¿½ ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b + 1))];
     } elseif ($kind === 'fixed_division_decimal') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
         $b = (int) $spec['b'];
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' ÷ ' . $b;
+        $question = $a . ' ï¿½ ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b * 2))];
     } elseif ($kind === 'factor_multiply') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
@@ -384,7 +384,7 @@ function worksheet_sub_vedic_generate_one(array $spec): array
         $q = random_int(max(1, intdiv($spec['a'][0], $b)), max(2, intdiv($spec['a'][1], $b)));
         $a = $q * $b;
         $answer = (string) $q;
-        $question = $a . ' ÷ ' . $b;
+        $question = $a . ' ï¿½ ' . $b;
         $distractors = [(string) ($q + 1), (string) max(1, $q - 1), (string) ($q + random_int(2, 9))];
     } elseif ($kind === 'fraction') {
         do {
@@ -550,7 +550,7 @@ function worksheet_sub_render_question(array $numbers, string $operation): strin
     $symbol = match ($operation) {
         'subtraction' => '-',
         'multiplication' => 'x',
-        'division' => '÷',
+        'division' => 'ï¿½',
         default => '+',
     };
 
@@ -693,38 +693,22 @@ function worksheet_sub_repair_level_paper_topics(array $level): void
 
 function worksheet_sub_level_topics(array $level): array
 {
-    worksheet_sub_repair_level_paper_topics($level);
     $levelId = (string) ($level['id'] ?? '');
-
-    if (worksheet_sub_table_exists('worksheet_papers')) {
-        $paperTopics = db_all(
-            'SELECT
-                COALESCE(wp.topic_id, wt.id, wp.id) AS id,
-                wp.level_id,
-                COALESCE(wt.topic_name, wp.title, CONCAT("Paper ", wp.paper_number)) AS topic_name,
-                COALESCE(NULLIF(wp.total_questions, 0), COUNT(wq.id), wt.total_questions, 0) AS total_questions,
-                wp.id AS paper_id,
-                wp.paper_number
-             FROM worksheet_papers wp
-             LEFT JOIN worksheet_topics wt ON wt.id = wp.topic_id
-             LEFT JOIN worksheet_questions wq ON wq.paper_id = wp.id
-             WHERE wp.level_id = :level_id
-             GROUP BY wp.id, wp.topic_id, wt.id, wt.topic_name, wt.total_questions, wp.level_id, wp.title, wp.paper_number, wp.total_questions
-             ORDER BY wp.paper_number ASC',
-            ['level_id' => $levelId]
-        );
-        if ($paperTopics) {
-            return $paperTopics;
-        }
+    if ($levelId === '') {
+        error_log('[WorksheetAccess] Missing level id while resolving worksheet topics.');
+        return [];
     }
 
-    return db_all(
+    $topics = db_all(
         'SELECT id, level_id, topic_name, total_questions
          FROM worksheet_topics
          WHERE level_id = :level_id
          ORDER BY id ASC',
         ['level_id' => $levelId]
     );
+
+    error_log('[WorksheetAccess] Topic lookup level_id=' . $levelId . ' topic_count=' . count($topics));
+    return $topics;
 }
 function worksheet_sub_level_number(?string $name): ?string
 {

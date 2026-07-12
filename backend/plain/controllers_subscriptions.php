@@ -1565,6 +1565,27 @@ function controller_student_courses(array $ctx): void
     json_response(['courses' => get_student_courses_for_dashboard((string) $student['id'])]);
 }
 
+function subscription_plan_rows_for_shop(): array
+{
+    try {
+        return db_all(
+            'SELECT p.*, l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug
+             FROM subscription_plans p
+             LEFT JOIN levels l ON l.id = p.level_id
+             LEFT JOIN courses c ON c.id = l.course_id
+             WHERE p.is_active = 1
+             ORDER BY COALESCE(c.name, p.name), COALESCE(l.level_name, p.name), p.price ASC'
+        );
+    } catch (Throwable $e) {
+        error_log('[ShopAPI] subscription plan relation query failed: ' . $e->getMessage());
+        return db_all(
+            'SELECT p.*, NULL AS level_name, NULL AS course_id, NULL AS course_name, NULL AS course_slug
+             FROM subscription_plans p
+             WHERE p.is_active = 1
+             ORDER BY p.name, p.price ASC'
+        );
+    }
+}
 function controller_student_subscription_plans(array $ctx): void
 {
     ensure_billing_schema();
@@ -1573,14 +1594,7 @@ function controller_student_subscription_plans(array $ctx): void
         json_response(['message' => 'Student not found'], 404);
     }
 
-    $rows = db_all(
-        'SELECT p.*, l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug
-         FROM subscription_plans p
-         LEFT JOIN levels l ON l.id = p.level_id
-         LEFT JOIN courses c ON c.id = l.course_id
-         WHERE p.is_active = 1
-         ORDER BY COALESCE(c.name, p.name), COALESCE(l.level_name, p.name), p.price ASC'
-    );
+    $rows = subscription_plan_rows_for_shop();
 
     $plans = array_map(static function (array $row): array {
         return [
@@ -1605,14 +1619,7 @@ function controller_public_subscription_plans(): void
 {
     ensure_billing_schema();
 
-    $rows = db_all(
-        'SELECT p.*, l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug
-         FROM subscription_plans p
-         LEFT JOIN levels l ON l.id = p.level_id
-         LEFT JOIN courses c ON c.id = l.course_id
-         WHERE p.is_active = 1
-         ORDER BY COALESCE(c.name, p.name), COALESCE(l.level_name, p.name), p.price ASC'
-    );
+    $rows = subscription_plan_rows_for_shop();
 
     $plans = array_map(static function (array $row): array {
         return [
@@ -1643,7 +1650,12 @@ function controller_student_subscription_summary(array $ctx): void
     }
 
     $gateway = get_payment_gateway_config('razorpay');
-    $overview = get_student_subscription_overview($student['id']);
+    try {
+        $overview = get_student_subscription_overview((string) $student['id']);
+    } catch (Throwable $e) {
+        error_log('[ShopAPI] subscription summary failed for student=' . ($student['id'] ?? '') . ': ' . $e->getMessage());
+        $overview = ['current' => null, 'history' => []];
+    }
 
     json_response([
         'student' => [

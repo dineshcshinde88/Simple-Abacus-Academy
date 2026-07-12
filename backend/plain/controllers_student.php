@@ -8,13 +8,22 @@ function controller_student_dashboard(array $ctx): void
     }
 
     if (function_exists('sync_student_subscription_state')) {
-        sync_student_subscription_state((string) $student['id']);
-        $student = current_student($ctx['user']['id']);
+        try {
+            sync_student_subscription_state((string) $student['id']);
+            $student = current_student($ctx['user']['id']);
+        } catch (Throwable $e) {
+            error_log('[DashboardAPI] subscription sync failed for student=' . ($student['id'] ?? '') . ': ' . $e->getMessage());
+        }
     }
 
-    $subscriptionOverview = function_exists('get_student_subscription_overview')
-        ? get_student_subscription_overview((string) $student['id'])
-        : ['current' => null, 'history' => []];
+    try {
+        $subscriptionOverview = function_exists('get_student_subscription_overview')
+            ? get_student_subscription_overview((string) $student['id'])
+            : ['current' => null, 'history' => []];
+    } catch (Throwable $e) {
+        error_log('[DashboardAPI] subscription overview failed for student=' . ($student['id'] ?? '') . ': ' . $e->getMessage());
+        $subscriptionOverview = ['current' => null, 'history' => []];
+    }
     $activeSubscriptions = array_values(array_filter(
         $subscriptionOverview['history'] ?? [],
         static fn(array $sub): bool => ($sub['status'] ?? '') === 'active'
@@ -40,67 +49,89 @@ function controller_student_dashboard(array $ctx): void
         $activeSubscriptions
     ))));
     $countByLevels = static function (string $table) use ($activeLevelIds, $student): int {
+        try {
+            if ($activeLevelIds) {
+                $placeholders = [];
+                $params = [];
+                foreach ($activeLevelIds as $index => $levelId) {
+                    $key = 'level_' . $index;
+                    $placeholders[] = ':' . $key;
+                    $params[$key] = $levelId;
+                }
+                return (int) db_value('SELECT COUNT(*) FROM ' . $table . ' WHERE level_id IN (' . implode(',', $placeholders) . ')', $params);
+            }
+            return !empty($student['level_id']) ? (int) db_value('SELECT COUNT(*) FROM ' . $table . ' WHERE level_id = :id', ['id' => $student['level_id']]) : 0;
+        } catch (Throwable $e) {
+            error_log('[DashboardAPI] worksheet count failed table=' . $table . ' student=' . ($student['id'] ?? '') . ': ' . $e->getMessage());
+            return 0;
+        }
+    };
+
+    $worksheetsCount = 0;
+    try {
         if ($activeLevelIds) {
             $placeholders = [];
             $params = [];
             foreach ($activeLevelIds as $index => $levelId) {
-                $key = 'level_' . $index;
+                $key = 'worksheet_level_' . $index;
                 $placeholders[] = ':' . $key;
                 $params[$key] = $levelId;
             }
-            return (int) db_value('SELECT COUNT(*) FROM ' . $table . ' WHERE level_id IN (' . implode(',', $placeholders) . ')', $params);
+            if (function_exists('worksheet_sub_table_exists') && worksheet_sub_table_exists('worksheet_topics')) {
+                $worksheetsCount = (int) db_value(
+                    'SELECT COUNT(*) FROM worksheet_topics WHERE level_id IN (' . implode(',', $placeholders) . ')',
+                    $params
+                );
+            }
+            if ($worksheetsCount === 0 && function_exists('worksheet_sub_table_exists') && worksheet_sub_table_exists('worksheet_papers')) {
+                $worksheetsCount = (int) db_value(
+                    'SELECT COUNT(*) FROM worksheet_papers WHERE level_id IN (' . implode(',', $placeholders) . ')',
+                    $params
+                );
+            }
         }
-        return !empty($student['level_id']) ? (int) db_value('SELECT COUNT(*) FROM ' . $table . ' WHERE level_id = :id', ['id' => $student['level_id']]) : 0;
-    };
-
-    $worksheetsCount = 0;
-    if ($activeLevelIds && function_exists('worksheet_sub_table_exists') && worksheet_sub_table_exists('worksheet_papers')) {
-        $placeholders = [];
-        $params = [];
-        foreach ($activeLevelIds as $index => $levelId) {
-            $key = 'worksheet_level_' . $index;
-            $placeholders[] = ':' . $key;
-            $params[$key] = $levelId;
-        }
-        $worksheetsCount = (int) db_value(
-            'SELECT COUNT(*) FROM worksheet_papers WHERE level_id IN (' . implode(',', $placeholders) . ')',
-            $params
-        );
+    } catch (Throwable $e) {
+        error_log('[DashboardAPI] worksheet subscription count failed student=' . ($student['id'] ?? '') . ': ' . $e->getMessage());
+        $worksheetsCount = 0;
     }
     if ($worksheetsCount === 0) {
         $worksheetsCount = $countByLevels('worksheets');
     }
     $practice = ['purchasedLevels' => 0, 'completedPapers' => 0, 'pendingPapers' => 0, 'averageAccuracy' => 0.0];
     if (function_exists('ensure_practice_schema')) {
-        ensure_practice_schema();
-        $practiceRow = db_one(
-            'SELECT COUNT(DISTINCT sr.paper_id) AS completed_papers, AVG(sr.accuracy) AS average_accuracy
-             FROM student_results sr
-             WHERE sr.student_id = :student_id',
-            ['student_id' => $student['id']]
-        ) ?: [];
-        $purchased = (int) db_value(
-            'SELECT COUNT(DISTINCT level_id)
-             FROM student_subscriptions
-             WHERE student_id = :student_id AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts',
-            ['student_id' => $student['id'], 'now_ts' => now_sql()]
-        );
-        $totalUnlockedPapers = (int) db_value(
-            'SELECT COUNT(*)
-             FROM practice_papers p
-             WHERE p.is_active = 1 AND p.level_id IN (
-               SELECT DISTINCT level_id FROM student_subscriptions
-               WHERE student_id = :student_id AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts
-             )',
-            ['student_id' => $student['id'], 'now_ts' => now_sql()]
-        );
-        $completed = (int) ($practiceRow['completed_papers'] ?? 0);
-        $practice = [
-            'purchasedLevels' => $purchased,
-            'completedPapers' => $completed,
-            'pendingPapers' => max(0, $totalUnlockedPapers - $completed),
-            'averageAccuracy' => round((float) ($practiceRow['average_accuracy'] ?? 0), 2),
-        ];
+        try {
+            ensure_practice_schema();
+            $practiceRow = db_one(
+                'SELECT COUNT(DISTINCT sr.paper_id) AS completed_papers, AVG(sr.accuracy) AS average_accuracy
+                 FROM student_results sr
+                 WHERE sr.student_id = :student_id',
+                ['student_id' => $student['id']]
+            ) ?: [];
+            $purchased = (int) db_value(
+                'SELECT COUNT(DISTINCT level_id)
+                 FROM student_subscriptions
+                 WHERE student_id = :student_id AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts',
+                ['student_id' => $student['id'], 'now_ts' => now_sql()]
+            );
+            $totalUnlockedPapers = (int) db_value(
+                'SELECT COUNT(*)
+                 FROM practice_papers p
+                 WHERE p.is_active = 1 AND p.level_id IN (
+                   SELECT DISTINCT level_id FROM student_subscriptions
+                   WHERE student_id = :student_id AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts
+                 )',
+                ['student_id' => $student['id'], 'now_ts' => now_sql()]
+            );
+            $completed = (int) ($practiceRow['completed_papers'] ?? 0);
+            $practice = [
+                'purchasedLevels' => $purchased,
+                'completedPapers' => $completed,
+                'pendingPapers' => max(0, $totalUnlockedPapers - $completed),
+                'averageAccuracy' => round((float) ($practiceRow['average_accuracy'] ?? 0), 2),
+            ];
+        } catch (Throwable $e) {
+            error_log('[DashboardAPI] practice summary failed student=' . ($student['id'] ?? '') . ': ' . $e->getMessage());
+        }
     }
 
     $batches = [];
@@ -144,13 +175,22 @@ function controller_student_profile(array $ctx): void
     }
 
     if (function_exists('sync_student_subscription_state')) {
-        sync_student_subscription_state((string) $student['id']);
-        $student = current_student($ctx['user']['id']);
+        try {
+            sync_student_subscription_state((string) $student['id']);
+            $student = current_student($ctx['user']['id']);
+        } catch (Throwable $e) {
+            error_log('[DashboardAPI] subscription sync failed for student=' . ($student['id'] ?? '') . ': ' . $e->getMessage());
+        }
     }
 
-    $subscriptionOverview = function_exists('get_student_subscription_overview')
-        ? get_student_subscription_overview((string) $student['id'])
-        : ['current' => null, 'history' => []];
+    try {
+        $subscriptionOverview = function_exists('get_student_subscription_overview')
+            ? get_student_subscription_overview((string) $student['id'])
+            : ['current' => null, 'history' => []];
+    } catch (Throwable $e) {
+        error_log('[DashboardAPI] subscription overview failed for student=' . ($student['id'] ?? '') . ': ' . $e->getMessage());
+        $subscriptionOverview = ['current' => null, 'history' => []];
+    }
 
     json_response([
         'profile' => [
