@@ -193,7 +193,7 @@ function worksheet_sub_vedic_topic_specs(int $levelNumber): array
             ['slug' => 'fraction-addition', 'name' => 'Fraction Addition', 'kind' => 'fraction', 'op' => '+'],
             ['slug' => 'fraction-subtraction', 'name' => 'Fraction Subtraction', 'kind' => 'fraction', 'op' => '-'],
             ['slug' => 'fraction-multiplication', 'name' => 'Fraction Multiplication', 'kind' => 'fraction', 'op' => 'x'],
-            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => '�'],
+            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => 'ï¿½'],
             ['slug' => 'vertical-crosswise-3d', 'name' => 'Vertical Crosswise (3D)', 'kind' => 'multiply_no_zero', 'a' => [111, 888], 'b' => [111, 888]],
             ['slug' => 'mixed-base-100-3d-x-2d', 'name' => 'Mixed Base 100 (3D x 2D)', 'kind' => 'multiply', 'a' => [101, 112], 'b' => [88, 99]],
             ['slug' => 'mixed-base-100-2d-x-3d', 'name' => 'Mixed Base 100 (2D x 3D)', 'kind' => 'multiply', 'a' => [88, 99], 'b' => [101, 112]],
@@ -365,13 +365,13 @@ function worksheet_sub_vedic_generate_one(array $spec): array
             do { $b = random_int($spec['b'][0], $spec['b'][1]); } while ($kind === 'division_decimal_no_zero_divisor' && $b % 10 === 0);
         }
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' � ' . $b;
+        $question = $a . ' ï¿½ ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b + 1))];
     } elseif ($kind === 'fixed_division_decimal') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
         $b = (int) $spec['b'];
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' � ' . $b;
+        $question = $a . ' ï¿½ ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b * 2))];
     } elseif ($kind === 'factor_multiply') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
@@ -384,7 +384,7 @@ function worksheet_sub_vedic_generate_one(array $spec): array
         $q = random_int(max(1, intdiv($spec['a'][0], $b)), max(2, intdiv($spec['a'][1], $b)));
         $a = $q * $b;
         $answer = (string) $q;
-        $question = $a . ' � ' . $b;
+        $question = $a . ' ï¿½ ' . $b;
         $distractors = [(string) ($q + 1), (string) max(1, $q - 1), (string) ($q + random_int(2, 9))];
     } elseif ($kind === 'fraction') {
         do {
@@ -550,7 +550,7 @@ function worksheet_sub_render_question(array $numbers, string $operation): strin
     $symbol = match ($operation) {
         'subtraction' => '-',
         'multiplication' => 'x',
-        'division' => '�',
+        'division' => 'ï¿½',
         default => '+',
     };
 
@@ -691,21 +691,75 @@ function worksheet_sub_repair_level_paper_topics(array $level): void
     }
 }
 
+
+function worksheet_sub_is_foundation_or_level1(array $level): bool
+{
+    $name = (string) ($level['level_name'] ?? '');
+    if (!worksheet_sub_is_abacus_level_name($name)) {
+        return false;
+    }
+    $levelNumber = worksheet_sub_level_number($name);
+    return $levelNumber === '0' || $levelNumber === '1';
+}
+
+function worksheet_sub_level_papers(array $level): array
+{
+    $levelId = (string) ($level['id'] ?? '');
+    if ($levelId === '' || !worksheet_sub_table_exists('worksheet_papers')) {
+        return [];
+    }
+
+    $hasQuestionPaperId = worksheet_sub_table_has_column('worksheet_questions', 'paper_id');
+    $questionJoin = $hasQuestionPaperId ? 'LEFT JOIN worksheet_questions wq ON wq.paper_id = wp.id' : '';
+    $questionCount = $hasQuestionPaperId ? 'COUNT(wq.id)' : '0';
+
+    return db_all(
+        'SELECT
+            wp.id,
+            wp.level_id,
+            COALESCE(NULLIF(wp.title, ""), CONCAT("Paper ", wp.paper_number)) AS topic_name,
+            COALESCE(NULLIF(wp.total_questions, 0), ' . $questionCount . ', 0) AS total_questions,
+            wp.id AS paper_id,
+            wp.topic_id,
+            wp.paper_number,
+            "paper" AS content_type
+         FROM worksheet_papers wp
+         ' . $questionJoin . '
+         WHERE wp.level_id = :level_id
+         GROUP BY wp.id, wp.level_id, wp.title, wp.total_questions, wp.topic_id, wp.paper_number
+         ORDER BY wp.paper_number ASC, wp.id ASC',
+        ['level_id' => $levelId]
+    );
+}
 function worksheet_sub_level_topics(array $level): array
 {
     $levelId = (string) ($level['id'] ?? '');
     if ($levelId === '') {
-        error_log('[WorksheetAccess] Missing level id while resolving worksheet topics.');
+        error_log('[WorksheetAccess] Missing level id while resolving worksheet content.');
         return [];
     }
 
+    if (worksheet_sub_is_foundation_or_level1($level)) {
+        $papers = worksheet_sub_level_papers($level);
+        error_log('[WorksheetAccess] Paper lookup level_id=' . $levelId . ' paper_count=' . count($papers));
+        return $papers;
+    }
+
     $topics = db_all(
-        'SELECT id, level_id, topic_name, total_questions
+        'SELECT id, level_id, topic_name, total_questions, NULL AS paper_id, NULL AS paper_number, "topic" AS content_type
          FROM worksheet_topics
          WHERE level_id = :level_id
          ORDER BY id ASC',
         ['level_id' => $levelId]
     );
+
+    if (!$topics) {
+        $papers = worksheet_sub_level_papers($level);
+        if ($papers) {
+            error_log('[WorksheetAccess] Topic lookup empty; using papers level_id=' . $levelId . ' paper_count=' . count($papers));
+            return $papers;
+        }
+    }
 
     error_log('[WorksheetAccess] Topic lookup level_id=' . $levelId . ' topic_count=' . count($topics));
     return $topics;
@@ -934,7 +988,16 @@ function worksheet_sub_request_level_id(): ?string
 function worksheet_sub_topic_level_id(string $topicId): ?string
 {
     $topic = db_one('SELECT level_id FROM worksheet_topics WHERE id = :id LIMIT 1', ['id' => $topicId]);
-    return $topic ? (string) $topic['level_id'] : null;
+    if ($topic) {
+        return (string) $topic['level_id'];
+    }
+    if (worksheet_sub_table_exists('worksheet_papers')) {
+        $paper = db_one('SELECT level_id FROM worksheet_papers WHERE id = :id LIMIT 1', ['id' => $topicId]);
+        if ($paper) {
+            return (string) $paper['level_id'];
+        }
+    }
+    return null;
 }
 
 function worksheet_sub_student_has_level(array $student, string $levelId): bool
@@ -992,15 +1055,40 @@ function worksheet_sub_require_topic_access(array $ctx, string $topicId): array
     }
 
     $topic = db_one(
-        'SELECT t.id, t.level_id, t.topic_name, t.total_questions, l.level_name
+        'SELECT t.id, t.level_id, t.topic_name, t.total_questions, l.level_name, NULL AS paper_id, NULL AS paper_number, "topic" AS content_type
          FROM worksheet_topics t
          INNER JOIN worksheet_levels l ON l.id = t.level_id
          WHERE t.id = :id AND t.level_id = :level_id
          LIMIT 1',
         ['id' => $topicId, 'level_id' => $level['id']]
     );
+
+    if (!$topic && worksheet_sub_table_exists('worksheet_papers')) {
+        $hasQuestionPaperId = worksheet_sub_table_has_column('worksheet_questions', 'paper_id');
+        $questionJoin = $hasQuestionPaperId ? 'LEFT JOIN worksheet_questions wq ON wq.paper_id = wp.id' : '';
+        $questionCount = $hasQuestionPaperId ? 'COUNT(wq.id)' : '0';
+        $topic = db_one(
+            'SELECT
+                wp.id,
+                wp.level_id,
+                COALESCE(NULLIF(wp.title, ""), CONCAT("Paper ", wp.paper_number)) AS topic_name,
+                COALESCE(NULLIF(wp.total_questions, 0), ' . $questionCount . ', 0) AS total_questions,
+                wl.level_name,
+                wp.id AS paper_id,
+                wp.paper_number,
+                "paper" AS content_type
+             FROM worksheet_papers wp
+             INNER JOIN worksheet_levels wl ON wl.id = wp.level_id
+             ' . $questionJoin . '
+             WHERE wp.id = :id AND wp.level_id = :level_id
+             GROUP BY wp.id, wp.level_id, wp.title, wp.total_questions, wl.level_name, wp.paper_number
+             LIMIT 1',
+            ['id' => $topicId, 'level_id' => $level['id']]
+        );
+    }
+
     if (!$topic) {
-        json_response(['message' => 'Topic not found for your worksheet subscription'], 404);
+        json_response(['message' => 'Worksheet content not found for your subscription'], 404);
     }
 
     return [$student, $level, $topic];
@@ -1066,7 +1154,9 @@ function worksheet_sub_maybe_unlock_next_tier(string $studentId, string $topicId
 function controller_student_worksheet_sub_dashboard(array $ctx): void
 {
     [$student, $level] = worksheet_sub_require_student_level($ctx);
-    worksheet_sub_ensure_dynamic_topics($level);
+    if (!worksheet_sub_is_foundation_or_level1($level)) {
+        worksheet_sub_ensure_dynamic_topics($level);
+    }
 
     $topics = worksheet_sub_level_topics($level);
 
@@ -1104,15 +1194,31 @@ function controller_student_worksheet_sub_questions(array $ctx, string $topicId)
         worksheet_sub_assert_competition_tier((string) $student['id'], $topicId, $speedTier);
     }
 
-    $questions = db_all(
-        'SELECT id, topic_id, question, answer
-         FROM worksheet_questions
-         WHERE topic_id = :topic_id
-         ORDER BY id ASC',
-        ['topic_id' => $topicId]
-    );
+    $isPaper = (($topic['content_type'] ?? '') === 'paper') || !empty($topic['paper_id']);
+    $hasQuestionPaperId = worksheet_sub_table_has_column('worksheet_questions', 'paper_id');
+    $hasQuestionNumber = worksheet_sub_table_has_column('worksheet_questions', 'question_number');
+    $paperSelect = $hasQuestionPaperId ? 'paper_id' : 'NULL AS paper_id';
+    $orderBy = $hasQuestionNumber ? 'COALESCE(question_number, 999999), id ASC' : 'id ASC';
 
-    if (!$questions) {
+    if ($isPaper && $hasQuestionPaperId) {
+        $questions = db_all(
+            'SELECT id, COALESCE(topic_id, paper_id) AS topic_id, ' . $paperSelect . ', question, answer
+             FROM worksheet_questions
+             WHERE paper_id = :paper_id
+             ORDER BY ' . $orderBy,
+            ['paper_id' => $topicId]
+        );
+    } else {
+        $questions = db_all(
+            'SELECT id, topic_id, ' . $paperSelect . ', question, answer
+             FROM worksheet_questions
+             WHERE topic_id = :topic_id
+             ORDER BY ' . $orderBy,
+            ['topic_id' => $topicId]
+        );
+    }
+
+    if (!$questions && !$isPaper) {
         $questions = worksheet_sub_generate_dynamic_questions($topic);
     }
 

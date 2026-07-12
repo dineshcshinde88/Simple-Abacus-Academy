@@ -378,14 +378,14 @@ const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; top
       <LevelBox level={level} />
 
       <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="text-base font-bold text-slate-900">Worksheet Topics</h2>
-        <p className="text-sm text-slate-500">Select a topic to view questions, practice, visualize steps or review attempts.</p>
+        <h2 className="text-base font-bold text-slate-900">Worksheets</h2>
+        <p className="text-sm text-slate-500">Select a worksheet to view questions, practice, visualize steps or review attempts.</p>
       </div>
 
       <div className="space-y-4">
         {topics.length === 0 && (
           <Card className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
-            <p className="font-semibold text-slate-800">No worksheet topics are available for this subscription yet.</p>
+            <p className="font-semibold text-slate-800">No worksheets are available for this subscription yet.</p>
           </Card>
         )}
         {topics.map((topic, index) => (

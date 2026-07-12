@@ -10,6 +10,9 @@ export type WorksheetTopic = {
   level_id: string;
   topic_name: string;
   total_questions: number;
+  paper_id?: string | null;
+  paper_number?: number | null;
+  content_type?: "topic" | "paper";
   mode?: "vedic";
   competition?: {
     unlockedTier: number;
@@ -21,6 +24,7 @@ export type WorksheetTopic = {
 export type WorksheetQuestion = {
   id: string;
   topic_id: string;
+  paper_id?: string | null;
   question: string;
   answer: string;
   options?: string[];
