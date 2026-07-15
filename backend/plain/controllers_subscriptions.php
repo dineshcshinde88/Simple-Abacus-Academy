@@ -613,6 +613,10 @@ function map_subscription_row(array $row): array
         'planName' => $row['plan_name'] ?? '',
         'levelId' => $row['level_id'] ?? null,
         'levelName' => $row['level_name'] ?? null,
+        'courseId' => $row['course_id'] ?? null,
+        'courseName' => $row['course_name'] ?? null,
+        'courseSlug' => $row['course_slug'] ?? null,
+        'productId' => $row['course_id'] ?? null,
         'amount' => (float) ($row['amount'] ?? 0),
         'currency' => $row['currency'] ?? 'INR',
         'startDate' => $row['start_date'] ?? null,
@@ -1607,7 +1611,7 @@ function subscription_is_active_window(?string $startDate, ?string $endDate, boo
     return $endTs !== false && $endTs >= time();
 }
 
-function getActiveWorksheetSubscription(string $studentId): ?array
+function getActiveWorksheetSubscriptions(string $studentId): array
 {
     ensure_billing_schema();
     if (function_exists('repair_paid_payment_attempt_subscriptions')) {
@@ -1628,7 +1632,7 @@ function getActiveWorksheetSubscription(string $studentId): ?array
         ['student_id' => $studentId]
     );
 
-    $now = now_sql();
+    $activeSubscriptions = [];
     foreach ($rows as $row) {
         $paymentStatus = strtolower((string) ($row['payment_status'] ?? ''));
         $subscriptionStatus = strtolower((string) ($row['status'] ?? ''));
@@ -1672,19 +1676,18 @@ function getActiveWorksheetSubscription(string $studentId): ?array
         }
 
         $programType = subscription_program_type_from_text((string) ($level['level_name'] ?? '') . ' ' . $courseSlug . ' ' . $courseName) ?: 'abacus';
-        if ((string) ($row['level_id'] ?? '') !== (string) ($level['id'] ?? '')) {
-            db_exec_sql(
-                'UPDATE student_subscriptions SET level_id = :level_id, updated_at = :updated_at WHERE id = :id',
-                ['level_id' => $level['id'], 'updated_at' => $now, 'id' => $row['id']]
-            );
-        }
-
-        return [
+        $activeSubscriptions[] = [
             'subscription_id' => $row['id'],
             'id' => $row['id'],
             'user_id' => $studentId,
             'student_id' => $studentId,
             'product_id' => $row['course_id'] ?? null,
+            'course_id' => $row['course_id'] ?? null,
+            'courseId' => $row['course_id'] ?? null,
+            'course_name' => $courseName,
+            'courseName' => $courseName,
+            'course_slug' => $courseSlug,
+            'courseSlug' => $courseSlug,
             'plan_id' => $row['plan_id'] ?? null,
             'planId' => $row['plan_id'] ?? null,
             'program_type' => $programType,
@@ -1714,7 +1717,13 @@ function getActiveWorksheetSubscription(string $studentId): ?array
         ];
     }
 
-    return null;
+    return $activeSubscriptions;
+}
+
+function getActiveWorksheetSubscription(string $studentId): ?array
+{
+    $active = getActiveWorksheetSubscriptions($studentId);
+    return $active[0] ?? null;
 }
 function get_student_subscription_overview(string $studentId): array
 {
@@ -1722,12 +1731,14 @@ function get_student_subscription_overview(string $studentId): array
     $current = sync_student_subscription_state($studentId);
     repair_student_course_enrollments($studentId);
 
-    $activeWorksheet = getActiveWorksheetSubscription($studentId);
+    $activeWorksheetLevels = getActiveWorksheetSubscriptions($studentId);
+    $activeWorksheet = $activeWorksheetLevels[0] ?? null;
 
     $historyRows = db_all(
-        'SELECT ss.*, l.level_name
+        'SELECT ss.*, l.level_name, l.course_id, c.name AS course_name, c.slug AS course_slug
          FROM student_subscriptions ss
          LEFT JOIN levels l ON l.id = ss.level_id
+         LEFT JOIN courses c ON c.id = l.course_id
          WHERE ss.student_id = :student_id
          ORDER BY ss.created_at DESC
          LIMIT 20',
@@ -1738,6 +1749,7 @@ function get_student_subscription_overview(string $studentId): array
         'current' => $activeWorksheet ?: ($current ? map_subscription_row($current) : null),
         'history' => array_map(static fn(array $row): array => map_subscription_row($row), $historyRows),
         'activeWorksheet' => $activeWorksheet,
+        'activeWorksheetLevels' => $activeWorksheetLevels,
     ];
 }
 
@@ -3164,3 +3176,6 @@ function controller_run_subscription_reminders(): void
         'ranAt' => gmdate('c'),
     ]);
 }
+
+
+

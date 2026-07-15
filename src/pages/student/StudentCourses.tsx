@@ -15,6 +15,27 @@ const formatDate = (value?: string | null) => {
   return d.toLocaleDateString();
 };
 
+const worksheetProgramType = (course: StudentCourseData): "abacus" | "vedic" => {
+  const text = `${course.courseSlug || ""} ${course.courseName || ""} ${course.planName || ""} ${course.levelName || ""}`.toLowerCase();
+  return text.includes("vedic") ? "vedic" : "abacus";
+};
+
+const worksheetUrl = (course: StudentCourseData): string | null => {
+  const program = worksheetProgramType(course);
+  if (!program || !course.levelId || !course.subscriptionId) return null;
+  const params = new URLSearchParams({
+    view: "topics",
+    program,
+    levelId: course.levelId,
+    subscriptionId: course.subscriptionId,
+  });
+  if (course.courseId) {
+    params.set("courseId", course.courseId);
+    params.set("productId", course.courseId);
+  }
+  return `/student/worksheets?${params.toString()}`;
+};
+
 const StudentCourses = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -105,7 +126,20 @@ const StudentCourses = () => {
               </div>
 
               <div className="mt-5">
-                <Button variant="outline" onClick={() => navigate("/student/worksheets")}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const url = worksheetUrl(course);
+                    if (!url) {
+                      toast({
+                        title: "Worksheet access unavailable",
+                        description: "This course is missing level or subscription details. Please refresh and try again.",
+                      });
+                      return;
+                    }
+                    navigate(url);
+                  }}
+                >
                   Worksheets
                 </Button>
               </div>
@@ -118,3 +152,6 @@ const StudentCourses = () => {
 };
 
 export default StudentCourses;
+
+
+

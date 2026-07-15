@@ -68,6 +68,14 @@ export type WorksheetDashboardPayload = {
   topics: WorksheetTopic[];
 };
 
+export type WorksheetAccessParams = {
+  levelId?: string | null;
+  subscriptionId?: string | null;
+  program?: string | null;
+  courseId?: string | null;
+  productId?: string | null;
+};
+
 type SubmitPracticePayload = {
   topicId: string;
   score: number;
@@ -91,6 +99,19 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function worksheetQuery(params?: WorksheetAccessParams & { mode?: "practice" | "competition"; speedTier?: number | null }): string {
+  const query = new URLSearchParams();
+  if (params?.levelId) query.set("levelId", params.levelId);
+  if (params?.subscriptionId) query.set("subscriptionId", params.subscriptionId);
+  if (params?.program) query.set("program", params.program);
+  if (params?.courseId) query.set("courseId", params.courseId);
+  if (params?.productId) query.set("productId", params.productId);
+  if (params?.mode) query.set("mode", params.mode);
+  if (params?.speedTier) query.set("speedTier", String(params.speedTier));
+  const value = query.toString();
+  return value ? `?${value}` : "";
+}
+
 async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
   if (!response.ok) {
@@ -100,19 +121,16 @@ async function apiGet<T>(path: string): Promise<T> {
   return response.json();
 }
 
-export async function fetchWorksheetDashboard(levelId?: string | null): Promise<WorksheetDashboardPayload> {
-  const query = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
+export async function fetchWorksheetDashboard(params?: string | null | WorksheetAccessParams): Promise<WorksheetDashboardPayload> {
+  const query = typeof params === "string" || params === null ? worksheetQuery({ levelId: params }) : worksheetQuery(params);
   return apiGet<WorksheetDashboardPayload>(`/api/student/worksheet-sub${query}`);
 }
 
 export async function fetchWorksheetQuestions(
   topic: WorksheetTopic,
-  options?: { mode?: "practice" | "competition"; speedTier?: number | null },
+  options?: { mode?: "practice" | "competition"; speedTier?: number | null } & WorksheetAccessParams,
 ): Promise<WorksheetQuestion[]> {
-  const params = new URLSearchParams();
-  if (options?.mode) params.set("mode", options.mode);
-  if (options?.speedTier) params.set("speedTier", String(options.speedTier));
-  const query = params.toString() ? `?${params.toString()}` : "";
+  const query = worksheetQuery(options);
   const data = await apiGet<{ questions: WorksheetQuestion[] }>(`/api/student/worksheet-sub/topics/${topic.id}/questions${query}`);
   return data.questions.map((question) => ({ ...question, options: shuffleOptions(resolveQuestionOptions(question)) }));
 }

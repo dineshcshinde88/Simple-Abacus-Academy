@@ -879,15 +879,26 @@ function worksheet_sub_match_level(array $subscription): ?array
     return null;
 }
 
+function worksheet_sub_debug_log(string $event, array $metadata = []): void
+{
+    error_log('[worksheet-sub] ' . $event . ' ' . json_encode($metadata));
+}
+
 function worksheet_sub_log_access_denied(string $studentId, ?string $requestedLevelId, string $reason, array $metadata = []): void
 {
+    worksheet_sub_debug_log('access_denied', $metadata + [
+        'student_id' => $studentId,
+        'requested_level_id' => $requestedLevelId,
+        'reason' => $reason,
+    ]);
+
     if (function_exists('payment_audit_log')) {
         payment_audit_log(
             'Worksheet Access Denied',
             'warning',
             $studentId,
             null,
-            null,
+            $metadata['subscriptionId'] ?? null,
             $requestedLevelId,
             $reason,
             $metadata
@@ -910,20 +921,31 @@ function worksheet_sub_student_levels(array $student): array
         repair_student_course_enrollments($studentId);
     }
 
-    if (function_exists('getActiveWorksheetSubscription')) {
-        $active = getActiveWorksheetSubscription($studentId);
-        if ($active && !empty($active['is_active']) && !empty($active['level_id'])) {
-            return [[
+    if (function_exists('getActiveWorksheetSubscriptions')) {
+        $activeSubscriptions = getActiveWorksheetSubscriptions($studentId);
+        $unlocked = [];
+        foreach ($activeSubscriptions as $active) {
+            if (empty($active['is_active']) || empty($active['level_id'])) {
+                continue;
+            }
+            $level = [
                 'id' => $active['level_id'],
                 'level_name' => $active['level_name'] ?? 'Worksheet Subscription',
                 'subscription_id' => $active['subscription_id'] ?? null,
                 'plan_id' => $active['plan_id'] ?? null,
+                'product_id' => $active['product_id'] ?? ($active['course_id'] ?? null),
+                'course_id' => $active['course_id'] ?? ($active['product_id'] ?? null),
                 'program_type' => $active['program_type'] ?? null,
                 'start_date' => $active['start_date'] ?? null,
                 'expiry_date' => $active['end_date'] ?? null,
                 'payment_id' => $active['payment_id'] ?? null,
                 'order_id' => $active['order_id'] ?? null,
-            ]];
+            ];
+            $key = (string) ($level['subscription_id'] ?: $level['id']);
+            $unlocked[$key] = $level;
+        }
+        if ($unlocked) {
+            return array_values($unlocked);
         }
     }
 
@@ -988,7 +1010,7 @@ function worksheet_sub_student_levels(array $student): array
 
     return array_values($unlocked);
 }
-function worksheet_sub_student_level(array $student, ?string $requestedLevelId = null): ?array
+function worksheet_sub_student_level(array $student, ?string $requestedLevelId = null, ?string $requestedSubscriptionId = null, ?string $requestedProgramType = null): ?array
 {
     $levels = worksheet_sub_student_levels($student);
     if (!$levels) {
@@ -996,12 +1018,19 @@ function worksheet_sub_student_level(array $student, ?string $requestedLevelId =
     }
 
     $requestedLevelId = trim((string) $requestedLevelId);
-    if ($requestedLevelId !== '') {
-        foreach ($levels as $level) {
-            if ((string) $level['id'] === $requestedLevelId) {
-                return $level;
-            }
+    $requestedSubscriptionId = trim((string) $requestedSubscriptionId);
+    $requestedProgramType = strtolower(trim((string) $requestedProgramType));
+
+    foreach ($levels as $level) {
+        $levelMatches = $requestedLevelId === '' || (string) ($level['id'] ?? '') === $requestedLevelId;
+        $subscriptionMatches = $requestedSubscriptionId === '' || (string) ($level['subscription_id'] ?? '') === $requestedSubscriptionId;
+        $programMatches = $requestedProgramType === '' || strtolower((string) ($level['program_type'] ?? '')) === $requestedProgramType;
+        if ($levelMatches && $subscriptionMatches && $programMatches) {
+            return $level;
         }
+    }
+
+    if ($requestedLevelId !== '' || $requestedSubscriptionId !== '' || $requestedProgramType !== '') {
         return null;
     }
 
@@ -1012,6 +1041,18 @@ function worksheet_sub_request_level_id(): ?string
 {
     $levelId = trim((string) ($_GET['levelId'] ?? $_GET['level_id'] ?? ''));
     return $levelId !== '' ? $levelId : null;
+}
+
+function worksheet_sub_request_subscription_id(): ?string
+{
+    $subscriptionId = trim((string) ($_GET['subscriptionId'] ?? $_GET['subscription_id'] ?? ''));
+    return $subscriptionId !== '' ? $subscriptionId : null;
+}
+
+function worksheet_sub_request_program_type(): ?string
+{
+    $program = strtolower(trim((string) ($_GET['program'] ?? $_GET['programType'] ?? $_GET['program_type'] ?? '')));
+    return in_array($program, ['abacus', 'vedic'], true) ? $program : null;
 }
 
 function worksheet_sub_topic_level_id(string $topicId): ?string
@@ -1027,10 +1068,12 @@ function worksheet_sub_topic_level_id(string $topicId): ?string
     return $topic ? (string) $topic['level_id'] : null;
 }
 
-function worksheet_sub_student_has_level(array $student, string $levelId): bool
+function worksheet_sub_student_has_level(array $student, string $levelId, ?string $subscriptionId = null): bool
 {
     foreach (worksheet_sub_student_levels($student) as $level) {
-        if ((string) $level['id'] === $levelId) {
+        $levelMatches = (string) ($level['id'] ?? '') === $levelId;
+        $subscriptionMatches = $subscriptionId === null || $subscriptionId === '' || (string) ($level['subscription_id'] ?? '') === $subscriptionId;
+        if ($levelMatches && $subscriptionMatches) {
             return true;
         }
     }
@@ -1046,13 +1089,25 @@ function worksheet_sub_require_student_level(array $ctx): array
     }
 
     $requestedLevelId = worksheet_sub_request_level_id();
-    $level = worksheet_sub_student_level($student, $requestedLevelId);
+    $requestedSubscriptionId = worksheet_sub_request_subscription_id();
+    $requestedProgramType = worksheet_sub_request_program_type();
+    $level = worksheet_sub_student_level($student, $requestedLevelId, $requestedSubscriptionId, $requestedProgramType);
+    worksheet_sub_debug_log('dashboard_access_check', [
+        'user_id' => $ctx['user']['id'] ?? null,
+        'student_id' => $student['id'] ?? null,
+        'subscription_id' => $requestedSubscriptionId,
+        'requested_level_id' => $requestedLevelId,
+        'program' => $requestedProgramType,
+        'access_result' => $level ? 'allowed' : 'denied',
+        'resolved_level_id' => $level['id'] ?? null,
+        'resolved_level_name' => $level['level_name'] ?? null,
+    ]);
     if (!$level) {
         worksheet_sub_log_access_denied(
             (string) $student['id'],
             $requestedLevelId,
-            'No active paid worksheet subscription matched the requested level.',
-            ['userId' => $ctx['user']['id'] ?? null, 'requestedLevelId' => $requestedLevelId]
+            'No active paid worksheet subscription matched the requested level/subscription.',
+            ['userId' => $ctx['user']['id'] ?? null, 'subscriptionId' => $requestedSubscriptionId, 'requestedLevelId' => $requestedLevelId, 'program' => $requestedProgramType]
         );
         json_response(['message' => 'No active worksheet subscription level is assigned to this student. Please purchase the required Abacus or Vedic Maths level subscription.'], 403);
     }
@@ -1070,13 +1125,27 @@ function worksheet_sub_require_topic_access(array $ctx, string $topicId): array
     }
 
     $requestedLevelId = worksheet_sub_request_level_id() ?: worksheet_sub_topic_level_id($topicId);
-    $level = worksheet_sub_student_level($student, $requestedLevelId);
-    if (!$level || !worksheet_sub_student_has_level($student, (string) $level['id'])) {
+    $requestedSubscriptionId = worksheet_sub_request_subscription_id();
+    $requestedProgramType = worksheet_sub_request_program_type();
+    $level = worksheet_sub_student_level($student, $requestedLevelId, $requestedSubscriptionId, $requestedProgramType);
+    $hasLevel = $level && worksheet_sub_student_has_level($student, (string) $level['id'], $requestedSubscriptionId);
+    worksheet_sub_debug_log('topic_access_check', [
+        'user_id' => $ctx['user']['id'] ?? null,
+        'student_id' => $student['id'] ?? null,
+        'topic_id' => $topicId,
+        'subscription_id' => $requestedSubscriptionId,
+        'requested_level_id' => $requestedLevelId,
+        'program' => $requestedProgramType,
+        'access_result' => $hasLevel ? 'allowed' : 'denied',
+        'resolved_level_id' => $level['id'] ?? null,
+        'resolved_level_name' => $level['level_name'] ?? null,
+    ]);
+    if (!$hasLevel) {
         worksheet_sub_log_access_denied(
             (string) $student['id'],
             $requestedLevelId,
-            'Topic access denied because the student does not have an active paid subscription for this worksheet level.',
-            ['userId' => $ctx['user']['id'] ?? null, 'topicId' => $topicId, 'requestedLevelId' => $requestedLevelId]
+            'Topic access denied because the student does not have an active paid subscription for this worksheet level/subscription.',
+            ['userId' => $ctx['user']['id'] ?? null, 'subscriptionId' => $requestedSubscriptionId, 'topicId' => $topicId, 'requestedLevelId' => $requestedLevelId, 'program' => $requestedProgramType]
         );
         json_response(['message' => 'This worksheet level is locked. Please purchase the matching worksheet level subscription.'], 403);
     }
@@ -1194,6 +1263,16 @@ function controller_student_worksheet_sub_dashboard(array $ctx): void
     }
 
     $topics = worksheet_sub_level_topics($level);
+    worksheet_sub_debug_log('dashboard_resolved', [
+        'user_id' => $ctx['user']['id'] ?? null,
+        'student_id' => $student['id'] ?? null,
+        'subscription_id' => $level['subscription_id'] ?? null,
+        'requested_level_id' => worksheet_sub_request_level_id(),
+        'resolved_level_id' => $level['id'] ?? null,
+        'resolved_level_name' => $level['level_name'] ?? null,
+        'content_source' => worksheet_sub_is_foundation_or_level1($level) ? 'worksheet_papers' : 'dynamic_generator',
+        'paper_topic_count' => count($topics),
+    ]);
 
     if (!$topics) {
         worksheet_sub_log_access_denied(
@@ -1730,3 +1809,5 @@ function controller_admin_worksheet_sub_upload_csv(): void
     db_exec_sql('UPDATE worksheet_topics SET total_questions = (SELECT COUNT(*) FROM worksheet_questions WHERE topic_id = :topic_id) WHERE id = :topic_id', ['topic_id' => $topicId]);
     json_response(['message' => 'CSV imported', 'created' => $created], 201);
 }
+
+

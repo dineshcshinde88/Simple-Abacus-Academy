@@ -27,6 +27,7 @@ import { useAuth } from "@/context/AuthContext";
 import { fetchStudentDashboard, StudentDashboardData } from "@/services/studentApi";
 import {
   fetchWorksheetDashboard,
+  WorksheetAccessParams,
   fetchWorksheetPractices,
   fetchWorksheetQuestions,
   submitWorksheetPractice,
@@ -41,6 +42,25 @@ const WORKSHEET_PRACTICE_SECONDS = 600;
 const TOKEN_KEY = "abacus_auth_token";
 
 type StudentSubscription = NonNullable<StudentDashboardData["subscriptions"]>[number];
+
+type WorksheetRouteParams = WorksheetAccessParams & { view?: "topics" };
+
+const worksheetRouteSearch = (params: WorksheetRouteParams): string => {
+  const query = new URLSearchParams();
+  if (params.view) query.set("view", params.view);
+  if (params.program) query.set("program", params.program);
+  if (params.levelId) query.set("levelId", params.levelId);
+  if (params.subscriptionId) query.set("subscriptionId", params.subscriptionId);
+  if (params.courseId) query.set("courseId", params.courseId);
+  if (params.productId) query.set("productId", params.productId);
+  const value = query.toString();
+  return value ? `?${value}` : "";
+};
+
+const worksheetProgramType = (subscription: StudentSubscription): "abacus" | "vedic" => {
+  const text = `${subscription.planName || ""} ${subscription.levelName || ""}`.toLowerCase();
+  return text.includes("vedic") ? "vedic" : "abacus";
+};
 
 const formatTime = (seconds: number) => {
   const mins = Math.floor(seconds / 60).toString().padStart(2, "0");
@@ -183,8 +203,14 @@ const WorksheetCourseGroup = ({
         );
 
         if (disabled) return <div key={item.id}>{card}</div>;
+        const accessSearch = worksheetRouteSearch({
+          view: "topics",
+          program: worksheetProgramType(item),
+          levelId: item.levelId || item.id,
+          subscriptionId: item.id,
+        });
         return (
-          <Link key={item.id} to={`/student/worksheets?view=topics&levelId=${encodeURIComponent(item.levelId || item.id)}`} aria-label={`Open ${levelName} worksheet topics`}>
+          <Link key={item.id} to={`/student/worksheets${accessSearch}`} aria-label={`Open ${levelName} worksheet topics`}>
             {card}
           </Link>
         );
@@ -268,6 +294,10 @@ const StudentWorksheets = () => {
   const { topicId, view } = useParams<{ topicId?: string; view?: string }>();
   const [searchParams] = useSearchParams();
   const selectedLevelId = searchParams.get("levelId");
+  const selectedSubscriptionId = searchParams.get("subscriptionId");
+  const selectedProgram = searchParams.get("program");
+  const selectedCourseId = searchParams.get("courseId");
+  const selectedProductId = searchParams.get("productId");
   const [level, setLevel] = useState<WorksheetLevel>();
   const [topics, setTopics] = useState<WorksheetTopic[]>([]);
   const [dashboard, setDashboard] = useState<StudentDashboardData | null>(null);
@@ -287,7 +317,7 @@ const StudentWorksheets = () => {
         });
     }
 
-    fetchWorksheetDashboard(selectedLevelId)
+    fetchWorksheetDashboard({ levelId: selectedLevelId, subscriptionId: selectedSubscriptionId, program: selectedProgram, courseId: selectedCourseId, productId: selectedProductId })
       .then((payload) => {
         if (!alive) return;
         setLevel(payload.level);
@@ -303,7 +333,15 @@ const StudentWorksheets = () => {
     return () => {
       alive = false;
     };
-  }, [selectedLevelId]);
+  }, [selectedLevelId, selectedSubscriptionId, selectedProgram, selectedCourseId, selectedProductId]);
+
+  const selectedAccess: WorksheetAccessParams = {
+    levelId: selectedLevelId || level?.id || null,
+    subscriptionId: selectedSubscriptionId,
+    program: selectedProgram,
+    courseId: selectedCourseId,
+    productId: selectedProductId,
+  };
 
   const selectedTopic = topics.find((topic) => topic.id === topicId);
 
@@ -349,17 +387,17 @@ const StudentWorksheets = () => {
       );
     }
 
-    if (selectedTopic && view === "questions") return <QuestionsPage level={level} topic={selectedTopic} />;
-    if (selectedTopic && view === "practice") return <PracticePage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
-    if (selectedTopic && view === "competition") return <CompetitionPage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
-    if (selectedTopic && view === "visualization") return <VisualizationPage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
-    if (selectedTopic && view === "practices") return <PracticesPage level={level} topic={selectedTopic} levelId={selectedLevelId || level?.id || null} />;
+    if (selectedTopic && view === "questions") return <QuestionsPage level={level} topic={selectedTopic} access={selectedAccess} />;
+    if (selectedTopic && view === "practice") return <PracticePage level={level} topic={selectedTopic} access={selectedAccess} />;
+    if (selectedTopic && view === "competition") return <CompetitionPage level={level} topic={selectedTopic} access={selectedAccess} />;
+    if (selectedTopic && view === "visualization") return <VisualizationPage level={level} topic={selectedTopic} access={selectedAccess} />;
+    if (selectedTopic && view === "practices") return <PracticesPage level={level} topic={selectedTopic} access={selectedAccess} />;
 
     if (searchParams.get("view") !== "topics") {
       return <WorksheetOverviewPage level={level} dashboard={dashboard} />;
     }
 
-    return <TopicListPage level={level} topics={topics} levelId={selectedLevelId || level?.id || null} />;
+    return <TopicListPage level={level} topics={topics} access={selectedAccess} />;
   };
 
   return (
@@ -369,8 +407,8 @@ const StudentWorksheets = () => {
   );
 };
 
-const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; topics: WorksheetTopic[]; levelId?: string | null }) => {
-  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
+const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topics: WorksheetTopic[]; access: WorksheetAccessParams }) => {
+  const levelQuery = worksheetRouteSearch(access);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -428,15 +466,15 @@ const TopicListPage = ({ level, topics, levelId }: { level?: WorksheetLevel; top
     </div>
   );
 };
-const QuestionsPage = ({ level, topic }: { level?: WorksheetLevel; topic: WorksheetTopic }) => {
+const QuestionsPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetchWorksheetQuestions(topic).then(setQuestions).finally(() => setLoading(false));
-  }, [topic]);
+    fetchWorksheetQuestions(topic, access).then(setQuestions).finally(() => setLoading(false));
+  }, [topic, access.levelId, access.subscriptionId]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -516,7 +554,7 @@ const ResultSummary = ({ result, onReview, showReview }: { result: WorksheetPrac
   );
 };
 
-const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
+const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [index, setIndex] = useState(0);
@@ -529,8 +567,8 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
   const [startedAt] = useState(() => new Date().toISOString());
 
   useEffect(() => {
-    fetchWorksheetQuestions(topic).then((items) => setQuestions(items.slice(0, PRACTICE_LIMIT)));
-  }, [topic]);
+    fetchWorksheetQuestions(topic, access).then((items) => setQuestions(items.slice(0, PRACTICE_LIMIT)));
+  }, [topic, access.levelId, access.subscriptionId]);
 
   const current = questions[index];
   const currentOptions = current?.options || [];
@@ -659,7 +697,7 @@ const PracticePage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic
     </div>
   );
 };
-const CompetitionPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
+const CompetitionPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
   const navigate = useNavigate();
   const tiers = topic.competition?.tiers || Array.from({ length: 15 }, (_, index) => ({ seconds: 15 - index, unlocked: index === 0, current: index === 0 }));
   const defaultTier = topic.competition?.unlockedTier || 15;
@@ -676,7 +714,7 @@ const CompetitionPage = ({ level, topic, levelId }: { level?: WorksheetLevel; to
   const [startedAt] = useState(() => new Date().toISOString());
   const current = questions[index];
   const currentOptions = current?.options || [];
-  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
+  const levelQuery = worksheetRouteSearch(access);
   const correct = questions.reduce((total, question) => total + (answers[question.id]?.trim() === question.answer ? 1 : 0), 0);
   const accuracy = questions.length ? Math.round((correct / questions.length) * 100) : 0;
   const passing = topic.competition?.passingPercentage || 90;
@@ -687,7 +725,7 @@ const CompetitionPage = ({ level, topic, levelId }: { level?: WorksheetLevel; to
     setAnswers({});
     setComplete(false);
     setQuestionSeconds(speedTier);
-    fetchWorksheetQuestions(topic, { mode: "competition", speedTier }).then((items) => setQuestions(items.slice(0, PRACTICE_LIMIT)));
+    fetchWorksheetQuestions(topic, { ...access, mode: "competition", speedTier }).then((items) => setQuestions(items.slice(0, PRACTICE_LIMIT)));
   }, [topic, speedTier]);
 
   const submitCompetition = async (finalAnswers: Record<string, string>) => {
@@ -793,7 +831,7 @@ const CompetitionPage = ({ level, topic, levelId }: { level?: WorksheetLevel; to
     </div>
   );
 };
-const VisualizationPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
+const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [index, setIndex] = useState(0);
@@ -807,11 +845,11 @@ const VisualizationPage = ({ level, topic, levelId }: { level?: WorksheetLevel; 
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [speaking, setSpeaking] = useState(false);
   const current = questions[index];
-  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
+  const levelQuery = worksheetRouteSearch(access);
 
   useEffect(() => {
-    fetchWorksheetQuestions(topic).then((items) => setQuestions(items.slice(0, 60)));
-  }, [topic]);
+    fetchWorksheetQuestions(topic, access).then((items) => setQuestions(items.slice(0, 60)));
+  }, [topic, access.levelId, access.subscriptionId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setSeconds((prev) => prev + 1), 1000);
@@ -1087,7 +1125,7 @@ const VisualizationPage = ({ level, topic, levelId }: { level?: WorksheetLevel; 
   );
 };
 
-const PracticesPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topic: WorksheetTopic; levelId?: string | null }) => {
+const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
   const navigate = useNavigate();
   const [practices, setPractices] = useState<WorksheetPractice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1096,7 +1134,7 @@ const PracticesPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topi
     fetchWorksheetPractices(topic.id).then(setPractices).finally(() => setLoading(false));
   }, [topic.id]);
 
-  const levelQuery = levelId ? `?levelId=${encodeURIComponent(levelId)}` : "";
+  const levelQuery = worksheetRouteSearch(access);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -1158,3 +1196,5 @@ const PracticesPage = ({ level, topic, levelId }: { level?: WorksheetLevel; topi
 };
 
 export default StudentWorksheets;
+
+
