@@ -438,7 +438,7 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
-                <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
+                <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50 hover:text-slate-950">
                   <Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}>
                     <Eye className="mr-1 h-3.5 w-3.5" />View Questions
                   </Link>
@@ -452,7 +452,7 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
                   <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link>
                 </Button>
                 {topic.content_type !== "paper" ? (
-                  <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50">
+                  <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50 hover:text-slate-950">
                     <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>
                       <History className="mr-1 h-3.5 w-3.5" />View Practices
                     </Link>
@@ -666,7 +666,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
                     key={`${current?.id}-${option}`}
                     type="button"
                     variant={answer === option ? "default" : "outline"}
-                    className={`h-12 justify-start rounded-md text-base font-semibold ${answer === option ? "bg-[#551896] hover:bg-[#421173]" : "border-slate-200 bg-white text-slate-800 hover:bg-[#f7f2ff]"}`}
+                    className={`h-12 justify-start rounded-md text-base font-semibold ${answer === option ? "bg-[#551896] text-white hover:bg-[#421173] hover:text-white" : "border-slate-200 bg-white text-slate-800 hover:bg-[#f7f2ff] hover:text-slate-900"}`}
                     onClick={() => {
                       setAnswer(option);
                       window.setTimeout(() => goNext(option), 200);
@@ -818,7 +818,7 @@ const CompetitionPage = ({ level, topic, access }: { level?: WorksheetLevel; top
                 key={`${current?.id}-${option}`}
                 type="button"
                 variant="outline"
-                className="h-12 justify-start rounded-md border-slate-200 bg-white text-base font-semibold text-slate-800 hover:bg-[#f7f2ff]"
+                className="h-12 justify-start rounded-md border-slate-200 bg-white text-base font-semibold text-slate-800 hover:bg-[#f7f2ff] hover:text-slate-900"
                 onClick={() => window.setTimeout(() => moveNext(option), 200)}
               >
                 {option}
@@ -1187,7 +1187,7 @@ const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
           )}
         </div>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <Button asChild variant="outline"><Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}><Eye className="mr-2 h-4 w-4" />View Questions</Link></Button>
+          <Button asChild variant="outline" className="text-slate-950 hover:text-slate-950"><Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}><Eye className="mr-2 h-4 w-4" />View Questions</Link></Button>
           <Button asChild className="bg-[#11894e] hover:bg-[#0e7442]"><Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link></Button>
         </div>
       </Card>
@@ -1196,5 +1196,6 @@ const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
 };
 
 export default StudentWorksheets;
+
 
 
