@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -562,9 +562,11 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [seconds, setSeconds] = useState(WORKSHEET_PRACTICE_SECONDS);
   const [saving, setSaving] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [result, setResult] = useState<WorksheetPractice | null>(null);
   const [showReview, setShowReview] = useState(false);
   const [startedAt] = useState(() => new Date().toISOString());
+  const movingRef = useRef(false);
 
   useEffect(() => {
     fetchWorksheetQuestions(topic, access).then((items) => setQuestions(items.slice(0, PRACTICE_LIMIT)));
@@ -622,16 +624,36 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
     return () => window.clearInterval(timer);
   }, [result, answers, questions.length, saving]);
 
-  const goNext = (selectedAnswer = answer) => {
-    if (!current || saving || result) return;
-    const nextAnswers = { ...answers, [current.id]: selectedAnswer.trim() };
-    setAnswers(nextAnswers);
-    setAnswer("");
-    if (index >= questions.length - 1) {
-      void submitFinal(nextAnswers);
+  const releaseMoveLock = () => {
+    window.setTimeout(() => {
+      movingRef.current = false;
+      setMoving(false);
+    }, 120);
+  };
+
+  const goNext = (selectedAnswer = answer, delayMs = 0) => {
+    if (!current || saving || result || movingRef.current) return;
+    movingRef.current = true;
+    setMoving(true);
+
+    const move = async () => {
+      const nextAnswers = { ...answers, [current.id]: selectedAnswer.trim() };
+      setAnswers(nextAnswers);
+      setAnswer("");
+      if (index >= questions.length - 1) {
+        await submitFinal(nextAnswers);
+        releaseMoveLock();
+        return;
+      }
+      setIndex((prev) => Math.min(prev + 1, questions.length - 1));
+      releaseMoveLock();
+    };
+
+    if (delayMs > 0) {
+      window.setTimeout(() => void move(), delayMs);
       return;
     }
-    setIndex((prev) => prev + 1);
+    void move();
   };
 
   return (
@@ -669,7 +691,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
                     className={`h-12 justify-start rounded-md text-base font-semibold ${answer === option ? "bg-[#551896] text-white hover:bg-[#421173] hover:text-white" : "border-slate-200 bg-white text-slate-800 hover:bg-[#f7f2ff] hover:text-slate-900"}`}
                     onClick={() => {
                       setAnswer(option);
-                      window.setTimeout(() => goNext(option), 200);
+                      goNext(option, 200);
                     }}
                   >
                     {option}
@@ -687,8 +709,8 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
               />
             )}
             <div className="flex justify-end">
-              <Button className="bg-[#ff6500] hover:bg-[#e95c00]" disabled={!current || !answer || saving} onClick={() => goNext()}>
-                {saving ? "Saving..." : index === questions.length - 1 ? "Finish Practice" : "Next Question"}
+              <Button className="bg-[#ff6500] hover:bg-[#e95c00]" disabled={!current || saving || moving} onClick={() => goNext()}>
+                {saving || moving ? "Loading..." : index === questions.length - 1 ? "Submit Test" : "Next Question"}
               </Button>
             </div>
           </div>
@@ -1196,6 +1218,7 @@ const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
 };
 
 export default StudentWorksheets;
+
 
 
 
