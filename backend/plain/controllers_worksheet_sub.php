@@ -222,7 +222,7 @@ function worksheet_sub_vedic_topic_specs(int $levelNumber): array
             ['slug' => 'fraction-addition', 'name' => 'Fraction Addition', 'kind' => 'fraction', 'op' => '+'],
             ['slug' => 'fraction-subtraction', 'name' => 'Fraction Subtraction', 'kind' => 'fraction', 'op' => '-'],
             ['slug' => 'fraction-multiplication', 'name' => 'Fraction Multiplication', 'kind' => 'fraction', 'op' => 'x'],
-            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => 'ÃƒÂ¯Ã‚Â¿Ã‚Â½'],
+            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => '/'],
             ['slug' => 'vertical-crosswise-3d', 'name' => 'Vertical Crosswise (3D)', 'kind' => 'multiply_no_zero', 'a' => [111, 888], 'b' => [111, 888]],
             ['slug' => 'mixed-base-100-3d-x-2d', 'name' => 'Mixed Base 100 (3D x 2D)', 'kind' => 'multiply', 'a' => [101, 112], 'b' => [88, 99]],
             ['slug' => 'mixed-base-100-2d-x-3d', 'name' => 'Mixed Base 100 (2D x 3D)', 'kind' => 'multiply', 'a' => [88, 99], 'b' => [101, 112]],
@@ -394,13 +394,13 @@ function worksheet_sub_vedic_generate_one(array $spec): array
             do { $b = random_int($spec['b'][0], $spec['b'][1]); } while ($kind === 'division_decimal_no_zero_divisor' && $b % 10 === 0);
         }
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' ÃƒÂ¯Ã‚Â¿Ã‚Â½ ' . $b;
+        $question = $a . ' / ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b + 1))];
     } elseif ($kind === 'fixed_division_decimal') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
         $b = (int) $spec['b'];
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' ÃƒÂ¯Ã‚Â¿Ã‚Â½ ' . $b;
+        $question = $a . ' / ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b * 2))];
     } elseif ($kind === 'factor_multiply') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
@@ -413,7 +413,7 @@ function worksheet_sub_vedic_generate_one(array $spec): array
         $q = random_int(max(1, intdiv($spec['a'][0], $b)), max(2, intdiv($spec['a'][1], $b)));
         $a = $q * $b;
         $answer = (string) $q;
-        $question = $a . ' ÃƒÂ¯Ã‚Â¿Ã‚Â½ ' . $b;
+        $question = $a . ' / ' . $b;
         $distractors = [(string) ($q + 1), (string) max(1, $q - 1), (string) ($q + random_int(2, 9))];
     } elseif ($kind === 'fraction') {
         do {
@@ -579,7 +579,7 @@ function worksheet_sub_render_question(array $numbers, string $operation): strin
     $symbol = match ($operation) {
         'subtraction' => '-',
         'multiplication' => 'x',
-        'division' => 'ÃƒÂ¯Ã‚Â¿Ã‚Â½',
+        'division' => '/',
         default => '+',
     };
 
@@ -1809,5 +1809,7 @@ function controller_admin_worksheet_sub_upload_csv(): void
     db_exec_sql('UPDATE worksheet_topics SET total_questions = (SELECT COUNT(*) FROM worksheet_questions WHERE topic_id = :topic_id) WHERE id = :topic_id', ['topic_id' => $topicId]);
     json_response(['message' => 'CSV imported', 'created' => $created], 201);
 }
+
+
 
 
