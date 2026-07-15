@@ -897,7 +897,7 @@ function activateWorksheetSubscription(array $payload): array
         [$planId]
     ))));
     $metadata['product_id'] = $payload['productId'] ?? ($metadata['product_id'] ?? null);
-    $metadata['program_type'] = $payload['programType'] ?? ($metadata['program_type'] ?? (stripos((string) ($plan['name'] ?? ''), 'vedic') !== false ? 'vedic' : 'abacus'));
+    $metadata['program_type'] = $payload['programType'] ?? ($metadata['program_type'] ?? (stripos((string) ($plan['name'] ?? ''), 'vedic') !== false ? 'vedic_maths' : 'abacus'));
     $metadata['level_id'] = $levelId;
     $metadata['gateway'] = $gateway;
     $metadata['payment_status'] = $paymentStatus;
@@ -1197,7 +1197,7 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
             $subscriptionId,
             $plan['level_id'] ?: null,
             'Paid payment repaired into active subscription.',
-            ['planId' => $plan['id'], 'planName' => $plan['name'], 'paymentId' => $paymentId, 'orderId' => $orderId, 'startDate' => $startDate, 'expiryDate' => $endDate, 'levelId' => $plan['level_id'] ?: null, 'programType' => (stripos((string) ($plan['name'] ?? ''), 'vedic') !== false ? 'vedic' : 'abacus')]
+            ['planId' => $plan['id'], 'planName' => $plan['name'], 'paymentId' => $paymentId, 'orderId' => $orderId, 'startDate' => $startDate, 'expiryDate' => $endDate, 'levelId' => $plan['level_id'] ?: null, 'programType' => (stripos((string) ($plan['name'] ?? ''), 'vedic') !== false ? 'vedic_maths' : 'abacus')]
         );
 
         sync_paid_subscription_enrollment($subscriptionId);
@@ -1555,7 +1555,7 @@ function subscription_program_type_from_text(string $text): ?string
 {
     $text = strtolower($text);
     if (str_contains($text, 'vedic')) {
-        return 'vedic';
+        return 'vedic_maths';
     }
     if (str_contains($text, 'abacus')) {
         return 'abacus';
@@ -2241,7 +2241,7 @@ function finalize_paid_payment_attempt(array $attempt, string $paymentId, string
             'userId' => $studentId,
             'productId' => $primaryPlan['course_id'] ?? null,
             'planId' => $primaryPlan['id'],
-            'programType' => stripos((string) ($primaryPlan['name'] ?? ''), 'vedic') !== false ? 'vedic' : 'abacus',
+            'programType' => stripos((string) ($primaryPlan['name'] ?? ''), 'vedic') !== false ? 'vedic_maths' : 'abacus',
             'levelId' => $primaryPlan['level_id'] ?? null,
             'paymentId' => $paymentId,
             'orderId' => $orderId,
@@ -3176,6 +3176,8 @@ function controller_run_subscription_reminders(): void
         'ranAt' => gmdate('c'),
     ]);
 }
+
+
 
 
 

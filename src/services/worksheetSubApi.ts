@@ -76,7 +76,7 @@ export type WorksheetAccessParams = {
   productId?: string | null;
 };
 
-type SubmitPracticePayload = {
+type SubmitPracticePayload = WorksheetAccessParams & {
   topicId: string;
   score: number;
   accuracy: number;

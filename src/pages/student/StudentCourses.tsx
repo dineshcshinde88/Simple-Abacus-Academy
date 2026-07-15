@@ -15,9 +15,9 @@ const formatDate = (value?: string | null) => {
   return d.toLocaleDateString();
 };
 
-const worksheetProgramType = (course: StudentCourseData): "abacus" | "vedic" => {
+const worksheetProgramType = (course: StudentCourseData): "abacus" | "vedic_maths" => {
   const text = `${course.courseSlug || ""} ${course.courseName || ""} ${course.planName || ""} ${course.levelName || ""}`.toLowerCase();
-  return text.includes("vedic") ? "vedic" : "abacus";
+  return text.includes("vedic") ? "vedic_maths" : "abacus";
 };
 
 const worksheetUrl = (course: StudentCourseData): string | null => {
@@ -152,6 +152,7 @@ const StudentCourses = () => {
 };
 
 export default StudentCourses;
+
 
 
 

@@ -81,6 +81,21 @@ function ensure_worksheet_sub_schema(): void
     }
     worksheet_sub_ensure_practice_column('mode', 'VARCHAR(30) NOT NULL DEFAULT "practice" AFTER status');
     worksheet_sub_ensure_practice_column('speed_tier', 'INT NULL AFTER mode');
+    worksheet_sub_ensure_practice_column('subscription_id', 'VARCHAR(191) NULL AFTER student_id');
+    worksheet_sub_ensure_practice_column('program_type', 'VARCHAR(40) NOT NULL DEFAULT "abacus" AFTER subscription_id');
+    worksheet_sub_ensure_practice_column('level_id', 'VARCHAR(191) NULL AFTER program_type');
+    worksheet_sub_ensure_practice_column('subtopic_code', 'VARCHAR(191) NULL AFTER topic_id');
+    worksheet_sub_ensure_practice_column('attempted_count', 'INT NOT NULL DEFAULT 0 AFTER total_questions');
+    worksheet_sub_ensure_practice_column('wrong_count', 'INT NOT NULL DEFAULT 0 AFTER correct_answers');
+    worksheet_sub_ensure_practice_column('skipped_count', 'INT NOT NULL DEFAULT 0 AFTER wrong_count');
+    worksheet_sub_ensure_practice_column('percentage', 'DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER accuracy');
+    worksheet_sub_ensure_practice_column('answers_json', 'LONGTEXT NULL AFTER speed_tier');
+    worksheet_sub_ensure_practice_column('review_json', 'LONGTEXT NULL AFTER answers_json');
+    worksheet_sub_ensure_practice_column('started_at', 'DATETIME NULL AFTER review_json');
+    worksheet_sub_ensure_practice_column('completed_at', 'DATETIME NULL AFTER started_at');
+    worksheet_sub_ensure_practice_column('duration_seconds', 'INT NOT NULL DEFAULT 0 AFTER completed_at');
+    worksheet_sub_ensure_practice_column('passed', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER duration_seconds');
+    worksheet_sub_ensure_practice_column('updated_at', 'DATETIME NULL AFTER created_at');
     db_exec_sql(
         'CREATE TABLE IF NOT EXISTS worksheet_attempts (
             id VARCHAR(191) NOT NULL PRIMARY KEY,
@@ -832,11 +847,24 @@ function worksheet_sub_is_worksheet_subscription(array $subscription): bool
     return str_contains($haystack, 'worksheet') && (str_contains($haystack, 'abacus') || str_contains($haystack, 'vedic'));
 }
 
+function worksheet_sub_normalize_program_type(?string $program): ?string
+{
+    $program = strtolower(trim((string) $program));
+    $program = str_replace(['-', ' '], '_', $program);
+    if (in_array($program, ['vedic', 'vedic_maths', 'vedic_math'], true)) {
+        return 'vedic_maths';
+    }
+    if ($program === 'abacus') {
+        return 'abacus';
+    }
+    return null;
+}
+
 function worksheet_sub_program_type_from_text(string $text): ?string
 {
     $text = strtolower($text);
     if (str_contains($text, 'vedic')) {
-        return 'vedic';
+        return 'vedic_maths';
     }
     if (str_contains($text, 'abacus')) {
         return 'abacus';
@@ -1024,7 +1052,8 @@ function worksheet_sub_student_level(array $student, ?string $requestedLevelId =
     foreach ($levels as $level) {
         $levelMatches = $requestedLevelId === '' || (string) ($level['id'] ?? '') === $requestedLevelId;
         $subscriptionMatches = $requestedSubscriptionId === '' || (string) ($level['subscription_id'] ?? '') === $requestedSubscriptionId;
-        $programMatches = $requestedProgramType === '' || strtolower((string) ($level['program_type'] ?? '')) === $requestedProgramType;
+        $levelProgramType = worksheet_sub_normalize_program_type((string) ($level['program_type'] ?? ''));
+        $programMatches = $requestedProgramType === '' || $levelProgramType === worksheet_sub_normalize_program_type($requestedProgramType);
         if ($levelMatches && $subscriptionMatches && $programMatches) {
             return $level;
         }
@@ -1051,8 +1080,7 @@ function worksheet_sub_request_subscription_id(): ?string
 
 function worksheet_sub_request_program_type(): ?string
 {
-    $program = strtolower(trim((string) ($_GET['program'] ?? $_GET['programType'] ?? $_GET['program_type'] ?? '')));
-    return in_array($program, ['abacus', 'vedic'], true) ? $program : null;
+    return worksheet_sub_normalize_program_type((string) ($_GET['program'] ?? $_GET['programType'] ?? $_GET['program_type'] ?? ''));
 }
 
 function worksheet_sub_topic_level_id(string $topicId): ?string
@@ -1503,13 +1531,14 @@ function controller_student_worksheet_sub_practices(array $ctx, string $topicId)
     }
 
     $rows = db_all(
-        'SELECT id, student_id, topic_id, score, accuracy, total_questions, correct_answers, time_taken, status, mode, speed_tier, created_at
+        'SELECT id, student_id, subscription_id, program_type, level_id, topic_id, subtopic_code, score, accuracy, percentage,
+                total_questions, attempted_count AS attempted, correct_answers, wrong_count AS wrong_answers, skipped_count,
+                time_taken, duration_seconds, status, mode, speed_tier, started_at, completed_at, passed, created_at
          FROM worksheet_practices
          WHERE student_id = :student_id AND topic_id = :topic_id
-         ORDER BY created_at DESC',
+         ORDER BY COALESCE(completed_at, created_at) DESC, created_at DESC',
         ['student_id' => $student['id'], 'topic_id' => $topicId]
     );
-
     json_response(['practices' => $rows]);
 }
 
@@ -1531,6 +1560,15 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
     $mode = strtolower(trim((string) ($data['mode'] ?? 'practice')));
     $mode = in_array($mode, ['practice', 'visualization', 'competition'], true) ? $mode : 'practice';
     $speedTier = isset($data['speedTier']) ? max(1, min(15, (int) $data['speedTier'])) : null;
+    if (!empty($data['levelId']) && empty($_GET['levelId'])) {
+        $_GET['levelId'] = (string) $data['levelId'];
+    }
+    if (!empty($data['subscriptionId']) && empty($_GET['subscriptionId'])) {
+        $_GET['subscriptionId'] = (string) $data['subscriptionId'];
+    }
+    if (!empty($data['program']) && empty($_GET['program'])) {
+        $_GET['program'] = (string) $data['program'];
+    }
 
     if ($topicId === '' || $totalQuestions <= 0) {
         json_response(['message' => 'topicId and totalQuestions are required'], 422);
@@ -1553,38 +1591,78 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
         worksheet_sub_assert_competition_tier((string) $student['id'], $topicId, $speedTier);
     }
 
+    $answers = is_array($data['answers'] ?? null) ? $data['answers'] : [];
+    $attemptedCount = 0;
+    foreach ($answers as $value) {
+        if (trim((string) $value) !== '') {
+            $attemptedCount++;
+        }
+    }
+    $wrongCount = max(0, $attemptedCount - $correctAnswers);
+    $skippedCount = max(0, $totalQuestions - $attemptedCount);
+    $passing = worksheet_sub_competition_passing_percentage();
+    $passed = $mode === 'competition' ? ($accuracy >= $passing) : ($accuracy >= 40);
+    $startedAt = trim((string) ($data['startedAt'] ?? ''));
+    $startedSql = $startedAt !== '' && strtotime($startedAt) !== false ? gmdate('Y-m-d H:i:s', strtotime($startedAt)) : null;
+    $completedAt = now_sql();
+    $programType = worksheet_sub_normalize_program_type((string) ($data['program'] ?? ($level['program_type'] ?? ''))) ?: (worksheet_sub_is_vedic_level_name((string) ($topic['level_name'] ?? '')) ? 'vedic_maths' : 'abacus');
+
     $id = uuid_v4();
     $now = now_sql();
     db_exec_sql(
         'INSERT INTO worksheet_practices
-         (id, student_id, topic_id, score, accuracy, total_questions, correct_answers, time_taken, status, mode, speed_tier, created_at)
+         (id, student_id, subscription_id, program_type, level_id, topic_id, subtopic_code, score, accuracy, percentage,
+          total_questions, attempted_count, correct_answers, wrong_count, skipped_count, time_taken, duration_seconds,
+          status, mode, speed_tier, answers_json, review_json, started_at, completed_at, passed, created_at, updated_at)
          VALUES
-         (:id, :student_id, :topic_id, :score, :accuracy, :total_questions, :correct_answers, :time_taken, :status, :mode, :speed_tier, :created_at)',
+         (:id, :student_id, :subscription_id, :program_type, :level_id, :topic_id, :subtopic_code, :score, :accuracy, :percentage,
+          :total_questions, :attempted_count, :correct_answers, :wrong_count, :skipped_count, :time_taken, :duration_seconds,
+          :status, :mode, :speed_tier, :answers_json, :review_json, :started_at, :completed_at, :passed, :created_at, :updated_at)',
         [
             'id' => $id,
             'student_id' => $student['id'],
+            'subscription_id' => $level['subscription_id'] ?? ($data['subscriptionId'] ?? null),
+            'program_type' => $programType,
+            'level_id' => $level['id'] ?? ($data['levelId'] ?? null),
             'topic_id' => $topicId,
+            'subtopic_code' => $topicId,
             'score' => $score,
             'accuracy' => $accuracy,
+            'percentage' => $accuracy,
             'total_questions' => $totalQuestions,
+            'attempted_count' => $attemptedCount,
             'correct_answers' => $correctAnswers,
+            'wrong_count' => $wrongCount,
+            'skipped_count' => $skippedCount,
             'time_taken' => $timeTaken,
-            'status' => worksheet_sub_status($accuracy),
+            'duration_seconds' => max(0, (int) ($data['durationSeconds'] ?? $timeTaken)),
+            'status' => $mode === 'competition' ? ($passed ? 'Pass' : 'Fail') : worksheet_sub_status($accuracy),
             'mode' => $mode,
             'speed_tier' => $speedTier,
+            'answers_json' => json_encode($answers, JSON_UNESCAPED_SLASHES),
+            'review_json' => json_encode([], JSON_UNESCAPED_SLASHES),
+            'started_at' => $startedSql,
+            'completed_at' => $completedAt,
+            'passed' => $passed ? 1 : 0,
             'created_at' => $now,
+            'updated_at' => $now,
         ]
     );
 
+    if ($mode === 'competition' && $speedTier !== null) {
+        worksheet_sub_maybe_unlock_next_tier((string) $student['id'], $topicId, $speedTier, $accuracy);
+    }
+
     json_response([
         'practice' => db_one(
-            'SELECT id, student_id, topic_id, score, accuracy, total_questions, correct_answers, time_taken, status, mode, speed_tier, created_at
+            'SELECT id, student_id, subscription_id, program_type, level_id, topic_id, subtopic_code, score, accuracy, percentage,
+                    total_questions, attempted_count AS attempted, correct_answers, wrong_count AS wrong_answers,
+                    skipped_count, time_taken, duration_seconds, status, mode, speed_tier, started_at, completed_at, passed, created_at
              FROM worksheet_practices WHERE id = :id',
             ['id' => $id]
         ),
     ], 201);
 }
-
 function controller_admin_worksheet_competition_config(): void
 {
     ensure_worksheet_sub_schema();
@@ -1809,6 +1887,10 @@ function controller_admin_worksheet_sub_upload_csv(): void
     db_exec_sql('UPDATE worksheet_topics SET total_questions = (SELECT COUNT(*) FROM worksheet_questions WHERE topic_id = :topic_id) WHERE id = :topic_id', ['topic_id' => $topicId]);
     json_response(['message' => 'CSV imported', 'created' => $created], 201);
 }
+
+
+
+
 
 
 

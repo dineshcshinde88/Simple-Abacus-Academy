@@ -57,9 +57,9 @@ const worksheetRouteSearch = (params: WorksheetRouteParams): string => {
   return value ? `?${value}` : "";
 };
 
-const worksheetProgramType = (subscription: StudentSubscription): "abacus" | "vedic" => {
+const worksheetProgramType = (subscription: StudentSubscription): "abacus" | "vedic_maths" => {
   const text = `${subscription.planName || ""} ${subscription.levelName || ""}`.toLowerCase();
-  return text.includes("vedic") ? "vedic" : "abacus";
+  return text.includes("vedic") ? "vedic_maths" : "abacus";
 };
 
 const formatTime = (seconds: number) => {
@@ -587,6 +587,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
       const finalAccuracy = questions.length ? Math.round((finalCorrect / questions.length) * 100) : 0;
       const duration = WORKSHEET_PRACTICE_SECONDS - seconds;
       const saved = await submitWorksheetPractice({
+        ...access,
         topicId: topic.id,
         score: finalCorrect,
         accuracy: finalAccuracy,
@@ -756,14 +757,19 @@ const CompetitionPage = ({ level, topic, access }: { level?: WorksheetLevel; top
     const finalCorrect = questions.reduce((total, question) => total + (finalAnswers[question.id]?.trim() === question.answer ? 1 : 0), 0);
     const finalAccuracy = Math.round((finalCorrect / questions.length) * 100);
     await submitWorksheetPractice({
+      ...access,
       topicId: topic.id,
       score: finalCorrect,
       accuracy: finalAccuracy,
       totalQuestions: questions.length,
       correctAnswers: finalCorrect,
       timeTaken: elapsed,
+      durationSeconds: elapsed,
       mode: "competition",
       speedTier,
+      contentType: topic.content_type,
+      answers: finalAnswers,
+      startedAt,
     });
     toast.success(finalAccuracy >= passing ? "Speed tier cleared. Next tier unlocked." : "Competition attempt saved.");
     navigate(`/student/worksheets/${topic.id}/practices${levelQuery}`);
@@ -980,6 +986,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
     window.sessionStorage.setItem(pendingKey, JSON.stringify({ answers: finalAnswers, startedAt }));
     try {
       const saved = await submitWorksheetPractice({
+        ...access,
         topicId: topic.id,
         score: correct,
         accuracy,
@@ -1218,6 +1225,8 @@ const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
 };
 
 export default StudentWorksheets;
+
+
 
 
 
