@@ -7,10 +7,6 @@ import Index from "./pages/Index";
 import About from "./pages/About";
 import Programs from "./pages/Programs";
 import OnlineAbacusClasses from "./pages/OnlineAbacusClasses";
-import CompetitionLogin from "./pages/competition/CompetitionLogin";
-import CompetitionRegister from "./pages/competition/CompetitionRegister";
-import CompetitionDashboard from "./pages/competition/CompetitionDashboard";
-import CompetitionResetPassword from "./pages/competition/CompetitionResetPassword";
 import TeacherTraining from "./pages/TeacherTraining";
 import VedicMathsClasses from "./pages/VedicMathsClasses";
 import Franchise from "./pages/Franchise";
@@ -35,7 +31,6 @@ import StudentCourses from "./pages/student/StudentCourses";
 import StudentProfile from "./pages/student/StudentProfile";
 import StudentOrders from "./pages/student/StudentOrders";
 import StudentShop from "./pages/student/StudentShop";
-import StudentPractice from "./pages/student/StudentPractice";
 import StudentChangePassword from "./pages/student/StudentChangePassword";
 import StudentCertificates from "./pages/student/StudentCertificates";
 import RequireRole from "./components/auth/RequireRole";
@@ -83,17 +78,6 @@ const App = () => (
             <Route path="/about" element={<About />} />
             <Route path="/programs" element={<Programs />} />
             <Route path="/online-abacus-classes" element={<OnlineAbacusClasses />} />
-            <Route path="/online-competition" element={<CompetitionLogin />} />
-            <Route path="/competition-register" element={<CompetitionRegister />} />
-            <Route path="/competition-reset-password" element={<CompetitionResetPassword />} />
-            <Route path="/competition/dashboard" element={<CompetitionDashboard />} />
-            <Route path="/competition/practice-kits" element={<CompetitionDashboard />} />
-            <Route path="/competition/practice-kits/:kitSlug" element={<CompetitionDashboard />} />
-            <Route path="/competition/competitions" element={<CompetitionDashboard />} />
-            <Route path="/competition/leaderboard" element={<CompetitionDashboard />} />
-            <Route path="/competition/results" element={<CompetitionDashboard />} />
-            <Route path="/competition/profile" element={<CompetitionDashboard />} />
-            <Route path="/competition/purchases" element={<CompetitionDashboard />} />
             <Route path="/teacher-training" element={<TeacherTraining />} />
             <Route path="/vedic-maths-classes" element={<VedicMathsClasses />} />
             <Route path="/franchise" element={<Franchise />} />
@@ -160,31 +144,6 @@ const App = () => (
               element={(
                 <ProtectedRoute role="student">
                   <StudentWorksheets />
-                </ProtectedRoute>
-              )}
-            />
-            <Route
-              path="/student/online-competition"
-              element={(
-                <ProtectedRoute role="student">
-                  <StudentPractice />
-                </ProtectedRoute>
-              )}
-            />
-            <Route
-              path="/student/online-competition/:paperId"
-              element={(
-                <ProtectedRoute role="student">
-                  <StudentPractice />
-                </ProtectedRoute>
-              )}
-            />
-            <Route path="/student/practice" element={<Navigate to="/student/online-competition" replace />} />
-            <Route
-              path="/student/practice/:paperId"
-              element={(
-                <ProtectedRoute role="student">
-                  <StudentPractice />
                 </ProtectedRoute>
               )}
             />

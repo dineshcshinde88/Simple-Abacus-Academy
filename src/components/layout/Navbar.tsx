@@ -16,7 +16,6 @@ const navLinks = [
       { label: "Vedic Maths Classes", to: "/vedic-maths-classes" },
     ],
   },
-  { label: "Online Competition", to: "/online-competition" },
   { label: "Teachers", to: "/teachers" },
   {
     label: "Worksheets",

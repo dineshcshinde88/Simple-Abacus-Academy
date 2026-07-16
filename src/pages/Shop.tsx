@@ -73,7 +73,7 @@ const products = [
     rating: 4.9,
     reviews: 145,
     icon: Pencil,
-    desc: "Competition prep, personal mentoring, priority support.",
+    desc: "Advanced drills, personal mentoring, priority support.",
   },
 ];
 

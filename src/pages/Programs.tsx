@@ -42,10 +42,10 @@ const levels = [
     title: "Advanced",
     age: "11-14 years",
     duration: "",
-    desc: "Master high-speed mental maths and real exam readiness. Ideal for students who enjoy challenges and competitions.",
+    desc: "Master high-speed mental maths and real exam readiness. Ideal for students who enjoy advanced challenges.",
     features: [
       "Complex multi-step calculations",
-      "Exam and competition practice",
+      "Exam-focused practice",
       "Advanced speed and accuracy drills",
       "Performance tracking and mentoring",
       "Certification after each level",

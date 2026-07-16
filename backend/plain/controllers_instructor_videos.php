@@ -1,0 +1,458 @@
+<?php
+
+function instructor_video_table_has_column(string $table, string $column): bool
+{
+    return (int) db_value(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column',
+        ['table' => $table, 'column' => $column]
+    ) > 0;
+}
+
+function ensure_instructor_video_schema(): void
+{
+    db_exec_sql(
+        "CREATE TABLE IF NOT EXISTS instructor_video_subscriptions (
+            id CHAR(36) PRIMARY KEY,
+            instructor_id CHAR(36) NOT NULL,
+            plan_name VARCHAR(80) NOT NULL DEFAULT '90 Days',
+            duration_days INT NOT NULL DEFAULT 90,
+            payment_method VARCHAR(40) NULL,
+            payment_amount DECIMAL(10,2) NULL,
+            payment_reference VARCHAR(255) NULL,
+            payment_note TEXT NULL,
+            start_date DATETIME NOT NULL,
+            expiry_date DATETIME NOT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'pending',
+            activated_by_admin_id VARCHAR(64) NULL,
+            activated_at DATETIME NULL,
+            admin_note TEXT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX idx_ivs_instructor_status (instructor_id, status),
+            INDEX idx_ivs_expiry (expiry_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    db_exec_sql(
+        "CREATE TABLE IF NOT EXISTS instructor_training_videos (
+            id CHAR(36) PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            description TEXT NULL,
+            program VARCHAR(40) NOT NULL,
+            level VARCHAR(80) NOT NULL,
+            sequence_number INT NOT NULL DEFAULT 1,
+            cloudinary_public_id VARCHAR(255) NOT NULL,
+            thumbnail VARCHAR(500) NULL,
+            duration_seconds INT NOT NULL DEFAULT 0,
+            status VARCHAR(30) NOT NULL DEFAULT 'published',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX idx_itv_library (program, level, sequence_number),
+            INDEX idx_itv_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    db_exec_sql(
+        "CREATE TABLE IF NOT EXISTS instructor_video_progress (
+            id CHAR(36) PRIMARY KEY,
+            instructor_id CHAR(36) NOT NULL,
+            video_id CHAR(36) NOT NULL,
+            subscription_id CHAR(36) NULL,
+            current_position_seconds INT NOT NULL DEFAULT 0,
+            maximum_watched_position_seconds INT NOT NULL DEFAULT 0,
+            unique_watched_seconds INT NOT NULL DEFAULT 0,
+            duration_seconds INT NOT NULL DEFAULT 0,
+            completion_percentage DECIMAL(5,2) NOT NULL DEFAULT 0,
+            is_completed TINYINT(1) NOT NULL DEFAULT 0,
+            completed_at DATETIME NULL,
+            last_watched_at DATETIME NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            UNIQUE KEY uniq_ivp_instructor_video (instructor_id, video_id),
+            INDEX idx_ivp_subscription (subscription_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    db_exec_sql(
+        "CREATE TABLE IF NOT EXISTS instructor_video_watch_segments (
+            id CHAR(36) PRIMARY KEY,
+            instructor_id CHAR(36) NOT NULL,
+            video_id CHAR(36) NOT NULL,
+            segment_start INT NOT NULL,
+            segment_end INT NOT NULL,
+            session_id VARCHAR(80) NOT NULL,
+            created_at DATETIME NOT NULL,
+            INDEX idx_ivws_lookup (instructor_id, video_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+}
+
+function instructor_video_context(array $ctx): array
+{
+    ensure_instructor_auth_schema();
+    ensure_instructor_video_schema();
+
+    $user = $ctx['user'];
+    $instructor = db_one('SELECT * FROM instructors WHERE email = :email LIMIT 1', ['email' => strtolower((string) $user['email'])]);
+    if (!$instructor) {
+        json_response(['message' => 'Instructor profile was not found for this login.'], 403);
+    }
+
+    return ['user' => $user, 'instructor' => $instructor];
+}
+
+function instructor_video_sync_expired(string $instructorId = ''): void
+{
+    $params = ['now' => now_sql()];
+    $where = "status = 'active' AND expiry_date < :now";
+    if ($instructorId !== '') {
+        $where .= ' AND instructor_id = :instructor_id';
+        $params['instructor_id'] = $instructorId;
+    }
+    db_exec_sql("UPDATE instructor_video_subscriptions SET status = 'expired', updated_at = :now WHERE {$where}", $params);
+}
+
+function instructor_video_active_subscription(string $instructorId): ?array
+{
+    instructor_video_sync_expired($instructorId);
+    return db_one(
+        "SELECT * FROM instructor_video_subscriptions
+         WHERE instructor_id = :instructor_id
+           AND status = 'active'
+           AND start_date <= :now
+           AND expiry_date >= :now
+         ORDER BY expiry_date DESC
+         LIMIT 1",
+        ['instructor_id' => $instructorId, 'now' => now_sql()]
+    );
+}
+
+function instructor_video_subscription_payload(string $instructorId): array
+{
+    $active = instructor_video_active_subscription($instructorId);
+    $latest = $active ?: db_one(
+        'SELECT * FROM instructor_video_subscriptions WHERE instructor_id = :instructor_id ORDER BY created_at DESC LIMIT 1',
+        ['instructor_id' => $instructorId]
+    );
+    $status = 'none';
+    if ($latest) {
+        $status = (string) $latest['status'];
+    }
+
+    $remaining = 0;
+    if ($active) {
+        $remaining = max(0, (int) ceil((strtotime((string) $active['expiry_date']) - time()) / 86400));
+    }
+
+    return [
+        'hasAccess' => (bool) $active,
+        'state' => $active ? 'active' : ($status === 'expired' ? 'expired' : ($status === 'suspended' ? 'suspended' : 'none')),
+        'subscription' => $latest ? [
+            'id' => $latest['id'],
+            'planName' => $latest['plan_name'],
+            'startDate' => $latest['start_date'],
+            'expiryDate' => $latest['expiry_date'],
+            'status' => $latest['status'],
+            'remainingDays' => $remaining,
+        ] : null,
+    ];
+}
+
+function instructor_video_group_key(array $video): string
+{
+    return strtolower((string) $video['program']) . '|' . strtolower((string) $video['level']);
+}
+
+function instructor_video_library(string $instructorId, ?array $subscription): array
+{
+    $videos = db_all(
+        "SELECT v.*,
+                p.current_position_seconds,
+                p.maximum_watched_position_seconds,
+                p.unique_watched_seconds,
+                p.completion_percentage,
+                p.is_completed,
+                p.completed_at
+         FROM instructor_training_videos v
+         LEFT JOIN instructor_video_progress p ON p.video_id = v.id AND p.instructor_id = :instructor_id
+         WHERE v.status = 'published'
+         ORDER BY v.program, v.level, v.sequence_number",
+        ['instructor_id' => $instructorId]
+    );
+
+    $previousComplete = [];
+    $completed = 0;
+    $items = [];
+    foreach ($videos as $video) {
+        $key = instructor_video_group_key($video);
+        $sequence = (int) $video['sequence_number'];
+        $isCompleted = (int) ($video['is_completed'] ?? 0) === 1;
+        $isUnlocked = $sequence <= 1 || (($previousComplete[$key] ?? false) === true);
+        if ($isCompleted) {
+            $completed += 1;
+        }
+        $previousComplete[$key] = $isCompleted;
+
+        $items[] = [
+            'id' => $video['id'],
+            'title' => $video['title'],
+            'description' => $video['description'],
+            'program' => $video['program'],
+            'level' => $video['level'],
+            'sequenceNumber' => $sequence,
+            'thumbnail' => $video['thumbnail'],
+            'durationSeconds' => (int) $video['duration_seconds'],
+            'isUnlocked' => $subscription !== null && $isUnlocked,
+            'lockedReason' => $subscription === null ? 'Subscription Expired' : 'Complete the previous video to unlock this lesson.',
+            'progress' => [
+                'currentPositionSeconds' => (int) ($video['current_position_seconds'] ?? 0),
+                'maximumWatchedPositionSeconds' => (int) ($video['maximum_watched_position_seconds'] ?? 0),
+                'uniqueWatchedSeconds' => (int) ($video['unique_watched_seconds'] ?? 0),
+                'completionPercentage' => (float) ($video['completion_percentage'] ?? 0),
+                'isCompleted' => $isCompleted,
+                'completedAt' => $video['completed_at'] ?? null,
+            ],
+        ];
+    }
+
+    $total = count($items);
+    return [
+        'videos' => $items,
+        'summary' => [
+            'totalVideos' => $total,
+            'completedVideos' => $completed,
+            'remainingVideos' => max(0, $total - $completed),
+            'overallProgress' => $total > 0 ? round(($completed / $total) * 100, 2) : 0,
+        ],
+    ];
+}
+
+function instructor_video_find_unlocked(string $instructorId, string $videoId, ?array $subscription): array
+{
+    if (!$subscription) {
+        json_response(['message' => 'Training Video subscription is not active.'], 403);
+    }
+    $library = instructor_video_library($instructorId, $subscription);
+    foreach ($library['videos'] as $video) {
+        if ($video['id'] === $videoId) {
+            if (!$video['isUnlocked']) {
+                json_response(['message' => $video['lockedReason']], 403);
+            }
+            return $video;
+        }
+    }
+    json_response(['message' => 'Video not found.'], 404);
+}
+
+function controller_instructor_video_dashboard(array $ctx): void
+{
+    $iv = instructor_video_context($ctx);
+    $instructorId = (string) $iv['instructor']['id'];
+    $subscription = instructor_video_active_subscription($instructorId);
+    $subscriptionPayload = instructor_video_subscription_payload($instructorId);
+    $library = instructor_video_library($instructorId, $subscription);
+
+    json_response([
+        'subscription' => $subscriptionPayload,
+        'library' => $library,
+        'watermarkIdentity' => [
+            'name' => $iv['instructor']['full_name'] ?: $iv['user']['name'],
+            'mobile' => $iv['instructor']['mobile'] ?? '',
+            'instructorId' => $instructorId,
+        ],
+    ]);
+}
+
+function cloudinary_signed_video_url(string $publicId, int $expiresAt): ?string
+{
+    $cloud = trim((string) envv('CLOUDINARY_CLOUD_NAME', ''));
+    $secret = trim((string) envv('CLOUDINARY_API_SECRET', ''));
+    if ($cloud === '' || $secret === '' || $publicId === '') {
+        return null;
+    }
+
+    $publicId = trim($publicId, '/');
+    $signature = sha1('expires_at=' . $expiresAt . '&public_id=' . $publicId . $secret);
+    return 'https://res.cloudinary.com/' . rawurlencode($cloud)
+        . '/video/authenticated/s--' . substr($signature, 0, 8) . '--/e_' . $expiresAt . '/'
+        . str_replace('%2F', '/', rawurlencode($publicId)) . '.mp4';
+}
+
+function controller_instructor_video_playback(array $ctx, string $videoId): void
+{
+    $iv = instructor_video_context($ctx);
+    $instructorId = (string) $iv['instructor']['id'];
+    $subscription = instructor_video_active_subscription($instructorId);
+    $video = instructor_video_find_unlocked($instructorId, $videoId, $subscription);
+    $row = db_one('SELECT * FROM instructor_training_videos WHERE id = :id LIMIT 1', ['id' => $videoId]);
+    if (!$row) {
+        json_response(['message' => 'Video not found.'], 404);
+    }
+
+    $expiresAt = time() + 900;
+    $playbackUrl = cloudinary_signed_video_url((string) $row['cloudinary_public_id'], $expiresAt);
+    if (!$playbackUrl) {
+        json_response(['message' => 'Cloudinary playback is not configured.'], 503);
+    }
+
+    json_response([
+        'video' => $video,
+        'playbackUrl' => $playbackUrl,
+        'expiresAt' => $expiresAt,
+        'watermarkIdentity' => [
+            'name' => $iv['instructor']['full_name'] ?: $iv['user']['name'],
+            'mobile' => $iv['instructor']['mobile'] ?? '',
+            'instructorId' => $instructorId,
+        ],
+    ]);
+}
+
+function instructor_video_merge_segments(array $segments): int
+{
+    usort($segments, fn($a, $b) => $a[0] <=> $b[0]);
+    $merged = [];
+    foreach ($segments as $segment) {
+        [$start, $end] = $segment;
+        if ($end <= $start) {
+            continue;
+        }
+        $lastIndex = count($merged) - 1;
+        if ($lastIndex >= 0 && $start <= $merged[$lastIndex][1]) {
+            $merged[$lastIndex][1] = max($merged[$lastIndex][1], $end);
+        } else {
+            $merged[] = [$start, $end];
+        }
+    }
+    $total = 0;
+    foreach ($merged as $segment) {
+        $total += max(0, $segment[1] - $segment[0]);
+    }
+    return $total;
+}
+
+function controller_instructor_video_progress(array $ctx, string $videoId, array $data): void
+{
+    $iv = instructor_video_context($ctx);
+    $instructorId = (string) $iv['instructor']['id'];
+    $subscription = instructor_video_active_subscription($instructorId);
+    $video = instructor_video_find_unlocked($instructorId, $videoId, $subscription);
+
+    $sessionId = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) ($data['sessionId'] ?? ''));
+    if ($sessionId === '') {
+        $sessionId = uuid_v4();
+    }
+    $duration = max(0, (int) ($data['durationSeconds'] ?? $video['durationSeconds']));
+    $current = max(0, (int) ($data['currentPositionSeconds'] ?? 0));
+    $maxPosition = max(0, (int) ($data['maximumWatchedPositionSeconds'] ?? $current));
+    $incomingSegments = is_array($data['segments'] ?? null) ? $data['segments'] : [];
+    $now = now_sql();
+
+    foreach ($incomingSegments as $segment) {
+        if (!is_array($segment)) {
+            continue;
+        }
+        $start = max(0, (int) floor((float) ($segment['start'] ?? $segment[0] ?? 0)));
+        $end = max(0, (int) ceil((float) ($segment['end'] ?? $segment[1] ?? 0)));
+        if ($end <= $start || ($maxPosition > 0 && $end > $maxPosition + 3)) {
+            continue;
+        }
+        db_exec_sql(
+            'INSERT INTO instructor_video_watch_segments (id, instructor_id, video_id, segment_start, segment_end, session_id, created_at)
+             VALUES (:id, :instructor_id, :video_id, :segment_start, :segment_end, :session_id, :created_at)',
+            [
+                'id' => uuid_v4(),
+                'instructor_id' => $instructorId,
+                'video_id' => $videoId,
+                'segment_start' => $start,
+                'segment_end' => $end,
+                'session_id' => $sessionId,
+                'created_at' => $now,
+            ]
+        );
+    }
+
+    $storedSegments = db_all(
+        'SELECT segment_start, segment_end FROM instructor_video_watch_segments WHERE instructor_id = :instructor_id AND video_id = :video_id',
+        ['instructor_id' => $instructorId, 'video_id' => $videoId]
+    );
+    $unique = instructor_video_merge_segments(array_map(fn($s) => [(int) $s['segment_start'], (int) $s['segment_end']], $storedSegments));
+    $effectiveDuration = $duration > 0 ? $duration : max(1, (int) $video['durationSeconds']);
+    $percentage = min(100, round(($unique / max(1, $effectiveDuration)) * 100, 2));
+    $isCompleted = $percentage >= 95;
+    $existing = db_one('SELECT * FROM instructor_video_progress WHERE instructor_id = :instructor_id AND video_id = :video_id LIMIT 1', [
+        'instructor_id' => $instructorId,
+        'video_id' => $videoId,
+    ]);
+
+    if ($existing) {
+        db_exec_sql(
+            'UPDATE instructor_video_progress
+             SET subscription_id = :subscription_id,
+                 current_position_seconds = :current_position_seconds,
+                 maximum_watched_position_seconds = GREATEST(maximum_watched_position_seconds, :maximum_watched_position_seconds),
+                 unique_watched_seconds = :unique_watched_seconds,
+                 duration_seconds = :duration_seconds,
+                 completion_percentage = :completion_percentage,
+                 is_completed = GREATEST(is_completed, :is_completed),
+                 completed_at = CASE WHEN completed_at IS NULL AND :completed = 1 THEN :completed_at ELSE completed_at END,
+                 last_watched_at = :last_watched_at,
+                 updated_at = :updated_at
+             WHERE instructor_id = :instructor_id AND video_id = :video_id',
+            [
+                'subscription_id' => $subscription['id'],
+                'current_position_seconds' => $current,
+                'maximum_watched_position_seconds' => $maxPosition,
+                'unique_watched_seconds' => $unique,
+                'duration_seconds' => $effectiveDuration,
+                'completion_percentage' => $percentage,
+                'is_completed' => $isCompleted ? 1 : 0,
+                'completed' => $isCompleted ? 1 : 0,
+                'completed_at' => $now,
+                'last_watched_at' => $now,
+                'updated_at' => $now,
+                'instructor_id' => $instructorId,
+                'video_id' => $videoId,
+            ]
+        );
+    } else {
+        db_exec_sql(
+            'INSERT INTO instructor_video_progress (
+                id, instructor_id, video_id, subscription_id, current_position_seconds,
+                maximum_watched_position_seconds, unique_watched_seconds, duration_seconds,
+                completion_percentage, is_completed, completed_at, last_watched_at, created_at, updated_at
+             ) VALUES (
+                :id, :instructor_id, :video_id, :subscription_id, :current_position_seconds,
+                :maximum_watched_position_seconds, :unique_watched_seconds, :duration_seconds,
+                :completion_percentage, :is_completed, :completed_at, :last_watched_at, :created_at, :updated_at
+             )',
+            [
+                'id' => uuid_v4(),
+                'instructor_id' => $instructorId,
+                'video_id' => $videoId,
+                'subscription_id' => $subscription['id'],
+                'current_position_seconds' => $current,
+                'maximum_watched_position_seconds' => $maxPosition,
+                'unique_watched_seconds' => $unique,
+                'duration_seconds' => $effectiveDuration,
+                'completion_percentage' => $percentage,
+                'is_completed' => $isCompleted ? 1 : 0,
+                'completed_at' => $isCompleted ? $now : null,
+                'last_watched_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]
+        );
+    }
+
+    json_response([
+        'progress' => [
+            'currentPositionSeconds' => $current,
+            'maximumWatchedPositionSeconds' => max($maxPosition, (int) ($existing['maximum_watched_position_seconds'] ?? 0)),
+            'uniqueWatchedSeconds' => $unique,
+            'durationSeconds' => $effectiveDuration,
+            'completionPercentage' => $percentage,
+            'isCompleted' => $isCompleted || (int) ($existing['is_completed'] ?? 0) === 1,
+        ],
+        'library' => instructor_video_library($instructorId, $subscription),
+    ]);
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,6 @@ import {
   updatePracticeLevel,
   uploadPracticeDocx,
 } from "@/services/practiceApi";
-import {
-  approveCompetitionRegistration,
-  type CompetitionAdminOverview,
-  getCompetitionAdminOverview,
-} from "@/services/competitionApi";
 
 const AdminDashboard = () => {
   const { token, logout } = useTrainingAuth();
@@ -24,21 +19,8 @@ const AdminDashboard = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [registeredStudents, setRegisteredStudents] = useState<any[]>([]);
   const [practice, setPractice] = useState<AdminPracticeOverview>({ levels: [], results: [] });
-  const [competition, setCompetition] = useState<CompetitionAdminOverview | null>(null);
-  const [lastCompetitionPassword, setLastCompetitionPassword] = useState<{ email: string; password: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const competitionCategoryRows = useMemo(
-    () =>
-      (competition?.categories || []).map((category) => ({
-        ...category,
-        subcategories: (competition?.subcategories || [])
-          .filter((subcategory) => subcategory.category_id === category.id)
-          .map((subcategory) => subcategory.name)
-          .join(", "),
-      })),
-    [competition],
-  );
 
   const load = async () => {
     if (!token) return;
@@ -46,12 +28,10 @@ const AdminDashboard = () => {
     const s = await adminListStudents(token);
     const registered = await adminListRegisteredStudents(token);
     const p = await getAdminPracticeOverview(token);
-    const c = await getCompetitionAdminOverview(token);
     setTeachers(t.teachers || []);
     setStudents(s.students || []);
     setRegisteredStudents(registered.students || []);
     setPractice(p);
-    setCompetition(c);
   };
 
   useEffect(() => {
@@ -64,12 +44,6 @@ const AdminDashboard = () => {
     await load();
   };
 
-  const handleCompetitionApprove = async (id: string, email: string) => {
-    if (!token) return;
-    const response = await approveCompetitionRegistration(token, id);
-    setLastCompetitionPassword({ email, password: response.temporaryPassword });
-    await load();
-  };
 
   const handleImportDefaults = async () => {
     if (!token) return;
@@ -109,97 +83,6 @@ const AdminDashboard = () => {
               <h1 className="text-3xl font-heading font-bold text-foreground">Admin Dashboard</h1>
               <Button variant="outline" onClick={logout}>Logout</Button>
             </div>
-
-            <div className="mt-8 rounded-lg border border-border bg-white p-6 shadow-card">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Online Competition Control</h2>
-                  <p className="text-sm text-muted-foreground">Approve registrations, monitor access, and track scheduled competitions.</p>
-                </div>
-                {lastCompetitionPassword && (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    Credentials for <span className="font-semibold">{lastCompetitionPassword.email}</span>:{" "}
-                    <span className="font-mono font-bold">{lastCompetitionPassword.password}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-                <AdminMetric label="Total Registrations" value={competition?.summary.totalRegistrations || 0} />
-                <AdminMetric label="Pending Approvals" value={competition?.summary.pendingApprovals || 0} />
-                <AdminMetric label="Active Competitions" value={competition?.summary.activeCompetitions || 0} />
-                <AdminMetric label="Revenue" value={`Rs. ${competition?.summary.revenue || 0}`} />
-                <AdminMetric label="Participants" value={competition?.summary.participantsCount || 0} />
-                <AdminMetric label="Active Kit Access" value={competition?.summary.activePracticeKitAccess || 0} />
-              </div>
-
-              <div className="mt-6 rounded-lg border border-border bg-slate-50 p-4">
-                <h3 className="font-semibold text-foreground">Online Competition Categories & Subcategories</h3>
-                <div className="mt-4 overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-left text-sm">
-                    <thead className="text-xs uppercase text-muted-foreground">
-                      <tr>
-                        <th className="border-b border-border py-2">Category</th>
-                        <th className="border-b border-border py-2">Subcategory</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border bg-white">
-                      {competitionCategoryRows.map((category) => (
-                        <tr key={category.id}>
-                          <td className="py-3 font-semibold">{category.name}</td>
-                          <td className="py-3">{category.subcategories || "-"}</td>
-                        </tr>
-                      ))}
-                      {competitionCategoryRows.length === 0 && (
-                        <tr>
-                          <td className="py-3 text-muted-foreground" colSpan={2}>No categories found.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="mt-6 overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-sm">
-                  <thead className="text-xs uppercase text-muted-foreground">
-                    <tr>
-                      <th className="py-2">Student</th>
-                      <th className="py-2">Mobile</th>
-                      <th className="py-2">School</th>
-                      <th className="py-2">Status</th>
-                      <th className="py-2 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {(competition?.registrations || []).map((request) => (
-                      <tr key={request.id}>
-                        <td className="py-3">
-                          <div className="font-semibold">{request.name}</div>
-                          <div className="text-xs text-muted-foreground">{request.email}</div>
-                        </td>
-                        <td className="py-3">{request.mobile || "-"}</td>
-                        <td className="py-3">{request.school || "-"}</td>
-                        <td className="py-3 capitalize">{request.status}</td>
-                        <td className="py-3 text-right">
-                          {request.status === "pending" ? (
-                            <Button size="sm" onClick={() => handleCompetitionApprove(request.id, request.email)}>Approve</Button>
-                          ) : (
-                            <span className="text-sm font-semibold text-emerald-600">Approved</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {(competition?.registrations || []).length === 0 && (
-                      <tr>
-                        <td className="py-4 text-muted-foreground" colSpan={5}>No competition registration requests yet.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
             <div className="mt-8 rounded-lg border border-border bg-white p-6 shadow-card">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>

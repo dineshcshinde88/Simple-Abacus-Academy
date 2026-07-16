@@ -6,7 +6,7 @@ import { ArrowRight, Star } from "lucide-react";
 const levels = [
   { range: "Level 1–3", title: "Beginner", age: "6–8 years", desc: "Foundation of abacus operations, basic addition & subtraction with beads.", features: ["Abacus basics", "Single-digit operations", "Visual calculation"], color: "border-info/30 bg-info/5" },
   { range: "Level 4–6", title: "Intermediate", age: "8–11 years", desc: "Mental math without physical abacus, multiplication & division mastery.", features: ["Mental visualization", "Multi-digit operations", "Speed drills"], popular: true, color: "border-secondary/40 bg-secondary/5" },
-  { range: "Level 7–10", title: "Advanced", age: "11–14 years", desc: "Complex calculations, competition preparation, and mastery certification.", features: ["Competition prep", "Complex operations", "Certification exam"], color: "border-success/30 bg-success/5" },
+  { range: "Level 7–10", title: "Advanced", age: "11–14 years", desc: "Complex calculations, advanced practice, and mastery certification.", features: ["Complex operations", "Certification exam"], color: "border-success/30 bg-success/5" },
 ];
 
 const ProgramsSection = () => (

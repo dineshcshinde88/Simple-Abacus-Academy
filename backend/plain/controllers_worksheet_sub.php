@@ -1427,7 +1427,7 @@ function worksheet_sub_save_paper_attempt(array $student, array $topic, array $d
     $paperId = (string) ($topic['paper_id'] ?? $topicId);
     $levelId = (string) ($topic['level_id'] ?? '');
     $mode = strtolower(trim((string) ($data['mode'] ?? 'practice')));
-    $mode = in_array($mode, ['practice', 'visualization', 'competition'], true) ? $mode : 'practice';
+    $mode = in_array($mode, ['practice', 'visualization'], true) ? $mode : 'practice';
     $answers = is_array($data['answers'] ?? null) ? $data['answers'] : [];
     $duration = max(0, (int) ($data['durationSeconds'] ?? $data['timeTaken'] ?? 0));
     $startedAt = trim((string) ($data['startedAt'] ?? ''));
@@ -1558,7 +1558,7 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
     $accuracy = max(0, min(100, (float) ($data['accuracy'] ?? 0)));
     $timeTaken = max(0, (int) ($data['timeTaken'] ?? 0));
     $mode = strtolower(trim((string) ($data['mode'] ?? 'practice')));
-    $mode = in_array($mode, ['practice', 'visualization', 'competition'], true) ? $mode : 'practice';
+    $mode = in_array($mode, ['practice', 'visualization'], true) ? $mode : 'practice';
     $speedTier = isset($data['speedTier']) ? max(1, min(15, (int) $data['speedTier'])) : null;
     if (!empty($data['levelId']) && empty($_GET['levelId'])) {
         $_GET['levelId'] = (string) $data['levelId'];
@@ -1585,7 +1585,7 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
 
     if ($mode === 'competition') {
         if (!worksheet_sub_is_vedic_level_name((string) ($topic['level_name'] ?? ''))) {
-            json_response(['message' => 'Competition mode is available only for Vedic Maths worksheet topics.'], 422);
+            json_response(['message' => 'This worksheet mode is unavailable.'], 422);
         }
         $speedTier = $speedTier ?: 15;
         worksheet_sub_assert_competition_tier((string) $student['id'], $topicId, $speedTier);

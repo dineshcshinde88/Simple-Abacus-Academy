@@ -1,5 +1,5 @@
-ï»¿
-import { useEffect, useMemo, useState } from "react";
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Award,
@@ -13,11 +13,13 @@ import {
   GraduationCap,
   LayoutDashboard,
   Link2,
+  Lock,
   LogOut,
   Mail,
   MessageCircle,
   Menu,
   Pencil,
+  PlayCircle,
   Plus,
   Search,
   Settings,
@@ -51,12 +53,20 @@ import {
 } from "@/context/InstructorDashboardContext";
 import { useAuth } from "@/context/AuthContext";
 import TeacherShopSection from "@/components/training/TeacherShopSection";
+import {
+  getInstructorVideoDashboard,
+  InstructorTrainingVideo,
+  InstructorVideoDashboard,
+  requestInstructorVideoPlayback,
+  saveInstructorVideoProgress,
+} from "@/services/instructorVideoApi";
 
 const navItems = [
   { key: "overview", label: "Dashboard", icon: LayoutDashboard },
   { key: "courses", label: "Courses", icon: BookOpen },
   { key: "students", label: "Students", icon: Users },
   { key: "shop", label: "Shop", icon: Wallet },
+  { key: "trainingVideos", label: "Training Videos", icon: PlayCircle },
   { key: "batches", label: "Batches", icon: Calendar },
   { key: "enquiries", label: "Enquiries", icon: MessageCircle },
   { key: "settings", label: "Settings", icon: Settings },
@@ -214,9 +224,9 @@ const OverviewSection = ({ onNavigate }: { onNavigate: (tab: NavKey) => void }) 
 
       <div className="bg-white p-4 shadow-sm">
         <div className="mb-6 flex items-center justify-center gap-6 bg-[#303030] py-3 text-xl font-semibold text-white">
-          <span>â€¹</span>
+          <span>‹</span>
           <span>{today.toLocaleString("en-US", { month: "long" })} - {today.getFullYear()}</span>
-          <span>â€º</span>
+          <span>›</span>
         </div>
         <div className="grid gap-8 xl:grid-cols-[1fr_1fr]">
           <div className="overflow-hidden border border-slate-300">
@@ -702,7 +712,7 @@ const StudentDetailPanel = ({ student, onClose }: { student: Student | null; onC
                     <div>
                       <p className="font-medium">{session.topic}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(session.date)} â€¢ {session.time}
+                        {formatDate(session.date)} • {session.time}
                       </p>
                     </div>
                     <a href={session.meetingLink} className="text-xs text-primary hover:underline">
@@ -865,7 +875,7 @@ const BatchesSection = () => {
                 <div>
                   <p className="text-lg font-semibold">{batch.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {batch.level} â€¢ {batchStudents.length} students
+                    {batch.level} • {batchStudents.length} students
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -909,7 +919,7 @@ const BatchesSection = () => {
                     <div>
                       <p className="font-medium">{session.topic}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(session.date)} â€¢ {session.time}
+                        {formatDate(session.date)} • {session.time}
                       </p>
                     </div>
                     <Button variant="ghost" size="sm" className="gap-2">
@@ -1343,7 +1353,7 @@ const FeesSection = () => {
             {payments.map((payment) => (
               <TableRow key={payment.id}>
                 <TableCell>{students.find((student) => student.id === payment.studentId)?.name}</TableCell>
-                <TableCell>â‚¹{payment.amount}</TableCell>
+                <TableCell>?{payment.amount}</TableCell>
                 <TableCell>{formatDate(payment.date)}</TableCell>
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${feeBadge(payment.status)}`}>
@@ -2036,6 +2046,265 @@ const ProfileSection = () => {
   );
 };
 
+const formatDuration = (seconds: number) => {
+  const safe = Math.max(0, Math.floor(seconds || 0));
+  const minutes = Math.floor(safe / 60);
+  const rest = safe % 60;
+  return `${minutes}:${rest.toString().padStart(2, "0")}`;
+};
+
+const programLabel = (program: string) => (program === "vedic_maths" ? "Vedic Maths Training" : "Abacus Training");
+
+const TrainingVideosSection = ({ token }: { token: string | null }) => {
+  const [dashboard, setDashboard] = useState<InstructorVideoDashboard | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<InstructorTrainingVideo | null>(null);
+  const [playbackUrl, setPlaybackUrl] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [watermark, setWatermark] = useState({ x: 8, y: 10 });
+  const [nowText, setNowText] = useState(() => new Date().toLocaleString());
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const sessionIdRef = useRef(dashboardId());
+  const maxWatchedRef = useRef(0);
+  const segmentStartRef = useRef<number | null>(null);
+  const pendingSegmentsRef = useRef<Array<{ start: number; end: number }>>([]);
+
+  const loadDashboard = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const response = await getInstructorVideoDashboard(token);
+      setDashboard(response);
+      if (selectedVideo) {
+        const updated = response.library.videos.find((video) => video.id === selectedVideo.id);
+        if (updated) setSelectedVideo(updated);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Training videos could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [token]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowText(new Date().toLocaleString());
+      setWatermark((prev) => ({
+        x: (prev.x + 23 + Math.round(Math.random() * 17)) % 72,
+        y: (prev.y + 19 + Math.round(Math.random() * 11)) % 68,
+      }));
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const flushProgress = async () => {
+    if (!token || !selectedVideo || !videoRef.current || saving) return;
+    const current = Math.floor(videoRef.current.currentTime || 0);
+    const duration = Math.floor(videoRef.current.duration || selectedVideo.durationSeconds || 0);
+    const openStart = segmentStartRef.current;
+    if (openStart !== null && current > openStart) {
+      pendingSegmentsRef.current.push({ start: Math.floor(openStart), end: current });
+      segmentStartRef.current = current;
+    }
+    const segments = pendingSegmentsRef.current.splice(0);
+    if (!segments.length && current === selectedVideo.progress.currentPositionSeconds) return;
+
+    setSaving(true);
+    try {
+      const response = await saveInstructorVideoProgress(token, selectedVideo.id, {
+        sessionId: sessionIdRef.current,
+        currentPositionSeconds: current,
+        maximumWatchedPositionSeconds: Math.floor(maxWatchedRef.current),
+        durationSeconds: duration,
+        segments,
+      });
+      setDashboard((prev) => (prev ? { ...prev, library: response.library } : prev));
+      const updated = response.library.videos.find((video) => video.id === selectedVideo.id);
+      if (updated) setSelectedVideo(updated);
+    } catch (error) {
+      pendingSegmentsRef.current.unshift(...segments);
+      toast.error(error instanceof Error ? error.message : "Progress could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void flushProgress(), 12000);
+    const handler = () => void flushProgress();
+    window.addEventListener("beforeunload", handler);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("beforeunload", handler);
+      void flushProgress();
+    };
+  }, [token, selectedVideo?.id]);
+
+  const openVideo = async (video: InstructorTrainingVideo) => {
+    if (!token || !video.isUnlocked) return;
+    try {
+      await flushProgress();
+      const response = await requestInstructorVideoPlayback(token, video.id);
+      sessionIdRef.current = dashboardId();
+      pendingSegmentsRef.current = [];
+      segmentStartRef.current = null;
+      maxWatchedRef.current = response.video.progress.maximumWatchedPositionSeconds || response.video.progress.currentPositionSeconds || 0;
+      setSelectedVideo(response.video);
+      setPlaybackUrl(response.playbackUrl);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Video access denied.");
+    }
+  };
+
+  const groupedVideos = useMemo(() => {
+    const groups = new Map<string, InstructorTrainingVideo[]>();
+    (dashboard?.library.videos || []).forEach((video) => {
+      const key = `${video.program}__${video.level}`;
+      groups.set(key, [...(groups.get(key) || []), video]);
+    });
+    return Array.from(groups.entries()).map(([key, videos]) => ({ key, videos }));
+  }, [dashboard?.library.videos]);
+
+  if (loading) {
+    return <Card className="p-6 shadow-card text-sm text-slate-500">Loading training videos...</Card>;
+  }
+
+  const subscription = dashboard?.subscription;
+  if (!subscription?.hasAccess) {
+    const expired = subscription?.state === "expired";
+    return (
+      <Card className="max-w-2xl p-6 shadow-card">
+        <SectionTitle title="Training Videos" subtitle="Offline activated 90-day training access" />
+        <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">
+            {expired ? "Your 90-day Training Video subscription has expired." : "Your Training Video subscription is not active."}
+          </p>
+          <p className="mt-1">Please contact the administrator {expired ? "for renewal." : "to activate your 90-day access."}</p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 lg:grid-cols-4">
+        <Card className="p-5 shadow-card lg:col-span-2">
+          <SectionTitle title="Training Videos" subtitle="Sequential Abacus and Vedic Maths instructor lessons" />
+          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+            <div><span className="text-slate-500">Plan</span><p className="font-semibold">{subscription.subscription?.planName}</p></div>
+            <div><span className="text-slate-500">Remaining Days</span><p className="font-semibold">{subscription.subscription?.remainingDays}</p></div>
+            <div><span className="text-slate-500">Start Date</span><p className="font-semibold">{formatDate(subscription.subscription?.startDate || "")}</p></div>
+            <div><span className="text-slate-500">Expiry Date</span><p className="font-semibold">{formatDate(subscription.subscription?.expiryDate || "")}</p></div>
+          </div>
+        </Card>
+        <Card className="p-5 shadow-card lg:col-span-2">
+          <p className="text-sm font-semibold text-slate-700">Overall Video Progress</p>
+          <div className="mt-4 flex items-end justify-between gap-4">
+            <p className="text-3xl font-bold text-slate-950">{dashboard?.library.summary.overallProgress || 0}%</p>
+            <p className="text-sm text-slate-500">{dashboard?.library.summary.completedVideos} completed / {dashboard?.library.summary.remainingVideos} remaining</p>
+          </div>
+          <Progress value={dashboard?.library.summary.overallProgress || 0} className="mt-4" />
+        </Card>
+      </div>
+
+      {selectedVideo && playbackUrl ? (
+        <Card className="space-y-4 p-5 shadow-card">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold">{selectedVideo.title}</h3>
+              <p className="text-sm text-slate-500">{programLabel(selectedVideo.program)} - {selectedVideo.level} - Video {selectedVideo.sequenceNumber} - {formatDuration(selectedVideo.durationSeconds)}</p>
+            </div>
+            <Badge className={selectedVideo.progress.isCompleted ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}>
+              {selectedVideo.progress.isCompleted ? "Video Completed" : `${Math.round(selectedVideo.progress.completionPercentage)}% watched`}
+            </Badge>
+          </div>
+          <div className="relative overflow-hidden rounded-md bg-black" onContextMenu={(event) => event.preventDefault()}>
+            <video
+              ref={videoRef}
+              src={playbackUrl}
+              className="aspect-video w-full bg-black"
+              controls
+              controlsList="nodownload noplaybackrate"
+              disablePictureInPicture
+              onLoadedMetadata={(event) => {
+                event.currentTarget.currentTime = selectedVideo.progress.currentPositionSeconds || 0;
+              }}
+              onPlay={(event) => {
+                segmentStartRef.current = event.currentTarget.currentTime;
+              }}
+              onPause={() => void flushProgress()}
+              onEnded={() => void flushProgress()}
+              onTimeUpdate={(event) => {
+                const current = event.currentTarget.currentTime;
+                if (current > maxWatchedRef.current) maxWatchedRef.current = current;
+              }}
+              onSeeking={(event) => {
+                const allowed = maxWatchedRef.current + 5;
+                if (event.currentTarget.currentTime > allowed) {
+                  event.currentTarget.currentTime = allowed;
+                }
+              }}
+            />
+            <div
+              className="pointer-events-none absolute rounded bg-black/35 px-3 py-2 text-xs font-semibold text-white shadow"
+              style={{ left: `${watermark.x}%`, top: `${watermark.y}%` }}
+            >
+              <div>{dashboard?.watermarkIdentity.name} | {dashboard?.watermarkIdentity.mobile}</div>
+              <div>{nowText}</div>
+            </div>
+          </div>
+          <Progress value={selectedVideo.progress.completionPercentage} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">Progress saves automatically. Forward seeking is limited to watched sections.</p>
+            <Button disabled={!selectedVideo.progress.isCompleted} onClick={() => {
+              const next = dashboard?.library.videos.find((video) => video.program === selectedVideo.program && video.level === selectedVideo.level && video.sequenceNumber === selectedVideo.sequenceNumber + 1);
+              if (next?.isUnlocked) void openVideo(next);
+            }}>
+              Continue to Next Video
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      {groupedVideos.map((group) => (
+        <Card key={group.key} className="p-5 shadow-card">
+          <h3 className="text-base font-semibold">{programLabel(group.videos[0].program)} - {group.videos[0].level}</h3>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {group.videos.map((video) => {
+              const completed = video.progress.isCompleted;
+              const status = !video.isUnlocked ? "Locked" : completed ? "Completed" : video.progress.completionPercentage > 0 ? "Continue Watching" : "Available";
+              return (
+                <div key={video.id} className="rounded-md border border-slate-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Video {video.sequenceNumber}</p>
+                      <h4 className="mt-1 font-semibold text-slate-950">{video.title}</h4>
+                      <p className="mt-1 text-xs text-slate-500">{formatDuration(video.durationSeconds)}</p>
+                    </div>
+                    <Badge variant="outline">{status}</Badge>
+                  </div>
+                  <Progress value={video.progress.completionPercentage} className="mt-4" />
+                  <p className="mt-2 text-xs text-slate-500">{Math.round(video.progress.completionPercentage)}% complete</p>
+                  {!video.isUnlocked ? (
+                    <p className="mt-4 flex items-center gap-2 text-xs text-slate-500"><Lock className="h-3.5 w-3.5" />{video.lockedReason}</p>
+                  ) : (
+                    <Button size="sm" className="mt-4" onClick={() => void openVideo(video)}>
+                      <PlayCircle className="mr-2 h-4 w-4" />Watch Now
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+};
 const InstructorDashboardShell = () => {
   const { profile, updateProfile } = useInstructorDashboard();
   const { logout, token, user } = useAuth();
@@ -2203,6 +2472,7 @@ const InstructorDashboardShell = () => {
             {activeTab === "courses" && <CoursesSection />}
             {activeTab === "students" && <StudentsSection />}
             {activeTab === "shop" && <TeacherShopSection token={token} paymentPath="/teacher-dashboard/payment-gateway" backPath="/teacher-dashboard" />}
+            {activeTab === "trainingVideos" && <TrainingVideosSection token={token} />}
             {activeTab === "batches" && <BatchesSection />}
             {activeTab === "enquiries" && <EnquiriesSection />}
             {activeTab === "settings" && <ProfileSection />}

@@ -14,11 +14,6 @@ export type WorksheetTopic = {
   paper_number?: number | null;
   content_type?: "topic" | "paper";
   mode?: "vedic";
-  competition?: {
-    unlockedTier: number;
-    passingPercentage: number;
-    tiers: { seconds: number; unlocked: boolean; current: boolean }[];
-  };
 };
 
 export type WorksheetQuestion = {
@@ -56,7 +51,7 @@ export type WorksheetPractice = {
   time_taken: number;
   duration_seconds?: number;
   status: "Excellent" | "Good" | "Needs Practice" | "Pass" | "Fail";
-  mode?: "practice" | "visualization" | "competition";
+  mode?: "practice" | "visualization";
   speed_tier?: number | null;
   started_at?: string | null;
   completed_at?: string | null;
@@ -83,7 +78,7 @@ type SubmitPracticePayload = WorksheetAccessParams & {
   totalQuestions: number;
   correctAnswers: number;
   timeTaken: number;
-  mode?: "practice" | "visualization" | "competition";
+  mode?: "practice" | "visualization";
   speedTier?: number | null;
   contentType?: "topic" | "paper";
   answers?: Record<string, string>;
@@ -99,7 +94,7 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function worksheetQuery(params?: WorksheetAccessParams & { mode?: "practice" | "competition"; speedTier?: number | null }): string {
+function worksheetQuery(params?: WorksheetAccessParams & { mode?: "practice" | "visualization"; speedTier?: number | null }): string {
   const query = new URLSearchParams();
   if (params?.levelId) query.set("levelId", params.levelId);
   if (params?.subscriptionId) query.set("subscriptionId", params.subscriptionId);
@@ -128,7 +123,7 @@ export async function fetchWorksheetDashboard(params?: string | null | Worksheet
 
 export async function fetchWorksheetQuestions(
   topic: WorksheetTopic,
-  options?: { mode?: "practice" | "competition"; speedTier?: number | null } & WorksheetAccessParams,
+  options?: { mode?: "practice" | "visualization"; speedTier?: number | null } & WorksheetAccessParams,
 ): Promise<WorksheetQuestion[]> {
   const query = worksheetQuery(options);
   const data = await apiGet<{ questions: WorksheetQuestion[] }>(`/api/student/worksheet-sub/topics/${topic.id}/questions${query}`);

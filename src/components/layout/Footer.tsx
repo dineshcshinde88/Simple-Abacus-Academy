@@ -1,4 +1,4 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   Facebook,
   Instagram,
@@ -52,7 +52,7 @@ const Footer = () => (
           <p className="mt-4 text-sm text-white/85 leading-relaxed">
             With over 4 years of expertise, Simple Abacus is a trusted leader in Abacus and Vedic Maths education,
             empowering more than 1,000 students and teachers. We offer a comprehensive suite of services-including
-            student courses, school-integrated programs, National-level competitions, certified teacher training, and
+            student courses, school-integrated programs, certified teacher training, and
             premium worksheet subscriptions-delivering complete, end-to-end solutions for both learning and teaching.
           </p>
           <p className="mt-3 text-sm font-semibold text-white bg-gradient-to-r from-white/10 via-white/5 to-white/10 border border-white/20 px-4 py-3 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur-sm">
