@@ -1,5 +1,7 @@
 <?php
 
+date_default_timezone_set('UTC');
+
 function load_env_file(string $path): void
 {
     if (!is_file($path)) {
@@ -184,6 +186,21 @@ function now_sql(): string
     return gmdate('Y-m-d H:i:s');
 }
 
+function sql_datetime_to_iso_utc($value): ?string
+{
+    if ($value === null || trim((string) $value) === '') return null;
+    $text = trim((string) $value);
+    try {
+        $date = str_contains($text, 'T')
+            ? new DateTimeImmutable($text)
+            : DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $text, new DateTimeZone('UTC'));
+        return $date instanceof DateTimeImmutable
+            ? $date->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z')
+            : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
 function uuid_v4(): string
 {
     $data = random_bytes(16);
@@ -297,6 +314,7 @@ function db_conn(): PDO
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
+            $pdo->exec("SET time_zone = '+00:00'");
             break;
         } catch (Throwable $e) {
             $lastError = $e;
