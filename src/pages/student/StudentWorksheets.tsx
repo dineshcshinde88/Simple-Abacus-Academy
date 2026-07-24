@@ -465,6 +465,19 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
     </div>
   );
 };
+const WorksheetEquation = ({ question }: { question: string }) => {
+  const lines = question.split(/\r?\n/).filter(Boolean);
+  if (lines.length <= 1) return <span>{question}</span>;
+  return (
+    <span className="inline-grid grid-cols-[1ch_auto] font-mono tabular-nums" aria-label={lines.join(" ")}>
+      {lines.map((line, index) => {
+        const match = line.match(/^([+-]?)(.*)$/);
+        return <span key={`${index}-${line}`} className="contents" aria-hidden="true"><span>{match?.[1] || "\u00a0"}</span><span className="text-right">{match?.[2] || line}</span></span>;
+      })}
+    </span>
+  );
+};
+
 const QuestionsPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
@@ -488,7 +501,7 @@ const QuestionsPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
               <span className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#5b21b6] text-xs font-bold text-white">
                 Q{index + 1}
               </span>
-              <p className="flex-1 whitespace-pre-line text-lg font-bold text-slate-900">{question.question}</p>
+              <p className="flex-1 text-lg font-bold text-slate-900"><WorksheetEquation question={question.question} /></p>
             </Card>
           ))}
         </div>
@@ -659,7 +672,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Practice Now" }]} />
-      <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
+      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
 
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
         <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 md:flex-row md:items-center md:justify-between">

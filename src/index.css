@@ -115,12 +115,6 @@
 }
 
 @layer utilities {
-  .grid > .flex.min-h-36 > .whitespace-pre-line {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-variant-numeric: tabular-nums;
-    text-indent: 1ch;
-  }
-
   .gradient-hero {
     background: var(--hero-gradient);
   }
