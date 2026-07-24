@@ -491,7 +491,7 @@ const QuestionsPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "View Questions" }]} />
-      <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
+      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
       <h2 className="text-lg font-bold text-slate-900">{topic.topic_name}</h2>
 
       {loading ? <LoadingGrid /> : (
@@ -889,7 +889,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
     return (
       <div className="mx-auto max-w-6xl space-y-6">
         <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Visualization Result" }]} />
-        <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
+      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
         <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
           <ResultSummary result={result} showReview={showReview} onReview={() => setShowReview((value) => !value)} />
         </Card>
@@ -899,7 +899,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Visualization" }]} />
-      <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
+      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
 
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
         <div className="border-b border-slate-200 pb-4">
@@ -1041,7 +1041,7 @@ const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "View Practices" }]} />
-      <LevelBox level={level} onBack={() => navigate("/student/worksheets")} />
+      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
