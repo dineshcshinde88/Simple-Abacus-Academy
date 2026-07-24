@@ -881,10 +881,6 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
       setSubmitting(false);
     }
   };
-  const beadRows = current?.answer
-    ? current.answer.replace(/\D/g, "").slice(-5).padStart(5, "0").split("").map((digit) => Number(digit))
-    : [0, 0, 0, 0, 0];
-
   if (result) {
     return (
       <div className="mx-auto max-w-6xl space-y-6">
@@ -940,32 +936,6 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
                 onKeyDown={(event) => event.key === "Enter" && saveAndNext()}
                 className="mt-2 h-10 border-[#551896] shadow-[0_0_0_2px_rgba(85,24,150,0.12)] focus-visible:ring-[#551896]"
               />
-            </div>
-
-            <div className="rounded-xl border border-[#551896]/10 bg-[#fbf8ff] p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <span className="text-sm font-bold text-[#551896]">Abacus bead movement</span>
-                <span className="text-xs font-semibold text-slate-500">Answer rods preview</span>
-              </div>
-              <div className="space-y-4">
-                {beadRows.map((active, rod) => (
-                  <div key={`${current?.id || "q"}-${rod}`} className="flex items-center gap-3">
-                    <span className="w-8 text-xs font-semibold text-slate-500">{rod + 1}</span>
-                    <div className="h-1 flex-1 rounded-full bg-[#551896]/25" />
-                    <div className="flex min-w-44 gap-1.5">
-                      {Array.from({ length: 10 }, (_, bead) => (
-                        <span
-                          key={bead}
-                          className={`h-5 w-5 rounded-full border border-[#551896]/20 shadow-sm transition-all duration-500 ${
-                            bead < active ? "translate-y-1 bg-[#ff6500]" : "-translate-y-1 bg-white"
-                          }`}
-                          style={{ transitionDelay: `${bead * 35}ms` }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
