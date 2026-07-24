@@ -16,6 +16,7 @@ import {
   Save,
   Send,
   Volume2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ import {
 
 const PRACTICE_LIMIT = 60;
 const WORKSHEET_PRACTICE_SECONDS = 600;
+const ENABLE_VISUALIZATION_CHECK_ANSWER = true;
 const TOKEN_KEY = "abacus_auth_token";
 
 type StudentSubscription = NonNullable<StudentDashboardData["subscriptions"]>[number];
@@ -732,11 +734,34 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
     </div>
   );
 };
+type VisualizationCheckResult = { status: "correct" | "incorrect"; studentAnswer: string; correctAnswer: string };
+
+const VisualizationAnswerResultCard = ({ result }: { result: VisualizationCheckResult }) => {
+  const correct = result.status === "correct";
+  return (
+    <div className={`rounded-xl border p-4 ${correct ? "border-emerald-300 bg-emerald-50" : "border-red-300 bg-red-50"}`} role="status">
+      <div className={`flex items-center gap-2 font-bold ${correct ? "text-emerald-700" : "text-red-700"}`}>
+        {correct ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+        <span>{correct ? "Correct!" : "Incorrect!"}</span>
+      </div>
+      <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <div><p className="text-slate-500">Your Answer:</p><p className="font-bold text-slate-900">{result.studentAnswer}</p></div>
+        <div><p className="text-slate-500">Correct Answer:</p><p className="font-bold text-slate-900">{result.correctAnswer}</p></div>
+      </div>
+      <div className="mt-3 text-sm text-slate-700">
+        <p className="font-semibold">Result:</p>
+        <p>{correct ? "Great! Your answer is correct." : "Your answer is incorrect. Please try again."}</p>
+      </div>
+    </div>
+  );
+};
+
 const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
+  const [checkResult, setCheckResult] = useState<VisualizationCheckResult | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [seconds, setSeconds] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -747,10 +772,16 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
   const [speaking, setSpeaking] = useState(false);
   const current = questions[index];
   const levelQuery = worksheetRouteSearch(access);
+  const mode = "visualization" as const;
+  const checkAnswerEnabled = ENABLE_VISUALIZATION_CHECK_ANSWER && mode === "visualization";
 
   useEffect(() => {
     fetchWorksheetQuestions(topic, access).then((items) => setQuestions(items.slice(0, 60)));
   }, [topic, access.levelId, access.subscriptionId]);
+
+  useEffect(() => {
+    setCheckResult(null);
+  }, [current?.id]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setSeconds((prev) => prev + 1), 1000);
@@ -828,6 +859,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
   };
 
   const selectQuestion = (nextIndex: number) => {
+    setCheckResult(null);
     if (current) {
       setAnswers((prev) => ({ ...prev, [current.id]: answer.trim() }));
     }
@@ -837,6 +869,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
 
   const saveAndNext = () => {
     if (!current) return;
+    setCheckResult(null);
     const nextAnswers = { ...answers, [current.id]: answer.trim() };
     setAnswers(nextAnswers);
     if (index < questions.length - 1) {
@@ -880,6 +913,17 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const checkCurrentAnswer = () => {
+    const studentAnswer = answer.trim();
+    if (!studentAnswer) {
+      toast.error("Please enter your answer first.");
+      return;
+    }
+    if (!current) return;
+    const correctAnswer = current.answer.trim();
+    setCheckResult({ status: studentAnswer === correctAnswer ? "correct" : "incorrect", studentAnswer, correctAnswer });
   };
   if (result) {
     return (
@@ -932,7 +976,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
                 value={answer}
                 inputMode="numeric"
                 placeholder="Type your answer here..."
-                onChange={(event) => setAnswer(event.target.value.replace(/[^0-9-]/g, ""))}
+                onChange={(event) => setAnswer(event.target.value.replace(/[^0-9.-]/g, ""))}
                 onKeyDown={(event) => event.key === "Enter" && saveAndNext()}
                 className="mt-2 h-10 border-[#551896] shadow-[0_0_0_2px_rgba(85,24,150,0.12)] focus-visible:ring-[#551896]"
               />
@@ -953,11 +997,21 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
                 <Save className="mr-2 h-4 w-4" />
                 Save & Next
               </Button>
+              {checkAnswerEnabled ? (
+                <Button type="button" className="bg-[#551896] text-white hover:bg-[#421173]" disabled={!answer.trim() || !current} onClick={checkCurrentAnswer}>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Check Answer
+                </Button>
+              ) : null}
               <Button type="button" disabled={submitting} className="bg-[#f04b3f] text-white hover:bg-[#dc382d]" onClick={submitExam}>
                 <Send className="mr-2 h-4 w-4" />
                 {submitting ? "Submitting..." : "Submit Exam"}
               </Button>
             </div>
+            {checkAnswerEnabled && checkResult ? <VisualizationAnswerResultCard result={checkResult} /> : null}
+            {checkAnswerEnabled ? (
+              <p className="text-xs text-slate-500">Note: Check Answer is available only in Visualization Mode. It does not affect your worksheet score or examination results.</p>
+            ) : null}
           </div>
 
           <aside className="rounded-xl bg-slate-50 p-5 shadow-[0_8px_24px_rgba(15,23,42,0.10)]">
