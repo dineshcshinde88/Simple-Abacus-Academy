@@ -484,6 +484,66 @@ function worksheet_sub_generate_vedic_questions(array $topic): array
 }
 function worksheet_sub_dynamic_topic_specs(int $levelNumber): array
 {
+    $matrix = worksheet_sub_official_dynamic_topic_matrix();
+    return array_map(static function (array $row): array {
+        $spec = ['slug' => $row[0], 'name' => $row[1], 'operation' => $row[2], 'digits' => $row[4]];
+        if ($row[3] > 0) $spec['rows'] = $row[3];
+        if (($row[5] ?? 0) > 0) $spec['decimal_places'] = $row[5];
+        return $spec;
+    }, $matrix[$levelNumber] ?? []);
+}
+
+function worksheet_sub_official_dynamic_topic_matrix(): array
+{
+    return [
+        2 => [
+            ['3-row-single-digit-addition','3 Rows - Single Digit Addition','addition',3,1], ['3-row-single-digit-subtraction','3 Rows - Single Digit Subtraction','subtraction',3,1], ['3-row-mixed-single-digit','3 Rows - Mixed Single Digit','mixed',3,1],
+            ['4-row-single-digit-addition','4 Rows - Single Digit Addition','addition',4,1], ['4-row-mixed-single-digit','4 Rows - Mixed Single Digit','mixed',4,1], ['5-row-single-digit-addition','5 Rows - Single Digit Addition','addition',5,1], ['5-row-mixed-single-digit','5 Rows - Mixed Single Digit','mixed',5,1],
+        ],
+        3 => [
+            ['5-row-single-digit-addition','5 Rows - Single Digit Addition','addition',5,1], ['5-row-single-digit-mixed','5 Rows - Single Digit Mixed','mixed',5,1], ['10-row-single-digit-addition','10 Rows - Single Digit Addition','addition',10,1], ['10-row-single-digit-mixed','10 Rows - Single Digit Mixed','mixed',10,1],
+            ['3-row-two-digit-addition','3 Rows - Two Digit Addition','addition',3,2], ['3-row-two-digit-subtraction','3 Rows - Two Digit Subtraction','subtraction',3,2], ['3-row-two-digit-mixed','3 Rows - Two Digit Mixed','mixed',3,2],
+            ['4-row-two-digit-addition','4 Rows - Two Digit Addition','addition',4,2], ['4-row-two-digit-subtraction','4 Rows - Two Digit Subtraction','subtraction',4,2], ['4-row-two-digit-mixed','4 Rows - Two Digit Mixed','mixed',4,2],
+            ['6-row-two-digit-addition','6 Rows - Two Digit Addition','addition',6,2], ['6-row-two-digit-mixed','6 Rows - Two Digit Mixed','mixed',6,2],
+            ['10-row-two-digit-addition','10 Rows - Two Digit Addition','addition',10,2], ['10-row-two-digit-subtraction','10 Rows - Two Digit Subtraction','subtraction',10,2], ['10-row-two-digit-mixed','10 Rows - Two Digit Mixed','mixed',10,2],
+            ['multiplication-2x1','2 Digit x 1 Digit','multiplication',0,[2,1]], ['multiplication-2x2','2 Digit x 2 Digit','multiplication',0,[2,2]], ['multiplication-3x1','3 Digit x 1 Digit','multiplication',0,[3,1]],
+        ],
+        4 => [
+            ['3-row-two-digit-addition','3 Rows - Two Digit Addition','addition',3,2], ['3-row-two-digit-subtraction','3 Rows - Two Digit Subtraction','subtraction',3,2], ['3-row-two-digit-mixed','3 Rows - Two Digit Mixed','mixed',3,2],
+            ['10-row-two-digit-addition','10 Rows - Two Digit Addition','addition',10,2], ['10-row-two-digit-subtraction','10 Rows - Two Digit Subtraction','subtraction',10,2], ['10-row-two-digit-mixed','10 Rows - Two Digit Mixed','mixed',10,2],
+            ['3-row-three-digit-addition','3 Rows - Three Digit Addition','addition',3,3], ['3-row-three-digit-subtraction','3 Rows - Three Digit Subtraction','subtraction',3,3], ['3-row-three-digit-mixed','3 Rows - Three Digit Mixed','mixed',3,3],
+            ['4-row-three-digit-addition','4 Rows - Three Digit Addition','addition',4,3], ['4-row-three-digit-subtraction','4 Rows - Three Digit Subtraction','subtraction',4,3], ['4-row-three-digit-mixed','4 Rows - Three Digit Mixed','mixed',4,3],
+            ['5-row-three-digit-addition','5 Rows - Three Digit Addition','addition',5,3], ['5-row-three-digit-subtraction','5 Rows - Three Digit Subtraction','subtraction',5,3], ['5-row-three-digit-mixed','5 Rows - Three Digit Mixed','mixed',5,3],
+            ['multiplication-2x1','2 Digit x 1 Digit','multiplication',0,[2,1]], ['multiplication-3x1','3 Digit x 1 Digit','multiplication',0,[3,1]], ['multiplication-2x2','2 Digit x 2 Digit','multiplication',0,[2,2]],
+        ],
+        5 => [
+            ['3-row-three-digit-addition','3 Rows - Three Digit Addition','addition',3,3], ['3-row-three-digit-subtraction','3 Rows - Three Digit Subtraction','subtraction',3,3], ['3-row-three-digit-mixed','3 Rows - Three Digit Mixed','mixed',3,3],
+            ['5-row-three-digit-addition','5 Rows - Three Digit Addition','addition',5,3], ['5-row-three-digit-subtraction','5 Rows - Three Digit Subtraction','subtraction',5,3], ['5-row-three-digit-mixed','5 Rows - Three Digit Mixed','mixed',5,3],
+            ['multiplication-2x1','2 Digit x 1 Digit','multiplication',0,[2,1]], ['multiplication-2x2','2 Digit x 2 Digit','multiplication',0,[2,2]], ['multiplication-3x1','3 Digit x 1 Digit','multiplication',0,[3,1]],
+            ['division-2-by-1','2 Digit / 1 Digit','division',0,[2,1]], ['division-3-by-1','3 Digit / 1 Digit','division',0,[3,1]], ['division-4-by-1','4 Digit / 1 Digit','division',0,[4,1]],
+            ['10-row-single-digit-addition','10 Rows - Single Digit Addition','addition',10,1], ['10-row-single-digit-mixed','10 Rows - Single Digit Mixed','mixed',10,1],
+            ['4-row-single-digit-decimal-add','4 Rows - Single Digit Decimal Add','addition',4,1,1], ['4-row-single-digit-decimal-mixed','4 Rows - Single Digit Decimal Mixed','mixed',4,1,1],
+            ['10-row-single-decimal-digit-add','10 Rows - Single Decimal Digit Add','addition',10,1,1], ['10-row-single-decimal-digit-mixed','10 Rows - Single Decimal Digit Mixed','mixed',10,1,1],
+        ],
+        6 => [
+            ['4-row-three-digit-addition','4 Rows - Three Digit Addition','addition',4,3], ['4-row-three-digit-subtraction','4 Rows - Three Digit Subtraction','subtraction',4,3], ['4-row-three-digit-mixed','4 Rows - Three Digit Mixed','mixed',4,3],
+            ['5-row-three-digit-addition','5 Rows - Three Digit Addition','addition',5,3], ['5-row-three-digit-subtraction','5 Rows - Three Digit Subtraction','subtraction',5,3], ['5-row-three-digit-mixed','5 Rows - Three Digit Mixed','mixed',5,3],
+            ['5-row-four-digit-addition','5 Rows - Four Digit Addition','addition',5,4], ['5-row-four-digit-subtraction','5 Rows - Four Digit Subtraction','subtraction',5,4], ['5-row-four-digit-mixed','5 Rows - Four Digit Mixed (3D Inst)','mixed',5,4],
+            ['4-row-two-digit-decimal-add','4 Rows - Two Digit Decimal Add','addition',4,2,1], ['4-row-two-digit-decimal-sub','4 Rows - Two Digit Decimal Sub','subtraction',4,2,1], ['4-row-two-digit-decimal-mixed','4 Rows - Two Digit Decimal Mixed','mixed',4,2,1],
+            ['5-row-two-digit-decimal-add','5 Rows - Two Digit Decimal Add','addition',5,2,1], ['5-row-two-digit-decimal-sub','5 Rows - Two Digit Decimal Sub','subtraction',5,2,1], ['5-row-two-digit-decimal-mixed','5 Rows - Two Digit Decimal Mixed','mixed',5,2,1],
+            ['multiplication-4x1','4 Digit x 1 Digit','multiplication',0,[4,1]], ['multiplication-5x1','5 Digit x 1 Digit','multiplication',0,[5,1]], ['multiplication-3x2','Three Digit x Two Digit','multiplication',0,[3,2]], ['multiplication-3x3','Three Digit x Three Digit','multiplication',0,[3,3]], ['multiplication-4x2','Four Digit x Two Digit','multiplication',0,[4,2]], ['division-3-by-1','Three Digit / One Digit','division',0,[3,1]],
+        ],
+        7 => [
+            ['5-row-four-digit-addition','5 Rows - Four Digit Addition','addition',5,4], ['5-row-four-digit-subtraction','5 Rows - Four Digit Subtraction','subtraction',5,4], ['5-row-four-digit-mixed','5 Rows - Four Digit Mixed','mixed',5,4],
+            ['6-row-four-digit-addition','6 Rows - Four Digit Addition','addition',6,4], ['6-row-four-digit-subtraction','6 Rows - Four Digit Subtraction','subtraction',6,4], ['6-row-four-digit-mixed','6 Rows - Four Digit Mixed','mixed',6,4],
+            ['7-row-four-digit-addition','7 Rows - Four Digit Addition','addition',7,4], ['7-row-four-digit-subtraction','7 Rows - Four Digit Subtraction','subtraction',7,4], ['7-row-four-digit-mixed','7 Rows - Four Digit Mixed','mixed',7,4],
+            ['multiplication-3x3','Three Digit x Three Digit','multiplication',0,[3,3]], ['multiplication-4x4','Four Digit x Four Digit','multiplication',0,[4,4]], ['division-4-by-1','Four Digit / One Digit','division',0,[4,1]], ['division-4-by-2','Four Digit / Two Digit','division',0,[4,2]],
+        ],
+    ];
+}
+
+function worksheet_sub_legacy_dynamic_topic_specs(int $levelNumber): array
+{
     $specs = [
         2 => [
             ['slug' => 'addition-2-digit-3-row', 'name' => 'Generated Addition - 2 Digit, 3 Row', 'operation' => 'addition', 'rows' => 3, 'digits' => [2, 2, 2]],
@@ -609,7 +669,80 @@ function worksheet_sub_render_question(array $numbers, string $operation): strin
     ));
 }
 
+function worksheet_sub_generate_official_dynamic_item(array $spec): array
+{
+    $operation = (string) $spec['operation'];
+    $places = (int) ($spec['decimal_places'] ?? 0); $scale = 10 ** $places;
+    $format = static fn(int $units): string => $places > 0 ? number_format($units / $scale, $places, '.', '') : (string) $units;
+    if ($operation === 'multiplication' || $operation === 'division') {
+        [$leftDigits, $rightDigits] = array_map('intval', $spec['digits']);
+        if ($operation === 'multiplication') {
+            $left = worksheet_sub_random_number($leftDigits); $right = worksheet_sub_random_number($rightDigits);
+            $answerUnits = $left * $right; $question = $left . ' x ' . $right;
+        } else {
+            $minDividend = 10 ** ($leftDigits - 1); $maxDividend = (10 ** $leftDigits) - 1;
+            do {
+                $right = worksheet_sub_random_number($rightDigits);
+                $minQuotient = max(1, (int) ceil($minDividend / $right));
+                $maxQuotient = (int) floor($maxDividend / $right);
+            } while ($minQuotient > $maxQuotient);
+            $answerUnits = random_int($minQuotient, $maxQuotient); $left = $right * $answerUnits;
+            $question = $left . ' / ' . $right;
+        }
+    } else {
+        $rows = (int) $spec['rows']; $digits = (int) $spec['digits'];
+        $min = (10 ** ($digits - 1)) * $scale; $max = ((10 ** $digits) * $scale) - 1;
+        $numbers = [];
+        if ($operation === 'subtraction') {
+            $running = random_int(max($min, $min * ($rows - 1)), $max); $numbers[] = $running;
+            for ($row = 1; $row < $rows; $row++) {
+                $reserved = ($rows - $row - 1) * $min;
+                $value = random_int($min, min($max, $running - $reserved));
+                $running -= $value; $numbers[] = -$value;
+            }
+        } else {
+            $running = random_int($min, $max); $numbers[] = $running;
+            for ($row = 1; $row < $rows; $row++) {
+                $value = random_int($min, $max);
+                $subtract = $operation === 'mixed' && random_int(0, 1) === 1 && $value <= $running;
+                $numbers[] = $subtract ? -$value : $value; $running += $subtract ? -$value : $value;
+            }
+        }
+        $answerUnits = array_sum($numbers);
+        $question = implode(PHP_EOL, array_map(static function (int $value, int $index) use ($format): string {
+            $rendered = $format(abs($value));
+            return $index === 0 ? pack('C*', 0xE2, 0x80, 0x87) . $rendered : ($value < 0 ? '-' : '+') . $rendered;
+        }, $numbers, array_keys($numbers)));
+    }
+    $optionUnits = [$answerUnits]; $offsets = [$scale, 5 * $scale, 10 * $scale, max($scale, (int) round(abs($answerUnits) * 0.1))];
+    while (count($optionUnits) < 4) {
+        $delta = $offsets[array_rand($offsets)]; $candidate = $answerUnits + (random_int(0, 1) ? $delta : -$delta);
+        if ($candidate < 0) $candidate = $answerUnits + $delta;
+        if (!in_array($candidate, $optionUnits, true)) $optionUnits[] = $candidate;
+    }
+    shuffle($optionUnits);
+    return ['question' => $question, 'answer' => $format($answerUnits), 'options' => array_map($format, $optionUnits)];
+}
+
 function worksheet_sub_generate_dynamic_questions(array $topic): array
+{
+    if (worksheet_sub_is_vedic_level_name((string) ($topic['level_name'] ?? ''))) return worksheet_sub_generate_vedic_questions($topic);
+    $levelNumber = worksheet_sub_level_number((string) ($topic['level_name'] ?? ''));
+    if ($levelNumber === null) return [];
+    $spec = null;
+    foreach (worksheet_sub_dynamic_topic_specs((int) $levelNumber) as $candidate) {
+        if (worksheet_sub_dynamic_topic_id((string) $topic['level_id'], (string) $candidate['slug']) === (string) $topic['id']) { $spec = $candidate; break; }
+    }
+    if (!$spec) return [];
+    $questions = [];
+    for ($i = 1; $i <= 60; $i++) {
+        $item = worksheet_sub_generate_official_dynamic_item($spec);
+        $questions[] = ['id' => (string) $topic['id'] . '-q' . $i . '-' . bin2hex(random_bytes(3)), 'topic_id' => (string) $topic['id'], 'question' => $item['question'], 'answer' => $item['answer'], 'options' => $item['options'], 'generated' => true];
+    }
+    return $questions;
+}
+
+function worksheet_sub_legacy_generate_dynamic_questions(array $topic): array
 {
     if (worksheet_sub_is_vedic_level_name((string) ($topic['level_name'] ?? ''))) {
         return worksheet_sub_generate_vedic_questions($topic);
@@ -796,6 +929,18 @@ function worksheet_sub_level_topics(array $level): array
          ORDER BY id ASC',
         ['level_id' => $levelId]
     );
+
+    $levelNumber = worksheet_sub_level_number((string) ($level['level_name'] ?? ''));
+    if (worksheet_sub_is_abacus_level_name((string) ($level['level_name'] ?? '')) && $levelNumber !== null && (int) $levelNumber >= 2 && (int) $levelNumber <= 7) {
+        $byId = [];
+        foreach ($topics as $topic) $byId[(string) $topic['id']] = $topic;
+        $officialTopics = [];
+        foreach (worksheet_sub_dynamic_topic_specs((int) $levelNumber) as $spec) {
+            $id = worksheet_sub_dynamic_topic_id($levelId, (string) $spec['slug']);
+            if (isset($byId[$id])) $officialTopics[] = $byId[$id];
+        }
+        $topics = $officialTopics;
+    }
 
     if (!$topics) {
         $papers = worksheet_sub_level_papers($level);
