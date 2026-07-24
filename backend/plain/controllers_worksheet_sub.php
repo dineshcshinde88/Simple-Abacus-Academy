@@ -1559,11 +1559,19 @@ function worksheet_attempt_payload(array $row): array
         'time_taken' => (int) ($row['duration_seconds'] ?? 0),
         'duration_seconds' => (int) ($row['duration_seconds'] ?? 0),
         'status' => $row['status'] ?? 'Needs Practice',
-        'started_at' => $row['started_at'] ?? null,
-        'completed_at' => $row['completed_at'] ?? ($row['created_at'] ?? null),
-        'created_at' => $row['created_at'] ?? null,
+        'started_at' => sql_datetime_to_iso_utc($row['started_at'] ?? null),
+        'completed_at' => sql_datetime_to_iso_utc($row['completed_at'] ?? ($row['created_at'] ?? null)),
+        'created_at' => sql_datetime_to_iso_utc($row['created_at'] ?? null),
         'review' => json_decode((string) ($row['review_json'] ?? '[]'), true) ?: [],
     ];
+}
+
+function worksheet_practice_payload(array $row): array
+{
+    foreach (['started_at', 'completed_at', 'created_at'] as $field) {
+        if (array_key_exists($field, $row)) $row[$field] = sql_datetime_to_iso_utc($row[$field]);
+    }
+    return $row;
 }
 
 function worksheet_sub_save_paper_attempt(array $student, array $topic, array $data): array
@@ -1684,7 +1692,7 @@ function controller_student_worksheet_sub_practices(array $ctx, string $topicId)
          ORDER BY COALESCE(completed_at, created_at) DESC, created_at DESC',
         ['student_id' => $student['id'], 'topic_id' => $topicId]
     );
-    json_response(['practices' => $rows]);
+    json_response(['practices' => array_map('worksheet_practice_payload', $rows)]);
 }
 
 function controller_student_worksheet_sub_save_practice(array $ctx, array $data): void
@@ -1799,13 +1807,13 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
     }
 
     json_response([
-        'practice' => db_one(
+        'practice' => worksheet_practice_payload(db_one(
             'SELECT id, student_id, subscription_id, program_type, level_id, topic_id, subtopic_code, score, accuracy, percentage,
                     total_questions, attempted_count AS attempted, correct_answers, wrong_count AS wrong_answers,
                     skipped_count, time_taken, duration_seconds, status, mode, speed_tier, started_at, completed_at, passed, created_at
              FROM worksheet_practices WHERE id = :id',
             ['id' => $id]
-        ),
+        ) ?: []),
     ], 201);
 }
 function controller_admin_worksheet_competition_config(): void
