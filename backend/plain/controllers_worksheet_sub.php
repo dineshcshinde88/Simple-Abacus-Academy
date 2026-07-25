@@ -451,6 +451,10 @@ function worksheet_sub_vedic_generate_one(array $spec): array
         shuffle($distractors);
     }
 
+    if (preg_match('/^(-?\d+(?:\.\d+)?)\s+([+\-x\/])\s+(-?\d+(?:\.\d+)?)$/', $question, $parts)) {
+        $question = $parts[1] . "\n" . $parts[2] . $parts[3];
+    }
+
     return ['question' => $question, 'answer' => $answer, 'options' => worksheet_sub_make_string_options($answer, $distractors)];
 }
 

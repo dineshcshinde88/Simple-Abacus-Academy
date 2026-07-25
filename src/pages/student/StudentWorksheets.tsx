@@ -472,7 +472,7 @@ const WorksheetEquation = ({ question }: { question: string }) => {
   const lines = question.split(/\r?\n/).filter(Boolean);
   if (lines.length <= 1) return <span>{question}</span>;
   return (
-    <span className="inline-grid grid-cols-[1ch_auto] font-mono tabular-nums" aria-label={lines.join(" ")}>
+    <span className="inline-grid min-w-20 grid-cols-[1.25ch_auto] border-b-2 border-slate-700 pb-1 font-mono tabular-nums" aria-label={lines.join(" ")}>
       {lines.map((line, index) => {
         const match = line.match(/^([+-]?)(.*)$/);
         return <span key={`${index}-${line}`} className="contents" aria-hidden="true"><span>{match?.[1] || "\u00a0"}</span><span className="text-right">{match?.[2] || line}</span></span>;
@@ -553,7 +553,7 @@ const ResultSummary = ({ result, onReview, showReview }: { result: WorksheetPrac
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-slate-500">Question {item.questionNumber}</p>
-                  <p className="mt-1 whitespace-pre-line text-lg font-bold text-slate-900">{item.questionText}</p>
+                  <p className="mt-1 text-lg font-bold text-slate-900"><WorksheetEquation question={item.questionText} /></p>
                 </div>
                 {item.isCorrect ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <span className="text-lg font-bold text-red-600">Wrong</span>}
               </div>
@@ -695,7 +695,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
           <div className="space-y-6 pt-6">
             <div className="rounded-xl bg-slate-50 p-6 text-center">
               <p className="text-xs font-bold uppercase text-slate-500">Question {Math.min(index + 1, questions.length)} of {questions.length || PRACTICE_LIMIT}</p>
-              <p className="mt-4 whitespace-pre-line text-4xl font-bold text-[#551896]">{current?.question || "Loading..."}</p>
+              <p className="mt-4 text-4xl font-bold text-[#551896]"><WorksheetEquation question={current?.question || "Loading..."} /></p>
             </div>
             {currentOptions.length ? (
               <div className="grid gap-3 sm:grid-cols-2">
