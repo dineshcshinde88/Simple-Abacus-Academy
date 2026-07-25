@@ -450,8 +450,10 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
                     <Play className="mr-1 h-3.5 w-3.5" />Practice Now
                   </Link>
                 </Button>
-                <Button asChild className="h-9 bg-[#11894e] px-3 text-xs text-white shadow-sm hover:bg-[#0e7442]">
-                  <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link>
+                <Button asChild className="h-9 w-full bg-[#11894e] px-3 text-xs text-white shadow-sm hover:bg-[#0e7442] sm:w-auto">
+                  <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`} aria-label={`Open visualization for ${topic.topic_name}`}>
+                    <Eye className="mr-1 h-3.5 w-3.5" />Visualization
+                  </Link>
                 </Button>
                 {topic.content_type !== "paper" ? (
                   <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50 hover:text-slate-950">
@@ -480,6 +482,20 @@ const WorksheetEquation = ({ question }: { question: string }) => {
     </span>
   );
 };
+
+const buildQuestionReview = (questions: WorksheetQuestion[], answers: Record<string, string>) =>
+  questions.map((question, index) => {
+    const selectedAnswer = answers[question.id]?.trim() || "";
+    return {
+      questionId: question.id,
+      questionNumber: index + 1,
+      questionText: question.question,
+      studentAnswer: selectedAnswer,
+      selectedAnswer,
+      correctAnswer: question.answer,
+      isCorrect: selectedAnswer !== "" && selectedAnswer === question.answer,
+    };
+  });
 
 const QuestionsPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
   const navigate = useNavigate();
@@ -613,6 +629,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
         mode: "practice",
         contentType: topic.content_type,
         answers: finalAnswers,
+        review: buildQuestionReview(questions, finalAnswers),
         startedAt,
       });
       setResult(saved);
@@ -904,6 +921,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
         mode: "visualization",
         contentType: topic.content_type,
         answers: finalAnswers,
+        review: buildQuestionReview(questions, finalAnswers),
         startedAt,
       });
       setResult(saved);

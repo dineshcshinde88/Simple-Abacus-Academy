@@ -1575,7 +1575,35 @@ function worksheet_practice_payload(array $row): array
     foreach (['started_at', 'completed_at', 'created_at'] as $field) {
         if (array_key_exists($field, $row)) $row[$field] = sql_datetime_to_iso_utc($row[$field]);
     }
+    if (array_key_exists('review_json', $row)) {
+        $row['review'] = json_decode((string) ($row['review_json'] ?? '[]'), true) ?: [];
+        unset($row['review_json']);
+    }
     return $row;
+}
+
+function worksheet_sub_sanitize_submitted_review(mixed $submitted, int $limit): array
+{
+    if (!is_array($submitted)) return [];
+    $review = [];
+    foreach (array_slice($submitted, 0, max(0, $limit)) as $index => $item) {
+        if (!is_array($item)) continue;
+        $questionId = substr(trim((string) ($item['questionId'] ?? '')), 0, 255);
+        $questionText = substr(trim((string) ($item['questionText'] ?? '')), 0, 2000);
+        $correctAnswer = substr(trim((string) ($item['correctAnswer'] ?? '')), 0, 500);
+        $studentAnswer = substr(trim((string) ($item['studentAnswer'] ?? $item['selectedAnswer'] ?? '')), 0, 500);
+        if ($questionId === '' || $questionText === '') continue;
+        $review[] = [
+            'questionId' => $questionId,
+            'questionNumber' => max(1, (int) ($item['questionNumber'] ?? ($index + 1))),
+            'questionText' => $questionText,
+            'studentAnswer' => $studentAnswer,
+            'selectedAnswer' => $studentAnswer,
+            'correctAnswer' => $correctAnswer,
+            'isCorrect' => $studentAnswer !== '' && $studentAnswer === $correctAnswer,
+        ];
+    }
+    return $review;
 }
 
 function worksheet_sub_save_paper_attempt(array $student, array $topic, array $data): array
@@ -1749,6 +1777,7 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
     }
 
     $answers = is_array($data['answers'] ?? null) ? $data['answers'] : [];
+    $review = worksheet_sub_sanitize_submitted_review($data['review'] ?? [], $totalQuestions);
     $attemptedCount = 0;
     foreach ($answers as $value) {
         if (trim((string) $value) !== '') {
@@ -1797,7 +1826,7 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
             'mode' => $mode,
             'speed_tier' => $speedTier,
             'answers_json' => json_encode($answers, JSON_UNESCAPED_SLASHES),
-            'review_json' => json_encode([], JSON_UNESCAPED_SLASHES),
+            'review_json' => json_encode($review, JSON_UNESCAPED_SLASHES),
             'started_at' => $startedSql,
             'completed_at' => $completedAt,
             'passed' => $passed ? 1 : 0,
@@ -1814,7 +1843,7 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
         'practice' => worksheet_practice_payload(db_one(
             'SELECT id, student_id, subscription_id, program_type, level_id, topic_id, subtopic_code, score, accuracy, percentage,
                     total_questions, attempted_count AS attempted, correct_answers, wrong_count AS wrong_answers,
-                    skipped_count, time_taken, duration_seconds, status, mode, speed_tier, started_at, completed_at, passed, created_at
+                    skipped_count, time_taken, duration_seconds, status, mode, speed_tier, review_json, started_at, completed_at, passed, created_at
              FROM worksheet_practices WHERE id = :id',
             ['id' => $id]
         ) ?: []),

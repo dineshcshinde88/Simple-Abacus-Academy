@@ -82,6 +82,7 @@ type SubmitPracticePayload = WorksheetAccessParams & {
   speedTier?: number | null;
   contentType?: "topic" | "paper";
   answers?: Record<string, string>;
+  review?: WorksheetAttemptReview[];
   startedAt?: string;
   durationSeconds?: number;
 };
