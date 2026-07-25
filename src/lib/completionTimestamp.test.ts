@@ -38,8 +38,8 @@ describe("stored completion timestamps", () => {
     expect(formatStoredCompletion(history[0].completed_at).completedAt).toBe("24/07/2026, 10:15:20 PM");
   });
 
-  it("normalizes legacy UTC datetimes without changing explicit offsets", () => {
-    expect(formatStoredCompletion("2026-07-24 16:45:20").time).toBe("10:15:20 PM");
+  it("requires ISO-8601 with an explicit timezone and preserves explicit offsets", () => {
+    expect(formatStoredCompletion("2026-07-24 16:45:20").completedAt).toBe("-");
     expect(formatStoredCompletion("2026-07-24T16:45:20+00:00").time).toBe("10:15:20 PM");
     expect(formatStoredCompletion("2026-07-24T22:15:20+05:30").time).toBe("10:15:20 PM");
   });

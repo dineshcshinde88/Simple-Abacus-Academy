@@ -1560,7 +1560,7 @@ function worksheet_attempt_payload(array $row): array
         'duration_seconds' => (int) ($row['duration_seconds'] ?? 0),
         'status' => $row['status'] ?? 'Needs Practice',
         'started_at' => sql_datetime_to_iso_utc($row['started_at'] ?? null),
-        'completed_at' => sql_datetime_to_iso_utc($row['completed_at'] ?? ($row['created_at'] ?? null)),
+        'completed_at' => sql_datetime_to_iso_utc($row['completed_at'] ?? null),
         'created_at' => sql_datetime_to_iso_utc($row['created_at'] ?? null),
         'review' => json_decode((string) ($row['review_json'] ?? '[]'), true) ?: [],
     ];
@@ -1580,7 +1580,7 @@ function worksheet_sub_save_paper_attempt(array $student, array $topic, array $d
     $paperId = (string) ($topic['paper_id'] ?? $topicId);
     $levelId = (string) ($topic['level_id'] ?? '');
     $mode = strtolower(trim((string) ($data['mode'] ?? 'practice')));
-    $mode = in_array($mode, ['practice', 'visualization'], true) ? $mode : 'practice';
+    $mode = in_array($mode, ['practice', 'visualization', 'competition'], true) ? $mode : 'practice';
     $answers = is_array($data['answers'] ?? null) ? $data['answers'] : [];
     $duration = max(0, (int) ($data['durationSeconds'] ?? $data['timeTaken'] ?? 0));
     $startedAt = trim((string) ($data['startedAt'] ?? ''));
@@ -1711,7 +1711,7 @@ function controller_student_worksheet_sub_save_practice(array $ctx, array $data)
     $accuracy = max(0, min(100, (float) ($data['accuracy'] ?? 0)));
     $timeTaken = max(0, (int) ($data['timeTaken'] ?? 0));
     $mode = strtolower(trim((string) ($data['mode'] ?? 'practice')));
-    $mode = in_array($mode, ['practice', 'visualization'], true) ? $mode : 'practice';
+    $mode = in_array($mode, ['practice', 'visualization', 'competition'], true) ? $mode : 'practice';
     $speedTier = isset($data['speedTier']) ? max(1, min(15, (int) $data['speedTier'])) : null;
     if (!empty($data['levelId']) && empty($_GET['levelId'])) {
         $_GET['levelId'] = (string) $data['levelId'];

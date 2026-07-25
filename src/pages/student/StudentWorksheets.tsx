@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import StudentLayout from "@/layouts/StudentLayout";
 import { useAuth } from "@/context/AuthContext";
-import { formatStoredCompletion } from "@/lib/completionTimestamp";
+import { CompletionTimestamp } from "@/components/worksheets/CompletionTimestamp";
 import { fetchStudentDashboard, StudentDashboardData } from "@/services/studentApi";
 import {
   fetchWorksheetDashboard,
@@ -517,7 +517,6 @@ const ResultSummary = ({ result, onReview, showReview }: { result: WorksheetPrac
   const total = result.total_questions || 0;
   const attempted = result.attempted ?? ((result.correct_answers || 0) + (result.wrong_answers || 0));
   const percentage = result.percentage ?? result.accuracy ?? 0;
-  const completion = formatStoredCompletion(result.completed_at || result.created_at);
   return (
     <div className="space-y-6 pt-8">
       <div className="text-center">
@@ -535,14 +534,13 @@ const ResultSummary = ({ result, onReview, showReview }: { result: WorksheetPrac
           ["Percentage", `${percentage}%`],
           ["Status", result.status],
           ["Time Taken", formatTime(result.duration_seconds ?? result.time_taken)],
-          ["Completed Date", completion.date],
-          ["Real Time", completion.time],
         ].map(([label, value]) => (
           <div key={label} className="rounded-xl bg-slate-50 p-4">
             <p className="text-xs uppercase text-slate-500">{label}</p>
             <p className="mt-1 text-lg font-bold text-slate-900">{value}</p>
           </div>
         ))}
+        <CompletionTimestamp completedAt={result.completed_at} layout="summary" />
       </div>
       <div className="flex flex-wrap justify-center gap-3">
         <Button className="bg-[#551896] hover:bg-[#421173]" onClick={onReview}>Review Answers</Button>
@@ -1094,7 +1092,7 @@ const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
               <tbody className="divide-y divide-slate-100">
                 {practices.map((practice) => (
                   <tr key={practice.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-4 font-semibold text-slate-800">{formatStoredCompletion(practice.completed_at || practice.created_at).completedAt}</td>
+                    <td className="px-4 py-4 font-semibold text-slate-800"><CompletionTimestamp completedAt={practice.completed_at} /></td>
                     <td className="px-4 py-4 capitalize">{practice.mode || "practice"}</td>
                     <td className="px-4 py-4">{practice.speed_tier ? `${practice.speed_tier}s` : "-"}</td>
                     <td className="px-4 py-4">{practice.correct_answers}/{practice.total_questions}</td>
