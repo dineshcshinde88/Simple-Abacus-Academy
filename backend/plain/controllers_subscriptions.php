@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 function billing_table_has_column(string $table, string $column): bool
 {
@@ -59,6 +59,47 @@ function ensure_billing_schema(): void
     if (!billing_table_has_column('payment_attempts', 'allocation_error')) {
         db_exec_sql('ALTER TABLE payment_attempts ADD COLUMN allocation_error TEXT NULL AFTER allocation_status');
     }
+    db_exec_sql(
+        'CREATE TABLE IF NOT EXISTS subscription_orders (
+            id CHAR(36) PRIMARY KEY,
+            payment_attempt_id CHAR(36) NOT NULL UNIQUE,
+            student_id CHAR(36) NOT NULL,
+            provider VARCHAR(50) NOT NULL DEFAULT "razorpay",
+            provider_order_id VARCHAR(120) NULL UNIQUE,
+            provider_payment_id VARCHAR(120) NULL,
+            subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
+            discount DECIMAL(10,2) NOT NULL DEFAULT 0,
+            total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+            currency VARCHAR(10) NOT NULL DEFAULT "INR",
+            payment_status VARCHAR(40) NOT NULL DEFAULT "created",
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            paid_at DATETIME NULL,
+            INDEX idx_subscription_orders_student (student_id),
+            INDEX idx_subscription_orders_status (payment_status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+    db_exec_sql(
+        'CREATE TABLE IF NOT EXISTS subscription_order_items (
+            id CHAR(36) PRIMARY KEY,
+            order_id CHAR(36) NOT NULL,
+            product_id CHAR(36) NULL,
+            plan_id CHAR(36) NOT NULL,
+            program_type VARCHAR(30) NOT NULL,
+            level_id CHAR(36) NOT NULL,
+            unit_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+            duration_days INT NOT NULL,
+            status VARCHAR(40) NOT NULL DEFAULT "pending",
+            subscription_id CHAR(36) NULL,
+            activation_error TEXT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            UNIQUE KEY uniq_subscription_order_plan (order_id, plan_id),
+            UNIQUE KEY uniq_subscription_order_subscription (subscription_id),
+            INDEX idx_subscription_order_items_order (order_id),
+            INDEX idx_subscription_order_items_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
 
     db_exec_sql(
         'CREATE TABLE IF NOT EXISTS student_subscriptions (
@@ -826,6 +867,60 @@ function paid_attempt_plan_ids(array $attempt): array
     return array_values(array_unique($planIds));
 }
 
+function worksheet_program_type(array $plan): ?string
+{
+    $slug = strtolower(trim((string) ($plan['course_slug'] ?? '')));
+    if ($slug === 'abacus-worksheet') return 'abacus';
+    if ($slug === 'vedic-maths-worksheet') return 'vedic_maths';
+    return null;
+}
+
+function activateSubscriptionOrder(string $attemptId, string $paymentId): void
+{
+    ensure_billing_schema();
+    $pdo = db_conn();
+    $ownsTransaction = !$pdo->inTransaction();
+    if ($ownsTransaction) $pdo->beginTransaction();
+    try {
+        $attempt = db_one('SELECT * FROM payment_attempts WHERE id = :id FOR UPDATE', ['id' => $attemptId]);
+        if (!$attempt) throw new RuntimeException('Payment attempt was not found for subscription activation.');
+        if (!in_array((string) ($attempt['status'] ?? ''), ['paid', 'captured', 'success'], true)) {
+            throw new RuntimeException('Subscription activation requires a captured payment.');
+        }
+        $order = db_one('SELECT * FROM subscription_orders WHERE payment_attempt_id = :attempt_id FOR UPDATE', ['attempt_id' => $attemptId]);
+        if (!$order) {
+            $planIds = paid_attempt_plan_ids($attempt);
+            if (!$planIds) throw new RuntimeException('Subscription parent order was not found and legacy plan metadata is missing.');
+            $placeholders = implode(',', array_fill(0, count($planIds), '?'));
+            $plans = db_all("SELECT p.*, l.course_id, c.name AS course_name, c.slug AS course_slug FROM subscription_plans p LEFT JOIN levels l ON l.id = p.level_id LEFT JOIN courses c ON c.id = l.course_id WHERE p.id IN ({$placeholders})", $planIds);
+            if (count($plans) !== count($planIds)) throw new RuntimeException('Legacy payment references unavailable plans.');
+            $legacyOrderId = uuid_v4(); $legacyNow = now_sql();
+            db_exec_sql('INSERT INTO subscription_orders (id,payment_attempt_id,student_id,provider,provider_order_id,provider_payment_id,subtotal,discount,total_amount,currency,payment_status,created_at,updated_at,paid_at) VALUES (:id,:attempt_id,:student_id,:provider,:provider_order_id,:payment_id,:subtotal,0,:total,:currency,"paid_with_activation_pending",:created_at,:updated_at,:paid_at)', ['id'=>$legacyOrderId,'attempt_id'=>$attemptId,'student_id'=>$attempt['student_id'],'provider'=>$attempt['provider'] ?? 'razorpay','provider_order_id'=>$attempt['provider_order_id'],'payment_id'=>$paymentId,'subtotal'=>$attempt['amount'],'total'=>$attempt['amount'],'currency'=>$attempt['currency'] ?? 'INR','created_at'=>$attempt['created_at'] ?? $legacyNow,'updated_at'=>$legacyNow,'paid_at'=>$attempt['paid_at'] ?? $legacyNow]);
+            foreach ($plans as $plan) {
+                $program = worksheet_program_type($plan);
+                if ($program === null) throw new RuntimeException('Legacy payment references a non-worksheet subscription plan.');
+                db_exec_sql('INSERT INTO subscription_order_items (id,order_id,product_id,plan_id,program_type,level_id,unit_amount,duration_days,status,created_at,updated_at) VALUES (:id,:order_id,:product_id,:plan_id,:program_type,:level_id,:amount,:days,"pending",:created_at,:updated_at)', ['id'=>uuid_v4(),'order_id'=>$legacyOrderId,'product_id'=>$plan['course_id'],'plan_id'=>$plan['id'],'program_type'=>$program,'level_id'=>$plan['level_id'],'amount'=>$plan['price'],'days'=>$plan['duration_days'],'created_at'=>$legacyNow,'updated_at'=>$legacyNow]);
+            }
+            $order = db_one('SELECT * FROM subscription_orders WHERE id = :id FOR UPDATE', ['id'=>$legacyOrderId]);
+        }
+        $storedTotal = (float) ($order['total_amount'] ?? 0);
+        if (abs($storedTotal - (float) ($attempt['amount'] ?? 0)) > 0.001) throw new RuntimeException('Stored payment total does not match the subscription order total.');
+
+        create_missing_subscriptions_for_paid_attempt($attempt);
+        repair_student_course_enrollments((string) $attempt['student_id']);
+        $pending = (int) db_value('SELECT COUNT(*) FROM subscription_order_items WHERE order_id = :order_id AND status <> "activated"', ['order_id' => $order['id']]);
+        if ($pending > 0) throw new RuntimeException('One or more subscription order items are still pending activation.');
+
+        db_exec_sql('UPDATE subscription_orders SET provider_payment_id = :payment_id, payment_status = "paid", paid_at = COALESCE(paid_at, :paid_at), updated_at = :updated_at WHERE id = :id', ['payment_id' => $paymentId, 'paid_at' => now_sql(), 'updated_at' => now_sql(), 'id' => $order['id']]);
+        db_exec_sql('UPDATE payment_attempts SET allocation_status = "assigned", allocation_error = NULL, updated_at = :updated_at WHERE id = :id', ['updated_at' => now_sql(), 'id' => $attemptId]);
+        if ($ownsTransaction) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        db_exec_sql('UPDATE subscription_orders SET payment_status = "paid_with_activation_pending", provider_payment_id = :payment_id, paid_at = COALESCE(paid_at, :paid_at), updated_at = :updated_at WHERE payment_attempt_id = :attempt_id', ['payment_id' => $paymentId, 'paid_at' => now_sql(), 'updated_at' => now_sql(), 'attempt_id' => $attemptId]);
+        db_exec_sql('UPDATE payment_attempts SET allocation_status = "failed", allocation_error = :error, updated_at = :updated_at WHERE id = :id', ['error' => substr($e->getMessage(), 0, 1000), 'updated_at' => now_sql(), 'id' => $attemptId]);
+        throw $e;
+    }
+}
 function activateWorksheetSubscription(array $payload): array
 {
     ensure_billing_schema();
@@ -915,7 +1010,7 @@ function activateWorksheetSubscription(array $payload): array
                 'student_id' => $studentId,
                 'plan_id' => $planId,
                 'provider' => $gateway,
-                'amount' => (float) ($plan['price'] ?? ($attempt['amount'] ?? 0)),
+                'amount' => (float) ($attempt['amount'] ?? $plan['price'] ?? 0),
                 'currency' => $plan['currency'] ?: ($attempt['currency'] ?: 'INR'),
                 'status' => 'paid',
                 'allocation_status' => 'assigning',
@@ -981,9 +1076,7 @@ function activateWorksheetSubscription(array $payload): array
         throw new RuntimeException('Subscription activation failed: payment record could not be loaded after save.');
     }
 
-    create_missing_subscriptions_for_paid_attempt($attempt);
-    repair_paid_payment_attempt_subscriptions($studentId);
-    repair_student_course_enrollments($studentId);
+    activateSubscriptionOrder($attemptId, $paymentId);
 
     $subscription = db_one(
         'SELECT * FROM student_subscriptions WHERE payment_attempt_id = :payment_attempt_id ORDER BY created_at DESC LIMIT 1',
@@ -1020,11 +1113,22 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
         return;
     }
 
+    $planIds = paid_attempt_plan_ids($attempt);
+    if (!$planIds) {
+        error_log('Paid payment attempt has no plan ids: ' . $attemptId);
+        db_exec_sql(
+            'UPDATE payment_attempts SET allocation_status = :allocation_status, allocation_error = :allocation_error, updated_at = :updated_at WHERE id = :id',
+            ['allocation_status' => 'failed', 'allocation_error' => 'Paid payment attempt has no plan ids.', 'updated_at' => now_sql(), 'id' => $attemptId]
+        );
+        payment_audit_log('Course Assigned', 'failed', $studentId, $attemptId, null, null, 'Paid payment attempt has no plan ids.');
+        return;
+    }
+
     $existingCount = (int) db_value(
         'SELECT COUNT(*) FROM student_subscriptions WHERE payment_attempt_id = :payment_attempt_id',
         ['payment_attempt_id' => $attemptId]
     );
-    if ($existingCount > 0) {
+    if ($planIds && $existingCount >= count($planIds)) {
         $existingSubs = db_all(
             'SELECT ss.*, p.duration_days, p.level_id AS plan_level_id, p.name AS plan_name_ref, p.price AS plan_price, p.currency AS plan_currency
              FROM student_subscriptions ss
@@ -1094,17 +1198,6 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
         return;
     }
 
-    $planIds = paid_attempt_plan_ids($attempt);
-    if (!$planIds) {
-        error_log('Paid payment attempt has no plan ids: ' . $attemptId);
-        db_exec_sql(
-            'UPDATE payment_attempts SET allocation_status = :allocation_status, allocation_error = :allocation_error, updated_at = :updated_at WHERE id = :id',
-            ['allocation_status' => 'failed', 'allocation_error' => 'Paid payment attempt has no plan ids.', 'updated_at' => now_sql(), 'id' => $attemptId]
-        );
-        payment_audit_log('Course Assigned', 'failed', $studentId, $attemptId, null, null, 'Paid payment attempt has no plan ids.');
-        return;
-    }
-
     $placeholders = implode(',', array_fill(0, count($planIds), '?'));
     $plans = db_all("SELECT * FROM subscription_plans WHERE id IN ({$placeholders})", $planIds);
     if (count($plans) !== count($planIds)) {
@@ -1127,8 +1220,24 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
     $orderId = (string) ($attempt['provider_order_id'] ?? '');
     $paymentId = (string) ($attempt['provider_payment_id'] ?? '');
 
-    foreach ($plans as $plan) {
-        $days = (int) ($plan['duration_days'] ?? 0);
+    foreach ($plans as $plan) {        $item = db_one(
+            'SELECT soi.* FROM subscription_order_items soi
+             INNER JOIN subscription_orders so ON so.id = soi.order_id
+             WHERE so.payment_attempt_id = :payment_attempt_id AND soi.plan_id = :plan_id LIMIT 1',
+            ['payment_attempt_id' => $attemptId, 'plan_id' => $plan['id']]
+        );
+        if ($item && ($item['status'] ?? '') === 'activated' && !empty($item['subscription_id'])) {
+            continue;
+        }
+        $existingForItem = db_one(
+            'SELECT id FROM student_subscriptions WHERE payment_attempt_id = :payment_attempt_id AND plan_id = :plan_id LIMIT 1',
+            ['payment_attempt_id' => $attemptId, 'plan_id' => $plan['id']]
+        );
+        if ($existingForItem) {
+            if ($item) db_exec_sql('UPDATE subscription_order_items SET status = "activated", subscription_id = :subscription_id, activation_error = NULL, updated_at = :updated_at WHERE id = :id', ['subscription_id' => $existingForItem['id'], 'updated_at' => now_sql(), 'id' => $item['id']]);
+            continue;
+        }
+        $days = (int) ($item['duration_days'] ?? $plan['duration_days'] ?? 0);
         if ($days <= 0) {
             error_log('Paid payment attempt has invalid plan duration: ' . $attemptId);
             payment_audit_log('Course Assigned', 'failed', $studentId, $attemptId, null, $plan['level_id'] ?? null, 'Paid payment attempt has invalid plan duration.', ['planId' => $plan['id'] ?? null]);
@@ -1137,11 +1246,12 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
 
         $existing = db_one(
             'SELECT * FROM student_subscriptions
-             WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active" AND payment_status IN ("paid", "captured", "success")
+             WHERE student_id = :student_id AND plan_id = :plan_id AND level_id <=> :level_id AND status = "active" AND payment_status IN ("paid", "captured", "success")
              ORDER BY expiry_date DESC
              LIMIT 1',
             [
                 'student_id' => $studentId,
+                'plan_id' => $plan['id'],
                 'level_id' => $plan['level_id'] ?? null,
             ]
         );
@@ -1160,8 +1270,8 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
         db_exec_sql(
             'UPDATE student_subscriptions
              SET status = :status, updated_at = :updated_at
-             WHERE student_id = :student_id AND level_id <=> :level_id AND status = "active"',
-            ['status' => 'expired', 'updated_at' => $now, 'student_id' => $studentId, 'level_id' => $plan['level_id'] ?: null]
+             WHERE student_id = :student_id AND plan_id = :plan_id AND level_id <=> :level_id AND status = "active"',
+            ['status' => 'expired', 'updated_at' => $now, 'student_id' => $studentId, 'plan_id' => $plan['id'], 'level_id' => $plan['level_id'] ?: null]
         );
 
         $subscriptionId = uuid_v4();
@@ -1176,7 +1286,7 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
                 'plan_id' => $plan['id'],
                 'level_id' => $plan['level_id'] ?: null,
                 'plan_name' => $plan['name'],
-                'amount' => (float) ($plan['price'] ?? 0),
+                'amount' => (float) ($item['unit_amount'] ?? $plan['price'] ?? 0),
                 'currency' => $plan['currency'] ?: ($attempt['currency'] ?: 'INR'),
                 'start_date' => $startDate,
                 'expiry_date' => $endDate,
@@ -1201,21 +1311,13 @@ function create_missing_subscriptions_for_paid_attempt(array $attempt): void
         );
 
         sync_paid_subscription_enrollment($subscriptionId);
+        if ($item) {
+            db_exec_sql(
+                'UPDATE subscription_order_items SET status = "activated", subscription_id = :subscription_id, activation_error = NULL, updated_at = :updated_at WHERE id = :id',
+                ['subscription_id' => $subscriptionId, 'updated_at' => now_sql(), 'id' => $item['id']]
+            );
+        }
 
-        db_exec_sql(
-            'UPDATE students
-             SET level_id = :level_id, subscription_plan = :plan_name, subscription_start = :start_date, subscription_end = :end_date, subscription_status = :status, updated_at = :updated_at
-             WHERE id = :student_id',
-            [
-                'level_id' => billing_student_assignable_level_id($plan['level_id'] ?: null),
-                'plan_name' => $plan['name'],
-                'start_date' => $startDate,
-                'end_date' => $endDate,
-                'status' => 'active',
-                'updated_at' => $now,
-                'student_id' => $studentId,
-            ]
-        );
     }
 
     db_exec_sql(
@@ -1785,6 +1887,41 @@ function get_student_courses_for_dashboard(string $studentId): array
     ], $rows);
 }
 
+function get_student_subscription_orders(string $studentId): array
+{
+    ensure_billing_schema();
+    $orders = db_all('SELECT * FROM subscription_orders WHERE student_id = :student_id ORDER BY created_at DESC', ['student_id' => $studentId]);
+    foreach ($orders as $index => $order) {
+        $items = db_all(
+            'SELECT soi.*, p.name AS plan_name, l.level_name, c.name AS program_name
+             FROM subscription_order_items soi
+             LEFT JOIN subscription_plans p ON p.id = soi.plan_id
+             LEFT JOIN levels l ON l.id = soi.level_id
+             LEFT JOIN courses c ON c.id = soi.product_id
+             WHERE soi.order_id = :order_id ORDER BY soi.created_at ASC',
+            ['order_id' => $order['id']]
+        );
+        $orders[$index]['items'] = array_map(static fn(array $item): array => [
+            'id' => $item['id'], 'planId' => $item['plan_id'], 'planName' => $item['plan_name'] ?? 'Subscription',
+            'programType' => $item['program_type'], 'programName' => $item['program_name'] ?? ($item['program_type'] === 'vedic_maths' ? 'Vedic Maths' : 'Abacus'),
+            'levelId' => $item['level_id'], 'levelName' => $item['level_name'] ?? null, 'amount' => (float) $item['unit_amount'],
+            'durationDays' => (int) $item['duration_days'], 'status' => $item['status'], 'subscriptionId' => $item['subscription_id'] ?? null,
+        ], $items);
+    }
+    return array_map(static fn(array $order): array => [
+        'id' => $order['id'], 'providerOrderId' => $order['provider_order_id'] ?? null, 'subtotal' => (float) $order['subtotal'],
+        'discount' => (float) $order['discount'], 'totalAmount' => (float) $order['total_amount'], 'currency' => $order['currency'],
+        'paymentStatus' => $order['payment_status'], 'createdAt' => sql_datetime_to_iso_utc($order['created_at'] ?? null),
+        'paidAt' => sql_datetime_to_iso_utc($order['paid_at'] ?? null), 'items' => $order['items'],
+    ], $orders);
+}
+
+function controller_student_subscription_orders(array $ctx): void
+{
+    $student = current_student($ctx['user']['id']);
+    if (!$student) json_response(['message' => 'Student not found'], 404);
+    json_response(['orders' => get_student_subscription_orders((string) $student['id'])]);
+}
 function controller_student_courses(array $ctx): void
 {
     ensure_billing_schema();
@@ -2015,9 +2152,10 @@ function controller_student_create_razorpay_order(array $ctx, array $data): void
 
     $placeholders = implode(',', array_fill(0, count($planIds), '?'));
     $plans = db_all(
-        "SELECT p.*, l.level_name
+        "SELECT p.*, l.level_name, l.course_id, c.slug AS course_slug, c.name AS course_name
          FROM subscription_plans p
          LEFT JOIN levels l ON l.id = p.level_id
+         LEFT JOIN courses c ON c.id = l.course_id
          WHERE p.id IN ({$placeholders}) AND p.is_active = 1",
         $planIds
     );
@@ -2025,6 +2163,26 @@ function controller_student_create_razorpay_order(array $ctx, array $data): void
         json_response(['message' => 'Subscription plan not found'], 404);
     }
 
+    $currencies = array_values(array_unique(array_map(static fn(array $plan): string => strtoupper((string) ($plan['currency'] ?? 'INR')), $plans)));
+    if (count($currencies) !== 1) {
+        json_response(['message' => 'Selected plans must use the same currency.'], 422);
+    }
+    foreach ($plans as $plan) {
+        $programType = worksheet_program_type($plan);
+        if ($programType === null || empty($plan['level_id']) || empty($plan['course_id']) || (int) ($plan['duration_days'] ?? 0) <= 0 || (float) ($plan['price'] ?? 0) <= 0) {
+            json_response(['message' => 'One or more selected plans are no longer available.'], 422);
+        }
+        $alreadyActive = db_one(
+            'SELECT id FROM student_subscriptions
+             WHERE student_id = :student_id AND plan_id = :plan_id AND level_id = :level_id
+               AND status = "active" AND payment_status IN ("paid", "captured", "success") AND expiry_date >= :now_ts
+             LIMIT 1',
+            ['student_id' => $student['id'], 'plan_id' => $plan['id'], 'level_id' => $plan['level_id'], 'now_ts' => now_sql()]
+        );
+        if ($alreadyActive) {
+            json_response(['message' => 'This subscription is already active.'], 409);
+        }
+    }
     $gateway = get_payment_gateway_config('razorpay');
     if (!$gateway['configured']) {
         json_response(['message' => 'Razorpay is not configured. Please contact admin.'], 400);
@@ -2099,6 +2257,34 @@ function controller_student_create_razorpay_order(array $ctx, array $data): void
             'updated_at' => $now,
         ]
     );
+    $subscriptionOrderId = uuid_v4();
+    $pdo = db_conn();
+    $pdo->beginTransaction();
+    try {
+        db_exec_sql(
+            'INSERT INTO subscription_orders
+             (id, payment_attempt_id, student_id, provider, provider_order_id, subtotal, discount, total_amount, currency, payment_status, created_at, updated_at)
+             VALUES
+             (:id, :payment_attempt_id, :student_id, "razorpay", :provider_order_id, :subtotal, 0, :total_amount, :currency, "created", :created_at, :updated_at)',
+            ['id' => $subscriptionOrderId, 'payment_attempt_id' => $attemptId, 'student_id' => $student['id'], 'provider_order_id' => $rzOrder['id'] ?? null, 'subtotal' => $amount, 'total_amount' => $amount, 'currency' => $currency, 'created_at' => $now, 'updated_at' => $now]
+        );
+        foreach ($plans as $plan) {
+            $programType = worksheet_program_type($plan);
+            if ($programType === null) throw new RuntimeException('One or more selected plans are no longer available.');
+            db_exec_sql(
+                'INSERT INTO subscription_order_items
+                 (id, order_id, product_id, plan_id, program_type, level_id, unit_amount, duration_days, status, created_at, updated_at)
+                 VALUES
+                 (:id, :order_id, :product_id, :plan_id, :program_type, :level_id, :unit_amount, :duration_days, "pending", :created_at, :updated_at)',
+                ['id' => uuid_v4(), 'order_id' => $subscriptionOrderId, 'product_id' => $plan['course_id'], 'plan_id' => $plan['id'], 'program_type' => $programType, 'level_id' => $plan['level_id'], 'unit_amount' => (float) $plan['price'], 'duration_days' => (int) $plan['duration_days'], 'created_at' => $now, 'updated_at' => $now]
+            );
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        db_exec_sql('UPDATE payment_attempts SET allocation_status = "failed", allocation_error = :error, updated_at = :updated_at WHERE id = :id', ['error' => substr($e->getMessage(), 0, 1000), 'updated_at' => now_sql(), 'id' => $attemptId]);
+        json_response(['message' => 'Unable to store subscription order. Please do not pay and try again.'], 500);
+    }
     payment_audit_log(
         'Order Created',
         'success',
@@ -2395,6 +2581,12 @@ function controller_student_verify_razorpay_payment(array $ctx, array $data): vo
     $gatewayStatus = strtolower(trim((string) ($paymentEntity['status'] ?? '')));
     $isCaptured = ($paymentResp['ok'] ?? false) && $gatewayOrderId === $orderId && $gatewayStatus === 'captured';
 
+    $gatewayAmount = isset($paymentEntity['amount']) ? (int) $paymentEntity['amount'] : null;
+    $expectedAmount = (int) round(((float) ($attempt['amount'] ?? 0)) * 100);
+    if (($paymentResp['ok'] ?? false) && $gatewayAmount !== null && $gatewayAmount !== $expectedAmount) {
+        payment_audit_log('Payment Verification', 'failed', (string) $student['id'], $attemptId, null, null, 'Razorpay captured amount does not match the stored order total.', ['expectedAmount' => $expectedAmount, 'gatewayAmount' => $gatewayAmount]);
+        json_response(['message' => 'Payment amount mismatch. Activation is pending review; please do not pay again.'], 422);
+    }
     if (!$signatureMatches && !$isCaptured) {
         db_exec_sql(
             'UPDATE payment_attempts
@@ -2577,6 +2769,13 @@ function handle_payment_webhook(array $data): array
         return ['processed' => false, 'message' => 'Payment attempt not found'];
     }
 
+    $receivedAmount = isset($payment['amount']) ? (int) $payment['amount'] : (isset($order['amount_paid']) ? (int) $order['amount_paid'] : null);
+    $expectedAmount = (int) round(((float) ($attempt['amount'] ?? 0)) * 100);
+    if ($receivedAmount !== null && $receivedAmount !== $expectedAmount) {
+        db_exec_sql('UPDATE payment_attempts SET status = "paid", allocation_status = "failed", allocation_error = :error, provider_payment_id = :payment_id, updated_at = :updated_at WHERE id = :id', ['error' => 'Webhook amount does not match stored order total.', 'payment_id' => $paymentId, 'updated_at' => now_sql(), 'id' => $attempt['id']]);
+        db_exec_sql('UPDATE subscription_orders SET payment_status = "paid_with_activation_pending", provider_payment_id = :payment_id, paid_at = COALESCE(paid_at, :paid_at), updated_at = :updated_at WHERE payment_attempt_id = :attempt_id', ['payment_id' => $paymentId, 'paid_at' => now_sql(), 'updated_at' => now_sql(), 'attempt_id' => $attempt['id']]);
+        return ['processed' => true, 'message' => 'Payment amount mismatch; activation pending review', 'activationStatus' => 'pending_manual_review'];
+    }
     record_payment_gateway_payload($attempt, 'webhook_' . str_replace('.', '_', $event), [
         'event' => $event,
         'razorpayOrderId' => $orderId,
@@ -2876,7 +3075,18 @@ function controller_admin_subscriptions_list(): void
         return $payload;
     }, $rows);
 
-    json_response(['subscriptions' => $subscriptions]);
+    $orderRows = db_all('SELECT so.*, u.name AS student_name, u.email AS student_email FROM subscription_orders so INNER JOIN students s ON s.id = so.student_id INNER JOIN users u ON u.id = s.user_id ORDER BY so.created_at DESC');
+    foreach ($orderRows as $index => $order) {
+        $orderRows[$index]['items'] = db_all('SELECT soi.*, p.name AS plan_name, l.level_name FROM subscription_order_items soi LEFT JOIN subscription_plans p ON p.id = soi.plan_id LEFT JOIN levels l ON l.id = soi.level_id WHERE soi.order_id = :order_id ORDER BY soi.created_at', ['order_id' => $order['id']]);
+    }
+    $orders = array_map(static fn(array $order): array => [
+        'id' => $order['id'], 'studentId' => $order['student_id'], 'studentName' => $order['student_name'], 'studentEmail' => $order['student_email'],
+        'providerOrderId' => $order['provider_order_id'], 'totalAmount' => (float) $order['total_amount'], 'currency' => $order['currency'],
+        'paymentStatus' => $order['payment_status'], 'createdAt' => sql_datetime_to_iso_utc($order['created_at'] ?? null),
+        'items' => array_map(static fn(array $item): array => ['id'=>$item['id'],'planName'=>$item['plan_name'] ?? 'Subscription','programType'=>$item['program_type'],'levelName'=>$item['level_name'] ?? null,'amount'=>(float)$item['unit_amount'],'status'=>$item['status'],'subscriptionId'=>$item['subscription_id'] ?? null], $order['items']),
+    ], $orderRows);
+
+    json_response(['subscriptions' => $subscriptions, 'orders' => $orders]);
 }
 
 function controller_admin_payment_audit_logs(): void
@@ -3176,8 +3386,3 @@ function controller_run_subscription_reminders(): void
         'ranAt' => gmdate('c'),
     ]);
 }
-
-
-
-
-
