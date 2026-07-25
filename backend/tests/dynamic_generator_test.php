@@ -4,8 +4,16 @@ require_once __DIR__ . '/../plain/core.php';
 require_once __DIR__ . '/../plain/controllers_worksheet_sub.php';
 function assert_dynamic(bool $condition, string $message): void { if (!$condition) throw new RuntimeException($message); }
 $expectedCounts = [2 => 7, 3 => 18, 4 => 18, 5 => 18, 6 => 21, 7 => 13];
+$expectedVedicCounts = [1 => 22, 2 => 14, 3 => 16, 4 => 12];
 assert_dynamic(worksheet_sub_dynamic_topic_specs(0) === [], 'Level 0 must remain static.');
 assert_dynamic(worksheet_sub_dynamic_topic_specs(1) === [], 'Level 1 must remain static.');
+foreach ($expectedVedicCounts as $level => $expectedCount) {
+    $specs = worksheet_sub_vedic_topic_specs($level);
+    assert_dynamic(count($specs) === $expectedCount, 'Vedic Level ' . $level . ' topic count mismatch.');
+    $slugs = array_column($specs, 'slug');
+    assert_dynamic(count(array_unique($slugs)) === $expectedCount, 'Duplicate Vedic topic slug.');
+    assert_dynamic(in_array('calendar-method', $slugs, true) === ($level === 4), 'Calendar Method must only appear in Vedic Level 4.');
+}
 foreach ($expectedCounts as $level => $expectedCount) {
     $specs = worksheet_sub_dynamic_topic_specs($level);
     assert_dynamic(count($specs) === $expectedCount, 'Level ' . $level . ' topic count mismatch.');

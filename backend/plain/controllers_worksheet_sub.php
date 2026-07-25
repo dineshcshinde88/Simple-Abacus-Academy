@@ -946,6 +946,17 @@ function worksheet_sub_level_topics(array $level): array
         $topics = $officialTopics;
     }
 
+    if (worksheet_sub_is_vedic_level_name((string) ($level['level_name'] ?? '')) && $levelNumber !== null && (int) $levelNumber >= 1 && (int) $levelNumber <= 4) {
+        $byId = [];
+        foreach ($topics as $topic) $byId[(string) $topic['id']] = $topic;
+        $officialTopics = [];
+        foreach (worksheet_sub_vedic_topic_specs((int) $levelNumber) as $spec) {
+            $id = worksheet_sub_vedic_topic_id($levelId, (string) $spec['slug']);
+            if (isset($byId[$id])) $officialTopics[] = $byId[$id];
+        }
+        $topics = $officialTopics;
+    }
+
     if (!$topics) {
         $papers = worksheet_sub_level_papers($level);
         if ($papers) {

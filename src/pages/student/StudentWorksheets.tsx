@@ -201,7 +201,7 @@ const WorksheetCourseGroup = ({
               <CalendarDays className="h-3 w-3" />
               <span>Exp Date: {formatShortDate(item.expiryDate)}</span>
             </div>
-            <p className="mt-3 text-[11px] font-semibold text-slate-400">0% completed</p>
+            <p className="mt-3 text-[11px] font-semibold text-[#551896]">Open worksheets</p>
           </div>
         );
 
