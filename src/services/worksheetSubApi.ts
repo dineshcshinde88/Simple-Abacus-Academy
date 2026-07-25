@@ -51,11 +51,11 @@ export type WorksheetPractice = {
   time_taken: number;
   duration_seconds?: number;
   status: "Excellent" | "Good" | "Needs Practice" | "Pass" | "Fail";
-  mode?: "practice" | "visualization";
+  mode?: "practice" | "visualization" | "competition";
   speed_tier?: number | null;
   started_at?: string | null;
   completed_at?: string | null;
-  created_at: string;
+  created_at?: string;
   review?: WorksheetAttemptReview[];
 };
 export type WorksheetDashboardPayload = {
@@ -78,7 +78,7 @@ type SubmitPracticePayload = WorksheetAccessParams & {
   totalQuestions: number;
   correctAnswers: number;
   timeTaken: number;
-  mode?: "practice" | "visualization";
+  mode?: "practice" | "visualization" | "competition";
   speedTier?: number | null;
   contentType?: "topic" | "paper";
   answers?: Record<string, string>;
@@ -93,7 +93,7 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function worksheetQuery(params?: WorksheetAccessParams & { mode?: "practice" | "visualization"; speedTier?: number | null }): string {
+function worksheetQuery(params?: WorksheetAccessParams & { mode?: "practice" | "visualization" | "competition"; speedTier?: number | null }): string {
   const query = new URLSearchParams();
   if (params?.levelId) query.set("levelId", params.levelId);
   if (params?.subscriptionId) query.set("subscriptionId", params.subscriptionId);
@@ -122,7 +122,7 @@ export async function fetchWorksheetDashboard(params?: string | null | Worksheet
 
 export async function fetchWorksheetQuestions(
   topic: WorksheetTopic,
-  options?: { mode?: "practice" | "visualization"; speedTier?: number | null } & WorksheetAccessParams,
+  options?: { mode?: "practice" | "visualization" | "competition"; speedTier?: number | null } & WorksheetAccessParams,
 ): Promise<WorksheetQuestion[]> {
   const query = worksheetQuery(options);
   const data = await apiGet<{ questions: WorksheetQuestion[] }>(`/api/student/worksheet-sub/topics/${topic.id}/questions${query}`);

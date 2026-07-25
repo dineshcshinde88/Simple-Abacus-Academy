@@ -787,7 +787,7 @@ function practice_result_payload(string $resultId, string $studentId = ''): arra
         'score' => (int) $row['score'],
         'accuracy' => (float) $row['accuracy'],
         'timeTakenSeconds' => (int) $row['time_taken_seconds'],
-        'submittedAt' => $row['submitted_at'],
+        'completed_at' => sql_datetime_to_iso_utc($row['submitted_at'] ?? null),
         'review' => json_decode((string) ($row['review_json'] ?? '[]'), true) ?: [],
     ];
 }

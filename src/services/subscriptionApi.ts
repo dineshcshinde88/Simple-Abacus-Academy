@@ -71,6 +71,32 @@ export type SubscriptionSummaryResponse = {
   canPay: boolean;
 };
 
+export type SubscriptionOrderItem = {
+  id: string;
+  planId: string;
+  planName: string;
+  programType: "abacus" | "vedic_maths";
+  programName: string;
+  levelId: string;
+  levelName: string | null;
+  amount: number;
+  durationDays: number;
+  status: "pending" | "activated" | "failed";
+  subscriptionId: string | null;
+};
+
+export type SubscriptionOrder = {
+  id: string;
+  providerOrderId: string | null;
+  subtotal: number;
+  discount: number;
+  totalAmount: number;
+  currency: string;
+  paymentStatus: "created" | "paid" | "paid_with_activation_pending" | "failed";
+  createdAt: string;
+  paidAt: string | null;
+  items: SubscriptionOrderItem[];
+};
 export type RazorpayOrderResponse = {
   attemptId: string;
   keyId: string;
@@ -106,6 +132,8 @@ export const getPublicSubscriptionPlans = async () => {
 export const getSubscriptionSummary = (token: string) =>
   apiRequest<SubscriptionSummaryResponse>("/api/student/subscriptions/summary", { token });
 
+export const getSubscriptionOrders = (token: string) =>
+  apiRequest<{ orders: SubscriptionOrder[] }>("/api/student/subscription-orders", { token });
 export const createRazorpayOrder = (token: string, planId: string | string[]) =>
   apiRequest<RazorpayOrderResponse>("/api/student/subscriptions/create-order", {
     method: "POST",

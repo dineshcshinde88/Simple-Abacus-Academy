@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import StudentLayout from "@/layouts/StudentLayout";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { ShoppingCart, Trash2 } from "lucide-react";
+import { calculateCartTotal, toggleCartPlan } from "@/lib/shopCart";
 import {
   createRazorpayOrder,
   getSubscriptionPlans,
@@ -12,26 +15,14 @@ import {
 } from "@/services/subscriptionApi";
 
 const TOKEN_KEY = "abacus_auth_token";
+const CART_KEY = "worksheet_subscription_cart_v1";
 
-type RazorpayCheckoutResponse = {
-  razorpay_payment_id: string;
-  razorpay_order_id: string;
-  razorpay_signature: string;
-};
+type RazorpayCheckoutResponse = { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string };
+declare global { interface Window { Razorpay: new (options: Record<string, unknown>) => { open: () => void; on?: (event: string, handler: (response: { error?: { description?: string } }) => void) => void } } }
 
-declare global {
-  interface Window {
-    Razorpay: new (options: Record<string, unknown>) => {
-      open: () => void;
-      on?: (event: string, handler: (response: { error?: { description?: string } }) => void) => void;
-    };
-  }
-}
-
-const loadRazorpayScript = async (): Promise<boolean> => {
+const loadRazorpayScript = async () => {
   if (window.Razorpay) return true;
-
-  return new Promise((resolve) => {
+  return new Promise<boolean>((resolve) => {
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
@@ -40,260 +31,103 @@ const loadRazorpayScript = async (): Promise<boolean> => {
     document.body.appendChild(script);
   });
 };
+const planText = (plan: LevelPlan) => `${plan.courseSlug || ""} ${plan.courseName || ""} ${plan.levelName || ""} ${plan.name}`;
+const isWorksheetPlan = (plan: LevelPlan) => /worksheet/i.test(planText(plan));
+const programName = (plan: LevelPlan) => /vedic/i.test(planText(plan)) ? "Vedic Maths" : "Abacus";
+const levelOrder = (plan: LevelPlan) => /foundation/i.test(planText(plan)) ? 0 : Number(planText(plan).match(/level\s*(\d+)/i)?.[1] || 999);
+const sortPlans = (plans: LevelPlan[]) => [...plans].sort((a, b) => programName(a).localeCompare(programName(b)) || levelOrder(a) - levelOrder(b) || a.durationDays - b.durationDays);
+const money = (amount: number, currency = "INR") => `${currency} ${amount.toFixed(2)}`;
+const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value)) : "-";
 
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString();
-};
-
-const getLevelOrder = (plan: LevelPlan) => {
-  const levelText = `${plan.levelName || ""} ${plan.name || ""}`;
-  if (/foundation/i.test(levelText)) return 0;
-  const match = levelText.match(/level\s*(\d+)/i);
-  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
-};
-
-const sortPlans = (items: LevelPlan[]) =>
-  [...items].sort((a, b) => {
-    const courseCompare = (a.courseName || "").localeCompare(b.courseName || "");
-    if (courseCompare !== 0) return courseCompare;
-
-    const levelCompare = getLevelOrder(a) - getLevelOrder(b);
-    if (levelCompare !== 0) return levelCompare;
-
-    return a.durationDays - b.durationDays || a.price - b.price || a.name.localeCompare(b.name);
-  });
-
-const isWorksheetPlan = (plan: LevelPlan) => {
-  const planText = `${plan.courseSlug || ""} ${plan.courseName || ""} ${plan.levelName || ""} ${plan.name || ""}`;
-  return /worksheet/i.test(planText);
-};
-
-const StudentShop = () => {
+export default function StudentShop() {
   const { toast } = useToast();
+  const token = localStorage.getItem(TOKEN_KEY) || "";
   const [loading, setLoading] = useState(true);
-  const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
   const [plans, setPlans] = useState<LevelPlan[]>([]);
-  const [current, setCurrent] = useState<StudentSubscription | null>(null);
   const [history, setHistory] = useState<StudentSubscription[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem(CART_KEY) || "[]"); } catch { return []; }
+  });
   const [canPay, setCanPay] = useState(true);
   const [studentName, setStudentName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
 
-  const token = localStorage.getItem(TOKEN_KEY) || "";
-
-  const refreshData = async () => {
-    if (!token) return;
-    const [plansResp, summaryResp] = await Promise.all([getSubscriptionPlans(token), getSubscriptionSummary(token)]);
-    const nextPlans = plansResp.plans || [];
-    setPlans(sortPlans(nextPlans.filter(isWorksheetPlan)));
-    setCurrent(summaryResp.subscription?.current || null);
-    setHistory(summaryResp.subscription?.history || []);
-    setCanPay(summaryResp.canPay);
-    setStudentName(summaryResp.student?.name || "");
-    setStudentEmail(summaryResp.student?.email || "");
+  const refresh = async () => {
+    const [planResponse, summary] = await Promise.all([getSubscriptionPlans(token), getSubscriptionSummary(token)]);
+    const nextPlans = sortPlans((planResponse.plans || []).filter(isWorksheetPlan));
+    setPlans(nextPlans);
+    setHistory(summary.subscription?.history || []);
+    setCanPay(summary.canPay);
+    setStudentName(summary.student?.name || "");
+    setStudentEmail(summary.student?.email || "");
+    setSelectedIds((ids) => ids.filter((id) => nextPlans.some((plan) => plan.id === id)));
   };
 
-  useEffect(() => {
-    const run = async () => {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+  useEffect(() => { if (!token) { setLoading(false); return; } void refresh().catch((error) => toast({ title: "Unable to load shop", description: error instanceof Error ? error.message : "Please try again." })).finally(() => setLoading(false)); }, [token]);
+  useEffect(() => { sessionStorage.setItem(CART_KEY, JSON.stringify(selectedIds)); }, [selectedIds]);
 
-      try {
-        await refreshData();
-      } catch (error) {
-        toast({
-          title: "Unable to load shop",
-          description: error instanceof Error ? error.message : "Please try again later.",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+  const activePlanIds = useMemo(() => new Set(history.filter((sub) => sub.status === "active" && sub.paymentStatus === "paid" && (!sub.expiryDate || new Date(sub.expiryDate).getTime() >= Date.now())).map((sub) => sub.planId).filter(Boolean)), [history]);
+  const latestByPlan = useMemo(() => new Map(history.filter((sub) => sub.planId).map((sub) => [sub.planId as string, sub])), [history]);
+  const selectedPlans = useMemo(() => selectedIds.map((id) => plans.find((plan) => plan.id === id)).filter((plan): plan is LevelPlan => Boolean(plan)), [plans, selectedIds]);
+  const subtotal = calculateCartTotal(plans, selectedIds);
+  const currency = selectedPlans[0]?.currency || "INR";
 
-    void run();
-  }, [token]);
+  const toggle = (plan: LevelPlan) => {
+    if (activePlanIds.has(plan.id)) { toast({ title: "This subscription is already active." }); return; }
+    setSelectedIds((ids) => toggleCartPlan(ids, plan.id));
+  };
 
-  const activeSubscriptions = useMemo(
-    () => history.filter((sub) => sub.status === "active" && sub.paymentStatus === "paid"),
-    [history],
-  );
-
-  const displayCurrent = current?.status === "active" && current.paymentStatus === "paid"
-    ? current
-    : activeSubscriptions[0] || current;
-
-  const currentPlanByLevel = useMemo(() => {
-    const map = new Map<string, StudentSubscription>();
-    for (const sub of activeSubscriptions) {
-      if (sub.levelId && !map.has(sub.levelId)) map.set(sub.levelId, sub);
-    }
-    return map;
-  }, [activeSubscriptions]);
-
-  const handleBuy = async (plan: LevelPlan) => {
-    if (!token) return;
-    setProcessingPlanId(plan.id);
-
+  const checkout = async () => {
+    if (!selectedIds.length) { toast({ title: "Please select at least one subscription." }); return; }
+    setProcessing(true);
     try {
-      const scriptReady = await loadRazorpayScript();
-      if (!scriptReady || !window.Razorpay) {
-        throw new Error("Unable to load Razorpay checkout.");
-      }
-
-      const orderResp = await createRazorpayOrder(token, plan.id);
-
-      const razorpay = new window.Razorpay({
-        key: orderResp.keyId,
-        amount: orderResp.order.amount,
-        currency: orderResp.order.currency,
-        name: "Simple Abacus",
-        description: `${orderResp.plan.name} subscription`,
-        order_id: orderResp.order.id,
-        prefill: {
-          name: studentName,
-          email: studentEmail,
-        },
-        notes: {
-          planId: orderResp.plan.id,
-          levelName: orderResp.plan.levelName || "",
-        },
-        handler: async (response: RazorpayCheckoutResponse) => {
+      if (!(await loadRazorpayScript()) || !window.Razorpay) throw new Error("Unable to load Razorpay checkout.");
+      const response = await createRazorpayOrder(token, selectedIds);
+      const checkoutInstance = new window.Razorpay({
+        key: response.keyId, amount: response.order.amount, currency: response.order.currency, name: "Simple Abacus",
+        description: `${response.plans?.length || 1} worksheet subscription${(response.plans?.length || 1) === 1 ? "" : "s"}`,
+        order_id: response.order.id, prefill: { name: studentName, email: studentEmail },
+        notes: { attemptId: response.attemptId },
+        handler: async (payment: RazorpayCheckoutResponse) => {
           try {
-            await verifyRazorpayPayment(token, {
-              attemptId: orderResp.attemptId,
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-            });
-            await refreshData();
-            toast({
-              title: "Subscription activated",
-              description: `${orderResp.plan.name} is now active.`,
-            });
+            const verified = await verifyRazorpayPayment(token, { attemptId: response.attemptId, razorpayOrderId: payment.razorpay_order_id, razorpayPaymentId: payment.razorpay_payment_id, razorpaySignature: payment.razorpay_signature });
+            if (verified.activationStatus !== "activated") throw new Error("Payment succeeded, but activation is pending. Please do not pay again.");
+            sessionStorage.removeItem(CART_KEY); setSelectedIds([]); await refresh();
+            toast({ title: "All selected subscriptions were activated successfully." });
           } catch (error) {
-            toast({
-              title: "Payment verification failed",
-              description: error instanceof Error ? error.message : "Please contact support with payment reference.",
-            });
-          } finally {
-            setProcessingPlanId(null);
-          }
+            toast({ title: "Payment captured", description: error instanceof Error ? error.message : "Payment succeeded, but activation is pending. Please do not pay again." });
+          } finally { setProcessing(false); }
         },
       });
-
-      if (typeof razorpay.on === "function") {
-        razorpay.on("payment.failed", (response) => {
-          toast({
-            title: "Payment failed",
-            description: response?.error?.description || "The payment could not be completed.",
-          });
-          setProcessingPlanId(null);
-        });
-      }
-
-      razorpay.open();
-    } catch (error) {
-      toast({
-        title: "Unable to start payment",
-        description: error instanceof Error ? error.message : "Please try again.",
-      });
-      setProcessingPlanId(null);
-    }
+      checkoutInstance.on?.("payment.failed", (failure) => { toast({ title: "Payment failed", description: failure.error?.description || "The payment could not be completed." }); setProcessing(false); });
+      checkoutInstance.open();
+    } catch (error) { toast({ title: "Unable to start payment", description: error instanceof Error ? error.message : "Please try again." }); setProcessing(false); }
   };
 
-  return (
-    <StudentLayout
-      header={(
-        <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-bold text-slate-900">Shop</h1>
-          <p className="text-sm text-slate-500 mt-1">Purchase or renew level-wise subscription plans</p>
+  return <StudentLayout header={<div><h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Shop</h1><p className="mt-1 text-sm text-slate-500">Select one or more level-wise worksheet subscriptions</p></div>}>
+    {loading ? <div className="rounded-2xl bg-white p-6 shadow-card">Loading shop...</div> : <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+      <section className="rounded-2xl bg-white p-6 shadow-card">
+        <h2 className="text-lg font-bold text-slate-900">Worksheet Subscription Plans</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {plans.map((plan) => {
+            const active = activePlanIds.has(plan.id); const selected = selectedIds.includes(plan.id); const previous = latestByPlan.get(plan.id);
+            return <div key={plan.id} className={`rounded-xl border p-4 ${selected ? "border-[#5b21b6] bg-purple-50" : "border-slate-200"}`}>
+              <div className="flex items-start gap-3"><Checkbox checked={selected} disabled={active || processing} onCheckedChange={() => toggle(plan)} aria-label={`Select ${plan.name}`} />
+                <div className="min-w-0 flex-1"><div className="text-xs font-bold uppercase tracking-wide text-[#5b21b6]">{programName(plan)}</div><div className="mt-1 font-semibold text-slate-900">{plan.levelName || plan.name}</div><div className="mt-1 text-sm text-slate-600">{plan.name} · {plan.durationDays} days</div><div className="mt-3 text-xl font-bold text-[#5b21b6]">{money(plan.price, plan.currency)}</div>
+                  <div className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-bold ${active ? "bg-emerald-100 text-emerald-700" : previous?.status === "expired" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{active ? `Already Active until ${formatDate(previous?.expiryDate)}` : previous?.status === "expired" ? "Expired" : "Available"}</div>
+                </div></div>
+              <Button variant={selected ? "default" : "outline"} className="mt-4 w-full" disabled={active || processing} onClick={() => toggle(plan)}>{active ? "Already Active" : selected ? "Remove from Cart" : "Add to Cart"}</Button>
+            </div>;
+          })}
         </div>
-      )}
-    >
-      {loading ? (
-        <div className="bg-white rounded-2xl shadow-card p-6 text-slate-600">Loading shop...</div>
-      ) : (
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-card p-6">
-            <h2 className="text-lg font-heading font-bold text-slate-900">Current Subscription</h2>
-            {!displayCurrent ? (
-              <p className="mt-3 text-sm text-slate-600">No active subscription found. Choose a level plan below.</p>
-            ) : (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-                <div>
-                  <div className="text-slate-500">Plan</div>
-                  <div className="font-semibold text-slate-900">{displayCurrent.planName}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500">Level</div>
-                  <div className="font-semibold text-slate-900">{displayCurrent.levelName || "Not set"}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500">Expiry</div>
-                  <div className="font-semibold text-slate-900">{formatDate(displayCurrent.expiryDate)}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500">Status</div>
-                  <div className={`font-semibold ${displayCurrent.status === "active" ? "text-emerald-600" : "text-red-600"}`}>
-                    {displayCurrent.status.toUpperCase()}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!activeSubscriptions.length && displayCurrent?.status !== "active" && (
-              <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-                Your subscription has expired. Please renew to restore access to level content.
-              </div>
-            )}
-
-            {!canPay && (
-              <div className="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                Online payment is currently unavailable. Please contact admin to configure Razorpay.
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-card p-6">
-            <h2 className="text-lg font-heading font-bold text-slate-900">Level Plans</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {plans.map((plan) => {
-                const activeOnLevel = plan.levelId ? currentPlanByLevel.get(plan.levelId) : null;
-                const buttonLabel = activeOnLevel ? "Renew Now" : "Subscribe Now";
-                return (
-                  <div key={plan.id} className="rounded-xl border border-slate-200 p-4">
-                    <div className="text-sm text-slate-500">{plan.levelName || "Level plan"}</div>
-                    <div className="text-lg font-semibold text-slate-900 mt-1">{plan.name}</div>
-                    <div className="mt-2 text-sm text-slate-600">{plan.durationDays} days validity</div>
-                    <div className="mt-3 text-xl font-heading font-bold text-[#5b21b6]">
-                      {plan.currency} {plan.price.toFixed(2)}
-                    </div>
-                    {activeOnLevel && (
-                      <div className="mt-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md inline-block">
-                        Active till {formatDate(activeOnLevel.expiryDate)}
-                      </div>
-                    )}
-                    <Button
-                      className="mt-4 w-full bg-slate-900 hover:bg-slate-800"
-                      onClick={() => void handleBuy(plan)}
-                      disabled={!canPay || processingPlanId === plan.id}
-                    >
-                      {processingPlanId === plan.id ? "Processing..." : buttonLabel}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </StudentLayout>
-  );
-};
-
-export default StudentShop;
+      </section>
+      <aside className="h-fit rounded-2xl bg-white p-5 shadow-card xl:sticky xl:top-24">
+        <div className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-[#5b21b6]"/><h2 className="font-bold text-slate-900">Selected Plans: {selectedPlans.length}</h2></div>
+        <div className="mt-4 space-y-3">{selectedPlans.length ? selectedPlans.map((plan) => <div key={plan.id} className="flex items-start justify-between gap-2 text-sm"><div><div className="font-semibold text-slate-900">{programName(plan)} {plan.levelName}</div><div className="text-slate-500">{money(plan.price, plan.currency)}</div></div><Button size="icon" variant="ghost" onClick={() => toggle(plan)} aria-label={`Remove ${plan.name}`}><Trash2 className="h-4 w-4"/></Button></div>) : <p className="text-sm text-slate-500">No plans selected.</p>}</div>
+        <div className="mt-5 space-y-2 border-t pt-4 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{money(subtotal, currency)}</span></div><div className="flex justify-between"><span>Discount</span><span>{money(0, currency)}</span></div><div className="flex justify-between text-base font-bold"><span>Total</span><span>{money(subtotal, currency)}</span></div></div>
+        <Button className="mt-5 w-full bg-[#5b21b6] hover:bg-[#49158a]" disabled={!canPay || !selectedIds.length || processing} onClick={() => void checkout()}>{processing ? "Processing..." : "Proceed to Payment"}</Button>
+      </aside>
+    </div>}
+  </StudentLayout>;
+}

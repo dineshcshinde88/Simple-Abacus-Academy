@@ -83,7 +83,7 @@ export type PracticeResult = {
   score: number;
   accuracy: number;
   timeTakenSeconds: number;
-  submittedAt: string;
+  completed_at: string;
   review: {
     questionId: string;
     questionNumber: number;

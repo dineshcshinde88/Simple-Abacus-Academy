@@ -1,156 +1,29 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import StudentLayout from "@/layouts/StudentLayout";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getSubscriptionSummary, StudentSubscription } from "@/services/subscriptionApi";
+import { getSubscriptionOrders, SubscriptionOrder } from "@/services/subscriptionApi";
 import { Info } from "lucide-react";
 
 const TOKEN_KEY = "abacus_auth_token";
+const money = (amount = 0, currency = "INR") => `${currency} ${Number(amount).toFixed(2)}`;
+const dateTime = (value?: string | null) => value ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(new Date(value)) : "-";
+const statusLabel = (status: string) => status === "paid_with_activation_pending" ? "Paid - Activation pending" : status.replaceAll("_", " ");
 
-const paymentStatusLabel = (status: StudentSubscription["paymentStatus"]) => (status === "paid" ? "Paid" : "Unpaid");
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString();
-};
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
-};
-
-const formatMoney = (amount?: number, currency = "INR") => `${currency} ${Number(amount || 0).toFixed(2)}`;
-
-const StudentOrders = () => {
+export default function StudentOrders() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [history, setHistory] = useState<StudentSubscription[]>([]);
-  const [selectedOrder, setSelectedOrder] = useState<StudentSubscription | null>(null);
-
+  const [orders, setOrders] = useState<SubscriptionOrder[]>([]);
+  const [selected, setSelected] = useState<SubscriptionOrder | null>(null);
   const token = localStorage.getItem(TOKEN_KEY) || "";
+  useEffect(() => { if (!token) { setLoading(false); return; } void getSubscriptionOrders(token).then((response) => setOrders(response.orders || [])).catch((error) => toast({ title: "Unable to load orders", description: error instanceof Error ? error.message : "Please try again." })).finally(() => setLoading(false)); }, [token]);
 
-  useEffect(() => {
-    const run = async () => {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const summaryResp = await getSubscriptionSummary(token);
-        setHistory(summaryResp.subscription?.history || []);
-      } catch (error) {
-        toast({
-          title: "Unable to load orders",
-          description: error instanceof Error ? error.message : "Please try again later.",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void run();
-  }, [token]);
-
-  return (
-    <StudentLayout
-      header={(
-        <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-bold text-slate-900">Orders</h1>
-          <p className="text-sm text-slate-500 mt-1">Student order details and payment status</p>
-        </div>
-      )}
-    >
-      {loading ? (
-        <div className="bg-white rounded-2xl shadow-card p-6 text-slate-600">Loading orders...</div>
-      ) : (
-        <div className="rounded-md bg-white shadow-card">
-          <div className="rounded-t-md bg-[#5b21b6] px-5 py-4">
-            <h2 className="text-sm font-bold text-white">Orders List</h2>
-          </div>
-          {history.length === 0 ? (
-            <div className="px-5 py-8 text-sm text-slate-600">No orders found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-400 text-left text-white">
-                    <th className="w-14 border border-slate-300 px-3 py-3 font-semibold">#</th>
-                    <th className="border border-slate-300 px-3 py-3 font-semibold">Ordered On</th>
-                    <th className="border border-slate-300 px-3 py-3 font-semibold">Amount</th>
-                    <th className="border border-slate-300 px-3 py-3 font-semibold">Payment Status</th>
-                    <th className="w-28 border border-slate-300 px-3 py-3 text-center font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((order, index) => (
-                    <tr key={order.id} className="text-slate-700">
-                      <td className="border border-slate-200 px-3 py-3">{index + 1}</td>
-                      <td className="border border-slate-200 px-3 py-3">{formatDateTime(order.createdAt)}</td>
-                      <td className="border border-slate-200 px-3 py-3">{formatMoney(order.amount, order.currency)}</td>
-                      <td className="border border-slate-200 px-3 py-3">{paymentStatusLabel(order.paymentStatus).toUpperCase()}</td>
-                      <td className="border border-slate-200 px-3 py-3 text-center">
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-7 rounded-full bg-cyan-500 px-3 text-xs text-white hover:bg-cyan-600"
-                          onClick={() => setSelectedOrder(order)}
-                        >
-                          <Info className="mr-1 h-3 w-3" />
-                          Info
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      <Dialog open={Boolean(selectedOrder)} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Order Details</DialogTitle>
-          </DialogHeader>
-          {selectedOrder && (
-            <div className="grid gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <div className="text-slate-500">Plan</div>
-                <div className="font-semibold text-slate-900">{selectedOrder.planName}</div>
-              </div>
-              <div>
-                <div className="text-slate-500">Level</div>
-                <div className="font-semibold text-slate-900">{selectedOrder.levelName || "-"}</div>
-              </div>
-              <div>
-                <div className="text-slate-500">Amount</div>
-                <div className="font-semibold text-slate-900">{formatMoney(selectedOrder.amount, selectedOrder.currency)}</div>
-              </div>
-              <div>
-                <div className="text-slate-500">Payment Status</div>
-                <div className="font-semibold text-slate-900">{paymentStatusLabel(selectedOrder.paymentStatus)}</div>
-              </div>
-              <div>
-                <div className="text-slate-500">Start Date</div>
-                <div className="font-semibold text-slate-900">{formatDate(selectedOrder.startDate)}</div>
-              </div>
-              <div>
-                <div className="text-slate-500">Expiry Date</div>
-                <div className="font-semibold text-slate-900">{formatDate(selectedOrder.expiryDate)}</div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </StudentLayout>
-  );
-};
-
-export default StudentOrders;
+  return <StudentLayout header={<div><h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Orders</h1><p className="mt-1 text-sm text-slate-500">Parent payments and included worksheet subscriptions</p></div>}>
+    {loading ? <div className="rounded-2xl bg-white p-6 shadow-card">Loading orders...</div> : <div className="overflow-hidden rounded-md bg-white shadow-card">
+      <div className="bg-[#5b21b6] px-5 py-4"><h2 className="text-sm font-bold text-white">Orders List</h2></div>
+      {!orders.length ? <div className="px-5 py-8 text-sm text-slate-600">No orders found.</div> : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead><tr className="bg-slate-400 text-left text-white"><th className="px-3 py-3">Order</th><th className="px-3 py-3">Ordered On</th><th className="px-3 py-3">Items</th><th className="px-3 py-3">Total</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Action</th></tr></thead><tbody className="divide-y">{orders.map((order) => <tr key={order.id}><td className="px-3 py-3 font-mono text-xs">{order.providerOrderId || order.id.slice(0, 8)}</td><td className="px-3 py-3">{dateTime(order.createdAt)}</td><td className="px-3 py-3">{order.items.length}</td><td className="px-3 py-3 font-semibold">{money(order.totalAmount, order.currency)}</td><td className="px-3 py-3 capitalize">{statusLabel(order.paymentStatus)}</td><td className="px-3 py-3"><Button size="sm" className="h-7 rounded-full bg-cyan-500" onClick={() => setSelected(order)}><Info className="mr-1 h-3 w-3"/>Info</Button></td></tr>)}</tbody></table></div>}
+    </div>}
+    <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Order Details</DialogTitle></DialogHeader>{selected && <div className="space-y-4 text-sm"><div className="grid gap-3 sm:grid-cols-3"><div><div className="text-slate-500">Total</div><div className="font-semibold">{money(selected.totalAmount, selected.currency)}</div></div><div><div className="text-slate-500">Status</div><div className="font-semibold capitalize">{statusLabel(selected.paymentStatus)}</div></div><div><div className="text-slate-500">Paid At</div><div className="font-semibold">{dateTime(selected.paidAt)}</div></div></div><div className="divide-y rounded-lg border">{selected.items.map((item) => <div key={item.id} className="grid gap-2 p-3 sm:grid-cols-[1fr_1fr_auto]"><div><div className="font-semibold">{item.programName}</div><div className="text-slate-500">{item.levelName || item.planName}</div></div><div><div>{money(item.amount, selected.currency)}</div><div className="text-xs text-slate-500">{item.durationDays} days</div></div><div className="self-center rounded-full bg-slate-100 px-2 py-1 text-xs font-bold capitalize">{item.status}</div></div>)}</div></div>}</DialogContent></Dialog>
+  </StudentLayout>;
+}
