@@ -455,13 +455,11 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
                     <Eye className="mr-1 h-3.5 w-3.5" />Visualization
                   </Link>
                 </Button>
-                {topic.content_type !== "paper" ? (
-                  <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50 hover:text-slate-950">
-                    <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>
-                      <History className="mr-1 h-3.5 w-3.5" />View Practices
-                    </Link>
-                  </Button>
-                ) : null}
+                <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50 hover:text-slate-950">
+                  <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>
+                    <History className="mr-1 h-3.5 w-3.5" />View Practices
+                  </Link>
+                </Button>
               </div>
             </div>
           </Card>
