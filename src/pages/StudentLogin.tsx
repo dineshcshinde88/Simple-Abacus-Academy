@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff, RefreshCcw } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
@@ -29,6 +29,16 @@ const StudentLogin = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
   const [mode, setMode] = useState<"login" | "forgot">("login");
+
+  useEffect(() => {
+    if (sessionStorage.getItem("student_session_replaced") !== "1") return;
+    sessionStorage.removeItem("student_session_replaced");
+    toast({
+      title: "Logged out",
+      description: "Your account was logged in on another device.",
+      variant: "destructive",
+    });
+  }, [toast]);
 
   const refreshCaptcha = () => {
     setCaptcha(buildCaptcha());

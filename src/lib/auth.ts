@@ -9,11 +9,13 @@ export type AuthUser = {
 
 export class AuthApiError extends Error {
   status: number;
+  code?: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = "AuthApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -45,7 +47,8 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new AuthApiError((data as { message?: string }).message || "Request failed", response.status);
+      const errorData = data as { message?: string; code?: string };
+      throw new AuthApiError(errorData.message || "Request failed", response.status, errorData.code);
     }
 
     return data as T;
