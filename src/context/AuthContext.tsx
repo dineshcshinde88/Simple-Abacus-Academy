@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
-import { AuthUser, RegisterDetails, forgotPassword as forgotPasswordApi, getMe, login as loginApi, register as registerApi } from "@/lib/auth";
+import { AuthApiError, AuthUser, RegisterDetails, forgotPassword as forgotPasswordApi, getMe, login as loginApi, register as registerApi } from "@/lib/auth";
 
 type AuthContextType = {
   user: AuthUser | null;
@@ -13,6 +13,8 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 const TOKEN_KEY = "abacus_auth_token";
+const SESSION_REPLACED_KEY = "student_session_replaced";
+const STUDENT_SESSION_CHECK_MS = 15_000;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -20,6 +22,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let sessionCheckTimer: number | undefined;
+
+    const clearAuth = () => {
+      localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setUser(null);
+    };
+
+    const handleAuthError = (error: unknown) => {
+      const sessionWasReplaced = error instanceof AuthApiError && error.code === "STUDENT_SESSION_REPLACED";
+      clearAuth();
+      if (sessionWasReplaced) {
+        sessionStorage.setItem(SESSION_REPLACED_KEY, "1");
+        window.location.replace("/student-login?reason=session-replaced");
+      }
+    };
+
     const initializeAuth = async () => {
       if (!token) {
         setLoading(false);
@@ -29,16 +48,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const response = await getMe(token);
         setUser(response.user);
-      } catch {
-        localStorage.removeItem(TOKEN_KEY);
-        setToken(null);
-        setUser(null);
+        if (response.user.role === "student") {
+          sessionCheckTimer = window.setInterval(async () => {
+            try {
+              await getMe(token);
+            } catch (error) {
+              if (sessionCheckTimer !== undefined) {
+                window.clearInterval(sessionCheckTimer);
+              }
+              handleAuthError(error);
+            }
+          }, STUDENT_SESSION_CHECK_MS);
+        }
+      } catch (error) {
+        handleAuthError(error);
       } finally {
         setLoading(false);
       }
     };
 
     void initializeAuth();
+    return () => {
+      if (sessionCheckTimer !== undefined) {
+        window.clearInterval(sessionCheckTimer);
+      }
+    };
   }, [token]);
 
   const value = useMemo<AuthContextType>(
