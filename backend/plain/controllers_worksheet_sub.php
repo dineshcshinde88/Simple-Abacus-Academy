@@ -237,7 +237,7 @@ function worksheet_sub_vedic_topic_specs(int $levelNumber): array
             ['slug' => 'fraction-addition', 'name' => 'Fraction Addition', 'kind' => 'fraction', 'op' => '+'],
             ['slug' => 'fraction-subtraction', 'name' => 'Fraction Subtraction', 'kind' => 'fraction', 'op' => '-'],
             ['slug' => 'fraction-multiplication', 'name' => 'Fraction Multiplication', 'kind' => 'fraction', 'op' => 'x'],
-            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => '/'],
+            ['slug' => 'fraction-division', 'name' => 'Fraction Division', 'kind' => 'fraction', 'op' => '÷'],
             ['slug' => 'vertical-crosswise-3d', 'name' => 'Vertical Crosswise (3D)', 'kind' => 'multiply_no_zero', 'a' => [111, 888], 'b' => [111, 888]],
             ['slug' => 'mixed-base-100-3d-x-2d', 'name' => 'Mixed Base 100 (3D x 2D)', 'kind' => 'multiply', 'a' => [101, 112], 'b' => [88, 99]],
             ['slug' => 'mixed-base-100-2d-x-3d', 'name' => 'Mixed Base 100 (2D x 3D)', 'kind' => 'multiply', 'a' => [88, 99], 'b' => [101, 112]],
@@ -409,13 +409,13 @@ function worksheet_sub_vedic_generate_one(array $spec): array
             do { $b = random_int($spec['b'][0], $spec['b'][1]); } while ($kind === 'division_decimal_no_zero_divisor' && $b % 10 === 0);
         }
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' / ' . $b;
+        $question = $a . ' ÷ ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b + 1))];
     } elseif ($kind === 'fixed_division_decimal') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
         $b = (int) $spec['b'];
         $answer = worksheet_sub_decimal_answer($a / $b);
-        $question = $a . ' / ' . $b;
+        $question = $a . ' ÷ ' . $b;
         $distractors = [worksheet_sub_decimal_answer(($a + $b) / $b), worksheet_sub_decimal_answer(max(1, $a - $b) / $b), worksheet_sub_decimal_answer($a / ($b * 2))];
     } elseif ($kind === 'factor_multiply') {
         $a = random_int($spec['a'][0], $spec['a'][1]);
@@ -428,7 +428,7 @@ function worksheet_sub_vedic_generate_one(array $spec): array
         $q = random_int(max(1, intdiv($spec['a'][0], $b)), max(2, intdiv($spec['a'][1], $b)));
         $a = $q * $b;
         $answer = (string) $q;
-        $question = $a . ' / ' . $b;
+        $question = $a . ' ÷ ' . $b;
         $distractors = [(string) ($q + 1), (string) max(1, $q - 1), (string) ($q + random_int(2, 9))];
     } elseif ($kind === 'fraction') {
         do {
@@ -532,7 +532,7 @@ function worksheet_sub_official_dynamic_topic_matrix(): array
         6 => [
             ['4-row-three-digit-addition','4 Rows - Three Digit Addition','addition',4,3], ['4-row-three-digit-subtraction','4 Rows - Three Digit Subtraction','subtraction',4,3], ['4-row-three-digit-mixed','4 Rows - Three Digit Mixed','mixed',4,3],
             ['5-row-three-digit-addition','5 Rows - Three Digit Addition','addition',5,3], ['5-row-three-digit-subtraction','5 Rows - Three Digit Subtraction','subtraction',5,3], ['5-row-three-digit-mixed','5 Rows - Three Digit Mixed','mixed',5,3],
-            ['5-row-four-digit-addition','5 Rows - Four Digit Addition','addition',5,4], ['5-row-four-digit-subtraction','5 Rows - Four Digit Subtraction','subtraction',5,4], ['5-row-four-digit-mixed','5 Rows - Four Digit Mixed (3D Inst)','mixed',5,4],
+            ['5-row-four-digit-addition','5 Rows - Four Digit Addition','addition',5,4], ['5-row-four-digit-subtraction','5 Rows - Four Digit Subtraction','subtraction',5,4], ['5-row-four-digit-mixed','5 Rows - Four Digit Mixed','mixed',5,4],
             ['4-row-two-digit-decimal-add','4 Rows - Two Digit Decimal Add','addition',4,2,1], ['4-row-two-digit-decimal-sub','4 Rows - Two Digit Decimal Sub','subtraction',4,2,1], ['4-row-two-digit-decimal-mixed','4 Rows - Two Digit Decimal Mixed','mixed',4,2,1],
             ['5-row-two-digit-decimal-add','5 Rows - Two Digit Decimal Add','addition',5,2,1], ['5-row-two-digit-decimal-sub','5 Rows - Two Digit Decimal Sub','subtraction',5,2,1], ['5-row-two-digit-decimal-mixed','5 Rows - Two Digit Decimal Mixed','mixed',5,2,1],
             ['multiplication-4x1','4 Digit x 1 Digit','multiplication',0,[4,1]], ['multiplication-5x1','5 Digit x 1 Digit','multiplication',0,[5,1]], ['multiplication-3x2','Three Digit x Two Digit','multiplication',0,[3,2]], ['multiplication-3x3','Three Digit x Three Digit','multiplication',0,[3,3]], ['multiplication-4x2','Four Digit x Two Digit','multiplication',0,[4,2]], ['division-3-by-1','Three Digit / One Digit','division',0,[3,1]],
@@ -658,7 +658,7 @@ function worksheet_sub_render_question(array $numbers, string $operation): strin
     $symbol = match ($operation) {
         'subtraction' => '-',
         'multiplication' => 'x',
-        'division' => '/',
+        'division' => '÷',
         default => '+',
     };
 
@@ -691,7 +691,7 @@ function worksheet_sub_generate_official_dynamic_item(array $spec): array
                 $maxQuotient = (int) floor($maxDividend / $right);
             } while ($minQuotient > $maxQuotient);
             $answerUnits = random_int($minQuotient, $maxQuotient); $left = $right * $answerUnits;
-            $question = $left . ' / ' . $right;
+            $question = $left . ' ÷ ' . $right;
         }
     } else {
         $rows = (int) $spec['rows']; $digits = (int) $spec['digits'];

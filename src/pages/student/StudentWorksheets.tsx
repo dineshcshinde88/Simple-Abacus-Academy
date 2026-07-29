@@ -471,8 +471,12 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
   );
 };
 const WorksheetEquation = ({ question }: { question: string }) => {
-  const lines = question.split(/\r?\n/).filter(Boolean);
-  if (lines.length <= 1) return <span>{question}</span>;
+  const divisionMatch = question.match(/^\s*(-?\d+(?:\.\d+)?)\s*[\/÷]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  const normalizedQuestion = divisionMatch
+    ? `${divisionMatch[1]} ÷ ${divisionMatch[2]}`
+    : question;
+  const lines = normalizedQuestion.split(/\r?\n/).filter(Boolean);
+  if (lines.length <= 1) return <span className="whitespace-nowrap">{normalizedQuestion}</span>;
   return (
     <span className="inline-grid min-w-20 grid-cols-[1.25ch_auto] border-b-2 border-slate-700 pb-1 font-mono tabular-nums" aria-label={lines.join(" ")}>
       {lines.map((line, index) => {
@@ -697,7 +701,9 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
         <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">{topic.topic_name}</h2>
+            <h2 className="text-lg font-bold text-slate-900">
+              {topic.topic_name.replace(/\s*\(3D Inst\.?\)\s*$/i, "")}
+            </h2>
             <p className="text-sm text-slate-500">One question at a time with automatic scoring.</p>
           </div>
           {!result ? (
