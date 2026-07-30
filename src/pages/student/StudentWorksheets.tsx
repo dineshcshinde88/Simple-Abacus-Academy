@@ -107,13 +107,15 @@ const Breadcrumbs = ({ items }: { items: { label: string; to?: string }[] }) => 
   </div>
 );
 
-const LevelBox = ({ level, onBack }: { level?: WorksheetLevel; onBack?: () => void }) => (
+const LevelBox = ({ level, backTo }: { level?: WorksheetLevel; backTo?: string }) => (
   <Card className="mx-auto max-w-5xl rounded-xl border-0 bg-white p-4 shadow-md">
     <div className="flex items-center justify-between rounded-lg bg-[#551896] px-4 py-3 text-white">
       <h2 className="text-sm font-semibold sm:text-base">{level?.level_name || "Worksheet Subscription"}</h2>
-      {onBack ? (
-        <Button type="button" size="icon" variant="secondary" className="h-8 w-10 rounded-md bg-white text-[#551896] hover:bg-white/90" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" />
+      {backTo ? (
+        <Button asChild size="icon" variant="secondary" className="h-8 w-10 rounded-md bg-white text-[#551896] hover:bg-white/90">
+          <Link to={backTo} aria-label="Back to worksheet topics" title="Back to worksheet topics">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
         </Button>
       ) : null}
     </div>
@@ -500,9 +502,9 @@ const buildQuestionReview = (questions: WorksheetQuestion[], answers: Record<str
   });
 
 const QuestionsPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
-  const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const backToTopics = `/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`;
 
   useEffect(() => {
     setLoading(true);
@@ -512,7 +514,7 @@ const QuestionsPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "View Questions" }]} />
-      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
+      <LevelBox level={level} backTo={backToTopics} />
       <h2 className="text-lg font-bold text-slate-900">{topic.topic_name}</h2>
 
       {loading ? <LoadingGrid /> : (
@@ -588,7 +590,6 @@ const ResultSummary = ({ result, onReview, showReview }: { result: WorksheetPrac
 };
 
 const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
-  const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
@@ -600,6 +601,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
   const [showReview, setShowReview] = useState(false);
   const [startedAt] = useState(() => new Date().toISOString());
   const movingRef = useRef(false);
+  const backToTopics = `/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`;
 
   useEffect(() => {
     fetchWorksheetQuestions(topic, access).then((items) => setQuestions(items.slice(0, PRACTICE_LIMIT)));
@@ -694,7 +696,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Practice Now" }]} />
-      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
+      <LevelBox level={level} backTo={backToTopics} />
 
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
         <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 md:flex-row md:items-center md:justify-between">
@@ -779,7 +781,6 @@ const VisualizationAnswerResultCard = ({ result }: { result: VisualizationCheckR
 };
 
 const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
-  const navigate = useNavigate();
   const [questions, setQuestions] = useState<WorksheetQuestion[]>([]);
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
@@ -794,6 +795,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
   const [speaking, setSpeaking] = useState(false);
   const current = questions[index];
   const levelQuery = worksheetRouteSearch(access);
+  const backToTopics = `/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`;
   const mode = "visualization" as const;
   const checkAnswerEnabled = ENABLE_VISUALIZATION_CHECK_ANSWER && mode === "visualization";
 
@@ -952,7 +954,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
     return (
       <div className="mx-auto max-w-6xl space-y-6">
         <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Visualization Result" }]} />
-      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
+      <LevelBox level={level} backTo={backToTopics} />
         <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
           <ResultSummary result={result} showReview={showReview} onReview={() => setShowReview((value) => !value)} />
         </Card>
@@ -962,7 +964,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Visualization" }]} />
-      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
+      <LevelBox level={level} backTo={backToTopics} />
 
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
         <div className="border-b border-slate-200 pb-4">
@@ -1075,7 +1077,6 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
 };
 
 const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic: WorksheetTopic; access: WorksheetAccessParams }) => {
-  const navigate = useNavigate();
   const [practices, setPractices] = useState<WorksheetPractice[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1084,11 +1085,12 @@ const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
   }, [topic.id]);
 
   const levelQuery = worksheetRouteSearch(access);
+  const backToTopics = `/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "View Practices" }]} />
-      <LevelBox level={level} onBack={() => navigate(`/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`)} />
+      <LevelBox level={level} backTo={backToTopics} />
       <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>

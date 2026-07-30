@@ -355,6 +355,9 @@ function controller_auth_register(array $data): void
     }
 
     $user = db_one('SELECT id, name, email, role, created_at, updated_at FROM users WHERE id = :id', ['id' => $userId]);
+    if (($user['role'] ?? '') === 'student') {
+        $user['session_id'] = issue_student_auth_session((string) $user['id']);
+    }
     json_response([
         'token' => jwt_create($user),
         'role' => $user['role'],
@@ -443,6 +446,9 @@ function controller_auth_login(array $data): void
         'created_at' => $user['created_at'] ?? null,
         'updated_at' => $user['updated_at'] ?? null,
     ];
+    if ($safe['role'] === 'student') {
+        $safe['session_id'] = issue_student_auth_session((string) $safe['id']);
+    }
 
     json_response([
         'token' => jwt_create($safe),
