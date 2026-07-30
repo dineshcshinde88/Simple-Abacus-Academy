@@ -8,14 +8,20 @@ function jwt_create(array $payload): string
     $secret = (string) envv('JWT_SECRET', 'dev_secret_change_me');
     $ttl = (int) envv('JWT_TTL_SECONDS', 604800);
 
-    return JWT::encode([
+    $claims = [
         'id' => $payload['id'],
         'role' => $payload['role'],
         'name' => $payload['name'] ?? null,
         'email' => $payload['email'] ?? null,
         'iat' => time(),
         'exp' => time() + $ttl,
-    ], $secret, 'HS256');
+    ];
+
+    if (($payload['role'] ?? '') === 'student' && !empty($payload['session_id'])) {
+        $claims['sid'] = (string) $payload['session_id'];
+    }
+
+    return JWT::encode($claims, $secret, 'HS256');
 }
 
 function jwt_parse(string $token): array
@@ -23,6 +29,38 @@ function jwt_parse(string $token): array
     $secret = (string) envv('JWT_SECRET', 'dev_secret_change_me');
     $decoded = JWT::decode($token, new Key($secret, 'HS256'));
     return (array) $decoded;
+}
+
+function ensure_student_auth_session_schema(): void
+{
+    db_exec_sql(
+        'CREATE TABLE IF NOT EXISTS student_auth_sessions (
+            user_id CHAR(36) PRIMARY KEY,
+            session_id CHAR(36) NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX idx_student_auth_sessions_session (session_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+}
+
+function issue_student_auth_session(string $userId): string
+{
+    ensure_student_auth_session_schema();
+    $sessionId = uuid_v4();
+    $now = now_sql();
+    db_exec_sql(
+        'INSERT INTO student_auth_sessions (user_id, session_id, created_at, updated_at)
+         VALUES (:user_id, :session_id, :created_at, :updated_at)
+         ON DUPLICATE KEY UPDATE session_id = VALUES(session_id), updated_at = VALUES(updated_at)',
+        [
+            'user_id' => $userId,
+            'session_id' => $sessionId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]
+    );
+    return $sessionId;
 }
 
 function require_auth(): array
@@ -51,6 +89,21 @@ function require_auth(): array
     $user = db_one('SELECT id, name, email, role FROM users WHERE id = :id LIMIT 1', ['id' => $id]);
     if (!$user) {
         json_response(['message' => 'Unauthorized'], 401);
+    }
+
+    if (($user['role'] ?? '') === 'student') {
+        ensure_student_auth_session_schema();
+        $activeSessionId = (string) db_value(
+            'SELECT session_id FROM student_auth_sessions WHERE user_id = :user_id LIMIT 1',
+            ['user_id' => $id]
+        );
+        $tokenSessionId = (string) ($payload['sid'] ?? '');
+        if ($activeSessionId === '' || $tokenSessionId === '' || !hash_equals($activeSessionId, $tokenSessionId)) {
+            json_response([
+                'message' => 'Your account was logged in on another device.',
+                'code' => 'STUDENT_SESSION_REPLACED',
+            ], 401);
+        }
     }
 
     return ['payload' => $payload, 'user' => $user];
