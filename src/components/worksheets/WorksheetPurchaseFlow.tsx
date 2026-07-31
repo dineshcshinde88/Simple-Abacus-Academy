@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Clock, Layers, List, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Layers, List, LogIn, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAuth } from "@/context/AuthContext";
@@ -91,6 +92,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
     return redirectedLevels.length > 0 ? Array.from(new Set(redirectedLevels)) : [config.levels[0]];
   });
   const [showCart, setShowCart] = useState(false);
+  const [showAuthChoice, setShowAuthChoice] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
@@ -141,11 +143,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
     const activeToken = token || window.localStorage.getItem(TOKEN_KEY) || "";
 
     if (!activeToken) {
-      toast({
-        title: "Student registration required",
-        description: "Please register before continuing to payment. Already registered students can login from the registration page.",
-      });
-      navigate(`/student-registration?redirect=${encodeURIComponent(checkoutRedirect)}`);
+      setShowAuthChoice(true);
       return;
     }
 
@@ -228,6 +226,11 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
       toast({ title: "Unable to start payment", description: error instanceof Error ? error.message : "Please try again." });
       setIsProcessingPayment(false);
     }
+  };
+
+  const continueToStudentAuth = (path: "/student-login" | "/student-registration") => {
+    setShowAuthChoice(false);
+    navigate(`${path}?redirect=${encodeURIComponent(checkoutRedirect)}`);
   };
 
   const perks = useMemo(
@@ -395,6 +398,37 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
           </div>
         </section>
       </main>
+      <Dialog open={showAuthChoice} onOpenChange={setShowAuthChoice}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl font-heading text-[#4B1E83]">Continue Your Subscription</DialogTitle>
+            <DialogDescription className="text-center">
+              Login with your existing student account or register as a new student before payment.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 pt-3 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto min-h-24 flex-col gap-2 border-[#4B1E83] px-4 py-4 text-[#4B1E83] hover:bg-purple-50 hover:text-[#4B1E83]"
+              onClick={() => continueToStudentAuth("/student-login")}
+            >
+              <LogIn className="h-6 w-6" />
+              <span>Already Registered?</span>
+              <span className="text-xs font-normal">Student Login</span>
+            </Button>
+            <Button
+              type="button"
+              className="h-auto min-h-24 flex-col gap-2 bg-[#4B1E83] px-4 py-4 hover:bg-[#3c176a]"
+              onClick={() => continueToStudentAuth("/student-registration")}
+            >
+              <UserPlus className="h-6 w-6" />
+              <span>New Student?</span>
+              <span className="text-xs font-normal text-white/80">Register Now</span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Footer />
     </div>
   );
