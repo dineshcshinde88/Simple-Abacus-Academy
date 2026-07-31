@@ -86,7 +86,10 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [duration, setDuration] = useState<Duration>("3-months");
-  const [selectedLevels, setSelectedLevels] = useState<string[]>([searchParams.get("level") || config.levels[0]]);
+  const [selectedLevels, setSelectedLevels] = useState<string[]>(() => {
+    const redirectedLevels = searchParams.getAll("level").filter((level) => config.levels.includes(level));
+    return redirectedLevels.length > 0 ? Array.from(new Set(redirectedLevels)) : [config.levels[0]];
+  });
   const [showCart, setShowCart] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -102,7 +105,12 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
     }
   }, [searchParams]);
 
-  const loginRedirect = `${window.location.pathname}?level=${encodeURIComponent(selectedLevels[0] || config.levels[0])}&duration=${duration}`;
+  const checkoutRedirect = useMemo(() => {
+    const params = new URLSearchParams();
+    (selectedLevels.length > 0 ? selectedLevels : [config.levels[0]]).forEach((level) => params.append("level", level));
+    params.set("duration", duration);
+    return `${window.location.pathname}?${params.toString()}`;
+  }, [config.levels, duration, selectedLevels]);
 
   const matchingPlan = (plans: LevelPlan[], level: string) =>
     plans.find((plan) => {
@@ -132,9 +140,18 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
     if (!agreedToTerms || isProcessingPayment || selectedLevels.length === 0) return;
     const activeToken = token || window.localStorage.getItem(TOKEN_KEY) || "";
 
-    if (!activeToken || (user && user.role !== "student")) {
-      toast({ title: "Student login required", description: "Please login or register before payment." });
-      navigate(`/student-login?redirect=${encodeURIComponent(loginRedirect)}`);
+    if (!activeToken) {
+      toast({
+        title: "Student registration required",
+        description: "Please register before continuing to payment. Already registered students can login from the registration page.",
+      });
+      navigate(`/student-registration?redirect=${encodeURIComponent(checkoutRedirect)}`);
+      return;
+    }
+
+    if (user && user.role !== "student") {
+      toast({ title: "Student login required", description: "Please login with a student account before payment." });
+      navigate(`/student-login?redirect=${encodeURIComponent(checkoutRedirect)}`);
       return;
     }
 
