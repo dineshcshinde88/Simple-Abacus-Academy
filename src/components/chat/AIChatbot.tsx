@@ -4,6 +4,7 @@ import { Bot, MessageCircle, SendHorizontal, X, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { getApiBase } from "@/lib/apiBase";
 import whatsappIcon from "@/assets/whatsapp-ic.png";
 
 type ChatRole = "bot" | "user";
@@ -62,6 +63,10 @@ const AIChatbot = () => {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([initialMessage]);
+  const [visitor, setVisitor] = useState({ name: "", phone: "", email: "" });
+  const [visitorSaved, setVisitorSaved] = useState(false);
+  const [visitorSaving, setVisitorSaving] = useState(false);
+  const [visitorError, setVisitorError] = useState("");
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const nextId = useMemo(() => messages.length + 1, [messages.length]);
@@ -107,6 +112,35 @@ const AIChatbot = () => {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     sendMessage(input);
+  };
+
+  const saveVisitor = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setVisitorError("");
+    if (!visitor.name.trim() || !/^\d{10}$/.test(visitor.phone)) {
+      setVisitorError("Please enter your name and a valid 10-digit mobile number.");
+      return;
+    }
+
+    setVisitorSaving(true);
+    try {
+      const response = await fetch(`${getApiBase()}/api/chatbot/enquiry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(visitor),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error((payload as { message?: string }).message || "Unable to save your details.");
+      setVisitorSaved(true);
+      setMessages((previous) => [
+        ...previous,
+        { id: previous.length + 10, role: "bot", text: `Thank you, ${visitor.name.trim()}. Our team will contact you shortly.` },
+      ]);
+    } catch (error) {
+      setVisitorError(error instanceof Error ? error.message : "Unable to save your details.");
+    } finally {
+      setVisitorSaving(false);
+    }
   };
 
   const isDashboardRoute =
@@ -185,6 +219,39 @@ const AIChatbot = () => {
                   </div>
                 </div>
               </div>
+
+              {!visitorSaved && (
+                <form onSubmit={saveVisitor} className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+                  <p className="text-xs font-semibold text-emerald-900">Share your details for a callback</p>
+                  <Input
+                    value={visitor.name}
+                    onChange={(event) => setVisitor((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Your name"
+                    className="h-9 bg-white"
+                    required
+                  />
+                  <Input
+                    value={visitor.phone}
+                    onChange={(event) => setVisitor((current) => ({ ...current, phone: event.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                    placeholder="10-digit mobile number"
+                    inputMode="numeric"
+                    maxLength={10}
+                    className="h-9 bg-white"
+                    required
+                  />
+                  <Input
+                    value={visitor.email}
+                    onChange={(event) => setVisitor((current) => ({ ...current, email: event.target.value }))}
+                    placeholder="Email (optional)"
+                    type="email"
+                    className="h-9 bg-white"
+                  />
+                  {visitorError && <p className="text-xs text-red-600">{visitorError}</p>}
+                  <Button type="submit" size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={visitorSaving}>
+                    {visitorSaving ? "Saving..." : "Request Callback"}
+                  </Button>
+                </form>
+              )}
 
               {messages.map((message) => (
                 <div

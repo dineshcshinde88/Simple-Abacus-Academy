@@ -48,6 +48,7 @@ export type TrainingShopOrderPayload = {
   quantity: number;
   unitPrice: number;
   finalPrice: number;
+  items?: Array<Omit<TrainingShopOrderPayload, "items">>;
 };
 
 export type TrainingShopOrder = TrainingShopOrderPayload & {

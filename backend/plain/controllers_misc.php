@@ -170,6 +170,31 @@ function controller_contact_enquiry(array $data): void
     json_response(['message' => 'Message received'], 201);
 }
 
+function controller_chatbot_enquiry(array $data): void
+{
+    $name = trim((string) ($data['name'] ?? ''));
+    $email = trim((string) ($data['email'] ?? ''));
+    $phone = preg_replace('/\D+/', '', (string) ($data['phone'] ?? ''));
+    $message = trim((string) ($data['message'] ?? 'Chatbot callback request'));
+
+    if ($name === '' || strlen($phone) !== 10) {
+        json_response(['message' => 'Please enter your name and a valid 10-digit mobile number'], 422);
+    }
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        json_response(['message' => 'Please enter a valid email address'], 422);
+    }
+
+    save_website_enquiry('chatbot', [
+        'name' => $name,
+        'email' => $email,
+        'phone' => $phone,
+        'subject' => 'Chatbot callback request',
+        'message' => $message,
+        'source' => 'website_chatbot',
+    ]);
+    json_response(['message' => 'Your details have been shared with our team'], 201);
+}
+
 function controller_demo_book(array $data): void
 {
     $name = trim((string) ($data['name'] ?? ''));

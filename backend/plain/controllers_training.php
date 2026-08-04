@@ -315,6 +315,7 @@ function controller_training_teacher_add_student(array $ctx, array $data): void
 
 function training_shop_order_payload(array $row): array
 {
+    $metadata = json_decode((string) ($row['metadata_json'] ?? ''), true);
     return [
         'id' => (string) $row['id'],
         'invoiceNumber' => (string) $row['invoice_number'],
@@ -331,6 +332,7 @@ function training_shop_order_payload(array $row): array
         'razorpayOrderId' => $row['razorpay_order_id'] ?? null,
         'razorpayPaymentId' => $row['razorpay_payment_id'] ?? null,
         'createdAt' => (string) $row['created_at'],
+        'items' => is_array($metadata['items'] ?? null) ? $metadata['items'] : [],
     ];
 }
 
@@ -347,6 +349,42 @@ function controller_training_teacher_shop_orders(array $ctx): void
 function controller_training_teacher_shop_create_order(array $ctx, array $data): void
 {
     ensure_training_schema();
+
+    $items = is_array($data['items'] ?? null) ? array_values($data['items']) : [];
+    if ($items !== []) {
+        $normalizedItems = [];
+        $calculatedTotal = 0.0;
+        foreach ($items as $item) {
+            if (!is_array($item)) continue;
+            $itemQuantity = (int) ($item['quantity'] ?? 0);
+            $itemUnitPrice = (float) ($item['unitPrice'] ?? 0);
+            $itemTotal = (float) ($item['finalPrice'] ?? 0);
+            if (trim((string) ($item['productId'] ?? '')) === '' || trim((string) ($item['productName'] ?? '')) === '' || trim((string) ($item['selectedOption'] ?? '')) === '' || $itemQuantity < 1 || $itemUnitPrice <= 0 || abs(($itemUnitPrice * $itemQuantity) - $itemTotal) > 0.01) {
+                json_response(['message' => 'Invalid cart item'], 422);
+            }
+            $normalizedItems[] = [
+                'productId' => trim((string) $item['productId']),
+                'productName' => trim((string) $item['productName']),
+                'category' => trim((string) ($item['category'] ?? '')),
+                'selectedOption' => trim((string) $item['selectedOption']),
+                'optionLabel' => trim((string) ($item['optionLabel'] ?? 'Option')),
+                'quantity' => $itemQuantity,
+                'unitPrice' => $itemUnitPrice,
+                'finalPrice' => $itemTotal,
+            ];
+            $calculatedTotal += $itemTotal;
+        }
+        if ($normalizedItems === []) json_response(['message' => 'Cart is empty'], 422);
+        $data['items'] = $normalizedItems;
+        $data['productId'] = 'multi-item-cart';
+        $data['productName'] = count($normalizedItems) . ' shop products';
+        $data['category'] = 'Multiple';
+        $data['selectedOption'] = 'Multiple items';
+        $data['optionLabel'] = 'Cart';
+        $data['quantity'] = array_sum(array_column($normalizedItems, 'quantity'));
+        $data['unitPrice'] = $calculatedTotal;
+        $data['finalPrice'] = $calculatedTotal;
+    }
 
     $productId = trim((string) ($data['productId'] ?? ''));
     $productName = trim((string) ($data['productName'] ?? ''));
@@ -389,7 +427,7 @@ function controller_training_teacher_shop_create_order(array $ctx, array $data):
             'final_price' => $finalPrice,
             'payment_status' => 'pending',
             'payment_url' => $paymentUrl,
-            'metadata_json' => json_encode(['source' => 'teacher_dashboard_shop'], JSON_UNESCAPED_SLASHES),
+            'metadata_json' => json_encode(['source' => 'teacher_dashboard_shop', 'items' => $data['items'] ?? []], JSON_UNESCAPED_SLASHES),
             'created_at' => $now,
             'updated_at' => $now,
         ]
