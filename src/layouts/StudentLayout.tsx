@@ -8,6 +8,7 @@ import {
   User,
   ShoppingBag,
   ReceiptText,
+  Award,
   LogOut,
   Menu,
   X,
@@ -21,6 +22,7 @@ const menuItems = [
   { label: "Profile Details", icon: User, to: "/student/profile" },
   { label: "Shop", icon: ShoppingBag, to: "/student/shop" },
   { label: "Payment History", icon: ReceiptText, to: "/student/orders" },
+  { label: "Certificates", icon: Award, to: "/student/certificates" },
 ];
 
 const TOKEN_KEY = "abacus_auth_token";

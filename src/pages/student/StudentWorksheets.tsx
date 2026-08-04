@@ -44,6 +44,11 @@ const WORKSHEET_PRACTICE_SECONDS = 600;
 const ENABLE_VISUALIZATION_CHECK_ANSWER = true;
 
 const displayTopicName = (name: string) => name.replace(/\s*\(3D Inst\.?\)\s*/gi, " ").trim();
+const isCalendarMethodLevelFour = (level: WorksheetLevel | undefined, topic: WorksheetTopic) => {
+  const levelName = level?.level_name.toLowerCase().replace(/[^a-z0-9]/g, "") || "";
+  const topicName = displayTopicName(topic.topic_name).toLowerCase().replace(/[^a-z0-9]/g, "");
+  return levelName.includes("level4") && topicName.includes("calendarmethod");
+};
 const TOKEN_KEY = "abacus_auth_token";
 
 type StudentSubscription = NonNullable<StudentDashboardData["subscriptions"]>[number];
@@ -396,7 +401,9 @@ const StudentWorksheets = () => {
 
     if (selectedTopic && view === "questions") return <QuestionsPage level={level} topic={selectedTopic} access={selectedAccess} />;
     if (selectedTopic && view === "practice") return <PracticePage level={level} topic={selectedTopic} access={selectedAccess} />;
-    if (selectedTopic && view === "visualization") return <VisualizationPage level={level} topic={selectedTopic} access={selectedAccess} />;
+    if (selectedTopic && view === "visualization" && !isCalendarMethodLevelFour(level, selectedTopic)) {
+      return <VisualizationPage level={level} topic={selectedTopic} access={selectedAccess} />;
+    }
     if (selectedTopic && view === "practices") return <PracticesPage level={level} topic={selectedTopic} access={selectedAccess} />;
 
     if (searchParams.get("view") !== "topics") {
@@ -423,7 +430,7 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
 
       <div className="rounded-xl bg-white p-4 shadow-sm">
         <h2 className="text-base font-bold text-slate-900">Worksheets</h2>
-        <p className="text-sm text-slate-500">Select a worksheet to view questions, practice, or review attempts.</p>
+        <p className="text-sm text-slate-500">Select a worksheet to view questions, practice, visualize steps or review attempts.</p>
       </div>
 
       <div className="space-y-4">
@@ -454,6 +461,13 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
                     <Play className="mr-1 h-3.5 w-3.5" />Practice Now
                   </Link>
                 </Button>
+                {!isCalendarMethodLevelFour(level, topic) && (
+                  <Button asChild className="h-9 w-full bg-[#11894e] px-3 text-xs text-white shadow-sm hover:bg-[#0e7442] sm:w-auto">
+                    <Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`} aria-label={`Open visualization for ${topic.topic_name}`}>
+                      <Eye className="mr-1 h-3.5 w-3.5" />Visualization
+                    </Link>
+                  </Button>
+                )}
                 <Button asChild variant="outline" className="h-9 border-slate-800 bg-white px-3 text-xs text-slate-950 hover:bg-slate-50 hover:text-slate-950">
                   <Link to={`/student/worksheets/${topic.id}/practices${levelQuery}`}>
                     <History className="mr-1 h-3.5 w-3.5" />View Practices
@@ -1136,6 +1150,9 @@ const PracticesPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
         </div>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <Button asChild variant="outline" className="text-slate-950 hover:text-slate-950"><Link to={`/student/worksheets/${topic.id}/questions${levelQuery}`}><Eye className="mr-2 h-4 w-4" />View Questions</Link></Button>
+          {!isCalendarMethodLevelFour(level, topic) && (
+            <Button asChild className="bg-[#11894e] hover:bg-[#0e7442]"><Link to={`/student/worksheets/${topic.id}/visualization${levelQuery}`}>Visualization</Link></Button>
+          )}
         </div>
       </Card>
     </div>

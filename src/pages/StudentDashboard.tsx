@@ -4,7 +4,6 @@ import { fetchStudentDashboard, StudentDashboardData } from "@/services/studentA
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import StudentLayout from "@/layouts/StudentLayout";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Download, Trophy } from "lucide-react";
 
 const TOKEN_KEY = "abacus_auth_token";
@@ -25,14 +24,6 @@ const daysUntil = (value?: string | null) => {
 
 const formatMoney = (amount?: number, currency = "INR") =>
   `${currency} ${Number(amount || 0).toFixed(2)}`;
-
-const getHighestLevelNumber = (value?: string | null) => {
-  const matches = value?.match(/level\s*(\d+)/gi) || [];
-  return matches.reduce((highest, match) => {
-    const number = Number(match.match(/\d+/)?.[0] || 0);
-    return Math.max(highest, number);
-  }, 0);
-};
 
 const isPaidUnexpiredSubscription = (subscription: NonNullable<StudentDashboardData["subscriptions"]>[number]) => {
   if (subscription.status !== "active" || subscription.paymentStatus !== "paid" || !subscription.expiryDate) {
@@ -89,12 +80,7 @@ const StudentDashboard = () => {
   const effectiveStartDate = getMinDate(activeSubscriptions.map((subscription) => subscription.startDate)) || data?.startDate || null;
   const effectiveExpiryDate = getMaxDate(activeSubscriptions.map((subscription) => subscription.expiryDate)) || data?.expiryDate || null;
   const isExpired = activeSubscriptions.length === 0 && data?.subscriptionStatus === "expired";
-  const currentLevelNumber = getHighestLevelNumber(data?.level);
   const remainingDays = daysUntil(effectiveExpiryDate);
-
-  const handleCertificateDownload = (level: number) => {
-    toast({ title: "Download started", description: `Level ${level} certificate downloading...` });
-  };
 
   const summaryCards = useMemo(
     () => [
@@ -266,12 +252,11 @@ const StudentDashboard = () => {
           )}
         </section>
 
-        <Dialog>
-          <DialogTrigger asChild>
-            <button
-              type="button"
-              className="w-full text-left bg-gradient-to-r from-[#4b1e83] via-[#5b21b6] to-[#6d28d9] rounded-2xl shadow-card px-6 py-6 text-white flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-            >
+        <button
+          type="button"
+          onClick={() => navigate("/student/certificates")}
+          className="w-full text-left bg-gradient-to-r from-[#4b1e83] via-[#5b21b6] to-[#6d28d9] rounded-2xl shadow-card px-6 py-6 text-white flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+        >
               <div className="flex items-center gap-4">
                 <div className="h-14 w-14 rounded-full bg-white/20 flex items-center justify-center text-2xl">
                   <Trophy className="h-7 w-7 text-white" />
@@ -286,62 +271,7 @@ const StudentDashboard = () => {
               <div className="inline-flex items-center gap-2 rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold shadow-md whitespace-nowrap">
                 <Download className="h-4 w-4" /> Download Certificate
               </div>
-            </button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl p-0 overflow-hidden">
-            <div className="bg-gradient-to-r from-[#4b1e83] to-[#6d28d9] text-white px-6 py-6">
-              <DialogHeader>
-                <DialogTitle className="text-xl md:text-2xl font-heading font-bold">Course Certificates</DialogTitle>
-              </DialogHeader>
-              <p className="text-sm text-white/80">Track your progress and unlock certificates</p>
-            </div>
-            <div className="p-6">
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <div className="grid grid-cols-[1fr_1fr] bg-slate-100 text-slate-600 text-xs font-semibold uppercase tracking-wide px-6 py-3">
-                  <span>Course Level</span>
-                  <span>Certificate Download</span>
-                </div>
-                <div className="divide-y divide-slate-200">
-                  {Array.from({ length: 7 }, (_, index) => {
-                    const level = index + 1;
-                    const isUnlocked = currentLevelNumber >= level;
-                    return (
-                      <div key={level} className="grid grid-cols-[1fr_1fr] items-center px-6 py-4">
-                        <div className="flex items-center gap-4">
-                          <div className="h-10 w-10 rounded-full bg-[#5b21b6] text-white flex items-center justify-center font-bold">
-                            {level}
-                          </div>
-                          <div className="font-semibold text-slate-800">Level {level}</div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            disabled={!isUnlocked}
-                            onClick={() => handleCertificateDownload(level)}
-                            className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold ${
-                              isUnlocked
-                                ? "bg-orange-500 text-white hover:bg-orange-600"
-                                : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                            }`}
-                          >
-                            <Download className="h-4 w-4" /> Download
-                          </button>
-                          <span
-                            className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                              isUnlocked ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
-                            }`}
-                          >
-                            {isUnlocked ? "Available" : "Locked"}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        </button>
       </div>
     </StudentLayout>
   );
