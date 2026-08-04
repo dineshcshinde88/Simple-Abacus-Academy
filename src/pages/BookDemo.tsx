@@ -71,6 +71,13 @@ const BookDemo = () => {
       return;
     }
 
+    if (!/^\d{10}$/.test(mobile.trim()) || !/^\d{10}$/.test(motherTongue.trim())) {
+      const message = "Mobile and WhatsApp numbers must contain exactly 10 digits.";
+      setFormStatus({ type: "error", message });
+      toast.error(message);
+      return;
+    }
+
     if (captchaInput.trim().toUpperCase() !== captcha) {
       const message = "Captcha code does not match. Please try again.";
       setFormStatus({ type: "error", message });
@@ -203,9 +210,12 @@ const BookDemo = () => {
                         <Input
                           id="mobile"
                           type="tel"
+                          inputMode="numeric"
+                          maxLength={10}
+                          pattern="[0-9]{10}"
                           placeholder="Mobile Number"
                           value={mobile}
-                          onChange={(event) => setMobile(event.target.value)}
+                          onChange={(event) => setMobile(event.target.value.replace(/\D/g, "").slice(0, 10))}
                           required
                         />
                       </div>
@@ -228,12 +238,16 @@ const BookDemo = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="mother-tongue">Mother Tongue</Label>
+                      <Label htmlFor="mother-tongue">WhatsApp Number</Label>
                       <Input
                         id="mother-tongue"
-                        placeholder="Mother Tongue"
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        pattern="[0-9]{10}"
+                        placeholder="10-digit WhatsApp Number"
                         value={motherTongue}
-                        onChange={(event) => setMotherTongue(event.target.value)}
+                        onChange={(event) => setMotherTongue(event.target.value.replace(/\D/g, "").slice(0, 10))}
                       />
                     </div>
                     <div className="space-y-2">

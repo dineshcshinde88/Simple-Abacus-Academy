@@ -44,7 +44,6 @@ const shopTerms = [
   "Final billing will be done as per the current price at the time of order confirmation.",
   "Once an order is confirmed, it cannot be cancelled or modified.",
   "Delivery charges are extra, unless otherwise specified.",
-  "Free shipping is applicable on orders above ₹ 3500.",
   "Standard delivery time is 5-10 working days from order confirmation.",
   "100% advance payment is required to confirm the order.",
   "The company is not responsible for delays caused by courier or logistics partners.",

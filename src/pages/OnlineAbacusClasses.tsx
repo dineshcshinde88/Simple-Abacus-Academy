@@ -33,7 +33,7 @@ const helpHighlights = [
 ];
 
 const features = [
-  { icon: ShieldCheck, title: "Affordable Fees", desc: "Accessible pricing with flexible monthly plans for families." },
+  { icon: ShieldCheck, title: "Affordable Fees", desc: "Accessible pricing with flexible monthly plans." },
   { icon: Clock, title: "24/7 Support", desc: "Quick help for class queries, homework, and technical assistance." },
   { icon: Layers, title: "Structured Levels", desc: "Clear progression so students always know their next goal." },
   { icon: Sparkles, title: "Practice Materials", desc: "Worksheets, timed drills, and smart revisions after class." },

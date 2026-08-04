@@ -234,7 +234,7 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
   };
 
   const perks = useMemo(
-    () => ["View Questions", "Practice Mode", "Visualization", "Progress Tracking"],
+    () => ["View Questions", "Practice Mode", "Progress Tracking"],
     [],
   );
 

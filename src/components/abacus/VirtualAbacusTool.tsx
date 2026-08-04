@@ -15,7 +15,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 
 const VirtualAbacusTool = () => {
   const [rods, setRods] = useState<RodState[]>(() => createEmptyRods());
-  const [showCount, setShowCount] = useState(false);
+  const [showCount, setShowCount] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [focusedRod, setFocusedRod] = useState(ROD_COUNT - 1);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
@@ -115,7 +115,7 @@ const VirtualAbacusTool = () => {
 
   const refreshAbacus = () => {
     setRods(createEmptyRods());
-    setShowCount(false);
+    setShowCount(true);
     setFocusedRod(ROD_COUNT - 1);
     playBeadSound();
   };

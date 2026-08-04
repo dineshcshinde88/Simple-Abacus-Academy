@@ -14,7 +14,7 @@ export type TrainingShopOption = {
 export type TrainingShopProduct = {
   id: string;
   name: string;
-  category: "Abacus Kits" | "Tools" | "Apparel" | "Certificates" | "Vedic Maths";
+  category: "Abacus Kits" | "Abacus Books" | "Tools" | "Apparel" | "Certificates" | "Vedic Maths";
   description: string;
   includes?: string[];
   optionLabel: string;
@@ -35,7 +35,7 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     includes: ["2 Books (Classwork + Homework)", "1 Student Abacus Tool", "1 Certificate"],
     optionLabel: "Level",
     image: abacusKitNewAdmissionImage,
-    options: abacusLevels.map((label) => ({ label, price: 550 })),
+    options: abacusLevels.map((label) => ({ label, price: 332 })),
   },
   {
     id: "student-abacus-kit-regular",
@@ -45,7 +45,7 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     includes: ["2 Books (Classwork + Homework)", "1 Certificate"],
     optionLabel: "Level",
     image: abacusKitRegularImage,
-    options: regularLevels.map((label) => ({ label, price: 450 })),
+    options: regularLevels.map((label) => ({ label, price: 235 })),
   },
   {
     id: "student-abacus-kit-school",
@@ -55,7 +55,7 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     includes: ["1 Book (Classwork)", "1 Student Abacus Tool", "1 Certificate", "1 Medal"],
     optionLabel: "Level",
     image: abacusForSchoolImage,
-    options: abacusLevels.map((label) => ({ label, price: 320 })),
+    options: abacusLevels.map((label) => ({ label, price: 199 })),
   },
   {
     id: "student-abacus-tool",
@@ -65,8 +65,8 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     optionLabel: "Option",
     image: abacusToolImage,
     options: [
-      { label: "7 Rod", price: 110 },
-      { label: "15 Rod", price: 130 },
+      { label: "7 Rod", price: 79 },
+      { label: "15 Rod", price: 99 },
     ],
   },
   {
@@ -76,7 +76,11 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     description: "Comfortable branded T-shirt for students, events, and classroom activities.",
     optionLabel: "Size",
     image: abacusTshirtImage,
-    options: ["24 Size", "26 Size", "28 Size", "30 Size", "32 Size"].map((label) => ({ label, price: 400 })),
+    options: [
+      ...["24 Size", "26 Size", "28 Size", "30 Size", "32 Size"].map((label) => ({ label, price: 400 })),
+      { label: "34 Size", price: 450 },
+      { label: "36 Size", price: 450 },
+    ],
   },
   {
     id: "certificate",
@@ -85,7 +89,7 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     description: "Printed completion certificate for student recognition and records.",
     optionLabel: "Type",
     image: certificateImage,
-    options: [{ label: "Certificate", price: 50 }],
+    options: [{ label: "Certificate", price: 35 }],
   },
   {
     id: "vedic-mathematics-kit",
@@ -95,7 +99,19 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     includes: ["1 Book", "1 Certificate"],
     optionLabel: "Level",
     image: vedicMathematicsKitNewImage,
-    options: vedicLevels.map((label) => ({ label, price: 310 })),
+    options: vedicLevels.map((label) => ({ label, price: 99 })),
+  },
+  {
+    id: "level-wise-abacus-book",
+    name: "Level-wise Abacus Book",
+    category: "Abacus Books",
+    description: "Choose a classwork or homework book for Foundation through Level 7.",
+    optionLabel: "Book",
+    image: abacusKitRegularImage,
+    options: abacusLevels.flatMap((level) => [
+      { label: `${level} - Classwork`, price: 99 },
+      { label: `${level} - Homework`, price: 99 },
+    ]),
   },
 ];
 

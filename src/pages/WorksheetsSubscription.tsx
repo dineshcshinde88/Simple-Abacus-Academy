@@ -8,7 +8,7 @@ import { placeholderImages } from "@/data/placeholderImages";
 const categories = [
   {
     title: "Abacus Worksheets",
-    description: "Level 1 to Level 7 practice with questions, practice mode, visualization, and progress tracking.",
+    description: "Level 1 to Level 7 practice with questions, practice mode, and progress tracking.",
     image: placeholderImages.moduleSection,
     href: "/abacus-worksheet-subscription",
     levels: ["Level 1", "Level 2", "Level 3", "Level 4", "Level 5", "Level 6", "Level 7"],

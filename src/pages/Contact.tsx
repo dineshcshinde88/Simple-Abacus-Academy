@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Mail, Phone, MapPin, Clock, Send, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { getApiBase } from "@/lib/apiBase";
 
 const contactInfo = [
   { icon: Mail, title: "Email", value: "simpleabacuspune@gmail.com", href: "mailto:simpleabacuspune@gmail.com" },
@@ -22,14 +23,26 @@ const fadeUp = { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0
 const Contact = () => {
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const response = await fetch(`${getApiBase()}/api/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(data.entries())),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error((payload as { message?: string }).message || "Unable to send message.");
       toast.success("Thank you! We'll get back to you shortly.");
-      (e.target as HTMLFormElement).reset();
-    }, 1000);
+      form.reset();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to send message.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,24 +59,24 @@ const Contact = () => {
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">Full Name</Label>
-                      <Input id="name" placeholder="Parent or student name" required />
+                      <Input id="name" name="name" placeholder="Parent or student name" required />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" placeholder="you@example.com" required />
+                      <Input id="email" name="email" type="email" placeholder="you@example.com" required />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number</Label>
-                    <Input id="phone" type="tel" placeholder="+91 XXXXX XXXXX" />
+                    <Input id="phone" name="phone" type="tel" inputMode="numeric" maxLength={10} pattern="[0-9]{10}" placeholder="10-digit number" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="subject">Subject</Label>
-                    <Input id="subject" placeholder="Course details, fee, or demo class" required />
+                    <Input id="subject" name="subject" placeholder="Course details, fee, or demo class" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="message">Message</Label>
-                    <Textarea id="message" placeholder="Tell us about your child's age and current grade" rows={5} required />
+                    <Textarea id="message" name="message" placeholder="Tell us about your child's age and current grade" rows={5} required />
                   </div>
                   <Button type="submit" variant="hero" size="lg" disabled={loading} className="w-full sm:w-auto">
                     {loading ? "Sending..." : <>Send Message <Send className="w-4 h-4" /></>}
