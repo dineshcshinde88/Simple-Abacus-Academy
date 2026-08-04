@@ -224,9 +224,9 @@ const OverviewSection = ({ onNavigate }: { onNavigate: (tab: NavKey) => void }) 
 
       <div className="bg-white p-4 shadow-sm">
         <div className="mb-6 flex items-center justify-center gap-6 bg-[#303030] py-3 text-xl font-semibold text-white">
-          <span>‹</span>
+          <span>â€¹</span>
           <span>{today.toLocaleString("en-US", { month: "long" })} - {today.getFullYear()}</span>
-          <span>›</span>
+          <span>â€º</span>
         </div>
         <div className="grid gap-8 xl:grid-cols-[1fr_1fr]">
           <div className="overflow-hidden border border-slate-300">
@@ -359,6 +359,10 @@ const StudentsSection = () => {
       toast.error("Please enter student name, parent email, and parent mobile.");
       return;
     }
+    if (!/^\d{10}$/.test(formState.parentMobile.trim()) || !/^\d{10}$/.test(formState.motherTongue.trim())) {
+      toast.error("Mobile and WhatsApp numbers must contain exactly 10 digits.");
+      return;
+    }
     const studentEmail = formState.parentEmail.trim();
     if (editingStudent) {
       updateStudent(editingStudent.id, {
@@ -475,8 +479,12 @@ const StudentsSection = () => {
                 <Label htmlFor="parentMobile" className="text-xs font-normal text-slate-500">Parent Mobile</Label>
                 <Input
                   id="parentMobile"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
                   value={formState.parentMobile}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, parentMobile: e.target.value }))}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, parentMobile: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
                 />
               </div>
               <div className="space-y-1.5">
@@ -502,11 +510,15 @@ const StudentsSection = () => {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="motherTongue" className="text-xs font-normal text-slate-500">Mother Tongue</Label>
+                <Label htmlFor="motherTongue" className="text-xs font-normal text-slate-500">WhatsApp Number</Label>
                 <Input
                   id="motherTongue"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
                   value={formState.motherTongue}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, motherTongue: e.target.value }))}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, motherTongue: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
                 />
               </div>
               <div className="space-y-1.5">
@@ -712,7 +724,7 @@ const StudentDetailPanel = ({ student, onClose }: { student: Student | null; onC
                     <div>
                       <p className="font-medium">{session.topic}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(session.date)} • {session.time}
+                        {formatDate(session.date)} â€¢ {session.time}
                       </p>
                     </div>
                     <a href={session.meetingLink} className="text-xs text-primary hover:underline">
@@ -722,19 +734,6 @@ const StudentDetailPanel = ({ student, onClose }: { student: Student | null; onC
                 ))}
                 {!classList.length && <li className="text-muted-foreground">No classes scheduled.</li>}
               </ul>
-            </Card>
-            <Card className="p-4">
-              <p className="text-sm text-muted-foreground">Progress Summary</p>
-              <div className="mt-3">
-                <p className="text-3xl font-semibold">{student.progress.marks}%</p>
-                <Progress value={student.progress.marks} className="mt-2" />
-                <p className="mt-3 text-sm">
-                  Status:{" "}
-                  <span className={`px-2 py-1 rounded-full text-xs ${statusBadge(student.progress.status)}`}>
-                    {student.progress.status}
-                  </span>
-                </p>
-              </div>
             </Card>
           </div>
         </div>
@@ -875,7 +874,7 @@ const BatchesSection = () => {
                 <div>
                   <p className="text-lg font-semibold">{batch.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {batch.level} • {batchStudents.length} students
+                    {batch.level} â€¢ {batchStudents.length} students
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -919,7 +918,7 @@ const BatchesSection = () => {
                     <div>
                       <p className="font-medium">{session.topic}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(session.date)} • {session.time}
+                        {formatDate(session.date)} â€¢ {session.time}
                       </p>
                     </div>
                     <Button variant="ghost" size="sm" className="gap-2">
@@ -2439,7 +2438,7 @@ const InstructorDashboardShell = () => {
               </Sheet>
               <Menu className="hidden h-4 w-4 lg:block" />
               <p className="min-w-0 truncate text-sm sm:text-base lg:ml-4">
-                Welcome to <span className="font-semibold">abacustrainer.com</span>
+                Welcome to <span className="font-semibold">Simple Abacus</span>
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1 sm:gap-3">

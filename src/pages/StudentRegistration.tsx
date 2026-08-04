@@ -68,6 +68,11 @@ const StudentRegistration = () => {
       return;
     }
 
+    if (!/^\d{10}$/.test(form.phone.trim()) || !/^\d{10}$/.test(form.motherTongue.trim())) {
+      toast({ title: "Invalid number", description: "Mobile and WhatsApp numbers must contain exactly 10 digits." });
+      return;
+    }
+
     if (captchaInput.trim().toLowerCase() !== captcha.toLowerCase()) {
       toast({ title: "Invalid captcha", description: "Please enter the correct captcha code." });
       return;
@@ -171,9 +176,13 @@ const StudentRegistration = () => {
                       </SelectContent>
                     </Select>
                     <Input
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      pattern="[0-9]{10}"
                       placeholder="Mobile Number"
                       value={form.phone}
-                      onChange={(event) => updateField("phone", event.target.value)}
+                      onChange={(event) => updateField("phone", event.target.value.replace(/\D/g, "").slice(0, 10))}
                       className="h-12 rounded-full border-[#c7d2fe]"
                     />
                   </div>
@@ -192,11 +201,15 @@ const StudentRegistration = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Mother Tongue</Label>
+                  <Label>WhatsApp Number</Label>
                   <Input
-                    placeholder="Mother Tongue"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    pattern="[0-9]{10}"
+                    placeholder="10-digit WhatsApp Number"
                     value={form.motherTongue}
-                    onChange={(event) => updateField("motherTongue", event.target.value)}
+                    onChange={(event) => updateField("motherTongue", event.target.value.replace(/\D/g, "").slice(0, 10))}
                     className="h-12 rounded-full border-[#c7d2fe]"
                   />
                 </div>

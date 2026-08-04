@@ -108,6 +108,68 @@ function ensure_demo_booking_schema(): void
     );
 }
 
+function ensure_enquiry_schema(): void
+{
+    db_exec_sql(
+        'CREATE TABLE IF NOT EXISTS website_enquiries (
+            id CHAR(36) PRIMARY KEY,
+            enquiry_type VARCHAR(40) NOT NULL,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(160) NULL,
+            phone VARCHAR(20) NULL,
+            subject VARCHAR(180) NULL,
+            message TEXT NULL,
+            details_json LONGTEXT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT \'pending\',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX idx_website_enquiries_type_status (enquiry_type, status),
+            INDEX idx_website_enquiries_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+}
+
+function save_website_enquiry(string $type, array $data): void
+{
+    ensure_enquiry_schema();
+    $now = now_sql();
+    db_exec_sql(
+        'INSERT INTO website_enquiries
+         (id, enquiry_type, name, email, phone, subject, message, details_json, status, created_at, updated_at)
+         VALUES (:id, :type, :name, :email, :phone, :subject, :message, :details, \'pending\', :created_at, :updated_at)',
+        [
+            'id' => uuid_v4(),
+            'type' => $type,
+            'name' => trim((string) ($data['name'] ?? '')),
+            'email' => trim((string) ($data['email'] ?? '')) ?: null,
+            'phone' => trim((string) ($data['mobile'] ?? $data['phone'] ?? '')) ?: null,
+            'subject' => trim((string) ($data['subject'] ?? '')) ?: null,
+            'message' => trim((string) ($data['message'] ?? '')) ?: null,
+            'details' => json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]
+    );
+}
+
+function controller_contact_enquiry(array $data): void
+{
+    $name = trim((string) ($data['name'] ?? ''));
+    $email = trim((string) ($data['email'] ?? ''));
+    $phone = preg_replace('/\D+/', '', (string) ($data['phone'] ?? ''));
+    $subject = trim((string) ($data['subject'] ?? ''));
+    $message = trim((string) ($data['message'] ?? ''));
+    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $subject === '' || $message === '') {
+        json_response(['message' => 'Please enter valid contact details'], 422);
+    }
+    if ($phone !== '' && strlen($phone) !== 10) {
+        json_response(['message' => 'Phone number must contain exactly 10 digits'], 422);
+    }
+    $data['phone'] = $phone;
+    save_website_enquiry('contact', $data);
+    json_response(['message' => 'Message received'], 201);
+}
+
 function controller_demo_book(array $data): void
 {
     $name = trim((string) ($data['name'] ?? ''));
@@ -182,6 +244,8 @@ function controller_franchise_apply(array $data): void
         json_response(['message' => 'Invalid request data'], 422);
     }
 
+    save_website_enquiry('franchise', $data);
+
     send_plain_mail(
         (string) envv('FRANCHISE_NOTIFICATION_EMAIL', 'simpleabacuspune@gmail.com'),
         'New Franchise Application',
@@ -204,6 +268,8 @@ function controller_instructor_apply(array $data): void
     if (!filter_var((string) $data['email'], FILTER_VALIDATE_EMAIL)) {
         json_response(['message' => 'Invalid request data'], 422);
     }
+
+    save_website_enquiry('teacher_training', $data);
 
     send_plain_mail(
         (string) envv('INSTRUCTOR_NOTIFICATION_EMAIL', 'simpleabacuspune@gmail.com'),

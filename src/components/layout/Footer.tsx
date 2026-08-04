@@ -16,7 +16,7 @@ const quickLinks = [
   { label: "Blogs", to: "/blogs" },
   { label: "Contact Us", to: "/contact" },
   { label: "Testimonial", to: "/testimonials" },
-  { label: "Meet Our Instructors", to: "/teacher-training" },
+  { label: "Meet Our Instructors", to: "/teachers" },
   { label: "Abacus Training In Pune", to: "/online-abacus-classes" },
   { label: "Vedic Maths Training In Pune", to: "/vedic-maths-classes" },
 ];

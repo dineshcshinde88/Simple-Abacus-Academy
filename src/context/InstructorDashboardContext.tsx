@@ -122,7 +122,6 @@ const InstructorDashboardContext = createContext<InstructorDashboardContextType 
 
 const uid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
-const LEGACY_PROFILE_STORAGE_KEY = "instructor_profile_v1";
 const DASHBOARD_STORAGE_VERSION = "v2";
 
 const initialStudents: Student[] = [];
@@ -189,21 +188,6 @@ const readDashboardState = (key: string, user: AuthUser | null): InstructorDashb
       };
     } catch {
       window.localStorage.removeItem(key);
-    }
-  }
-
-  const legacyProfile = window.localStorage.getItem(LEGACY_PROFILE_STORAGE_KEY);
-  if (legacyProfile) {
-    try {
-      return {
-        ...fallback,
-        profile: {
-          ...fallback.profile,
-          ...(JSON.parse(legacyProfile) as Partial<InstructorProfile>),
-        },
-      };
-    } catch {
-      window.localStorage.removeItem(LEGACY_PROFILE_STORAGE_KEY);
     }
   }
 

@@ -4,6 +4,7 @@ $menuItems = [
   ['label' => 'Students', 'href' => 'students.php', 'key' => 'students'],
   ['label' => 'Subscriptions', 'href' => 'subscriptions.php', 'key' => 'subscriptions'],
   ['label' => 'Demo Bookings', 'href' => 'demo_bookings.php', 'key' => 'demo_bookings'],
+  ['label' => 'Website Enquiries', 'href' => 'enquiries.php', 'key' => 'enquiries'],
   ['label' => 'Instructors', 'href' => 'instructors.php', 'key' => 'instructors'],
   ['label' => 'Instructor Video Subscriptions', 'href' => 'instructor_video_subscriptions.php', 'key' => 'instructor_video_subscriptions'],
   ['label' => 'Training Video Management', 'href' => 'training_videos.php', 'key' => 'training_videos'],

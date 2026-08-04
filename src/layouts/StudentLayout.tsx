@@ -2,7 +2,6 @@ import { ReactNode, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
-  Users,
   BookOpen,
   FileText,
   KeyRound,
@@ -16,13 +15,12 @@ import {
 
 const menuItems = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/student/dashboard" },
-  { label: "Batches", icon: Users, to: "/student/batches" },
   { label: "Allocated Courses", icon: BookOpen, to: "/student/courses" },
   { label: "Worksheet Subscription", icon: FileText, to: "/student/worksheets" },
   { label: "Change Password", icon: KeyRound, to: "/student/change-password" },
   { label: "Profile Details", icon: User, to: "/student/profile" },
   { label: "Shop", icon: ShoppingBag, to: "/student/shop" },
-  { label: "Orders", icon: ReceiptText, to: "/student/orders" },
+  { label: "Payment History", icon: ReceiptText, to: "/student/orders" },
 ];
 
 const TOKEN_KEY = "abacus_auth_token";
