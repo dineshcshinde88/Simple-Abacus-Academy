@@ -42,6 +42,8 @@ import {
 const PRACTICE_LIMIT = 60;
 const WORKSHEET_PRACTICE_SECONDS = 600;
 const ENABLE_VISUALIZATION_CHECK_ANSWER = true;
+
+const displayTopicName = (name: string) => name.replace(/\s*\(3D Inst\.?\)\s*/gi, " ").trim();
 const TOKEN_KEY = "abacus_auth_token";
 
 type StudentSubscription = NonNullable<StudentDashboardData["subscriptions"]>[number];
@@ -421,7 +423,7 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
 
       <div className="rounded-xl bg-white p-4 shadow-sm">
         <h2 className="text-base font-bold text-slate-900">Worksheets</h2>
-        <p className="text-sm text-slate-500">Select a worksheet to view questions, practice, visualize steps or review attempts.</p>
+        <p className="text-sm text-slate-500">Select a worksheet to view questions, practice, or review attempts.</p>
       </div>
 
       <div className="space-y-4">
@@ -435,7 +437,7 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <h3 className="text-sm font-bold text-slate-950 sm:text-base">
-                  {index + 1}. {topic.topic_name}
+                  {index + 1}. {displayTopicName(topic.topic_name)}
                 </h3>
                 <p className="mt-1 text-xs font-medium text-slate-500">
                   {topic.total_questions || 0} questions available
@@ -697,7 +699,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
         <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900">
-              {topic.topic_name.replace(/\s*\(3D Inst\.?\)\s*$/i, "")}
+              {displayTopicName(topic.topic_name)}
             </h2>
             <p className="text-sm text-slate-500">One question at a time with automatic scoring.</p>
           </div>

@@ -83,6 +83,7 @@ if ($method === 'POST' && $path === '/api/admin/practice/upload-docx') {     req
 if ($method === 'PUT' && preg_match('#^/api/admin/practice/levels/([^/]+)$#', $path, $m)) {     require_role(['admin']);     controller_admin_practice_update_level($m[1], $data); }
 if ($method === 'POST' && $path === '/api/admin/levels') {     require_role(['admin']);     controller_admin_create_level($data); }
 if ($method === 'POST' && $path === '/api/contact') {     controller_contact_enquiry($data); }
+if ($method === 'POST' && $path === '/api/chatbot/enquiry') {     controller_chatbot_enquiry($data); }
 if ($method === 'POST' && $path === '/api/demo/book') {     controller_demo_book($data); }
 if ($method === 'POST' && $path === '/api/franchise/apply') {     controller_franchise_apply($data); }
 if ($method === 'POST' && $path === '/api/instructor/apply') {     controller_instructor_apply($data); }

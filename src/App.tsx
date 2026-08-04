@@ -25,7 +25,6 @@ import { AuthProvider } from "./context/AuthContext";
 import { TrainingAuthProvider } from "./context/TrainingAuthContext";
 import StudentDashboard from "./pages/StudentDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
-import StudentBatches from "./pages/student/StudentBatches";
 import StudentWorksheets from "./pages/student/StudentWorksheets";
 import StudentCourses from "./pages/student/StudentCourses";
 import StudentProfile from "./pages/student/StudentProfile";
@@ -123,14 +122,6 @@ const App = () => (
               )}
             />
             <Route path="/student-dashboard" element={<Navigate to="/student/dashboard" replace />} />
-            <Route
-              path="/student/batches"
-              element={(
-                <ProtectedRoute role="student">
-                  <StudentBatches />
-                </ProtectedRoute>
-              )}
-            />
             <Route
               path="/student/worksheets"
               element={(

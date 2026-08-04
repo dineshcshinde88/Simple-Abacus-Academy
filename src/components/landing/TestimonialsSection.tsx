@@ -6,7 +6,7 @@ import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/com
 const testimonials = [
   { name: "Priya Sharma", role: "Parent", text: "My daughter went from struggling with basic math to topping her class in just 6 months. The transformation is incredible!", rating: 5 },
   { name: "Rajesh Kumar", role: "Parent", text: "The practice engine is a game-changer. My son loves the timed challenges and has developed remarkable mental math speed.", rating: 5 },
-  { name: "Sneha Patel", role: "Student, Level 8", text: "I can now solve complex calculations faster than a calculator! Abacus training gave me confidence I never had before.", rating: 5 },
+  { name: "Sneha Patel", role: "Student, Level 7", text: "I can now solve complex calculations faster than a calculator! Abacus training gave me confidence I never had before.", rating: 5 },
   { name: "Arjun Mehta", role: "Parent", text: "Within weeks, my child became more focused and started enjoying numbers. We can clearly see stronger confidence in schoolwork.", rating: 5 },
 ];
 

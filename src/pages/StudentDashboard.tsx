@@ -99,14 +99,6 @@ const StudentDashboard = () => {
   const summaryCards = useMemo(
     () => [
       {
-        title: "Enrolled",
-        subtitle: "Batches",
-        count: data?.batchesCount ?? 0,
-        color: "bg-emerald-500",
-        button: "View More Details",
-        to: "/student/batches",
-      },
-      {
         title: "Subscribed",
         subtitle: "Worksheets",
         count: data?.worksheetsCount ?? 0,
@@ -233,7 +225,7 @@ const StudentDashboard = () => {
               <h3 className="text-lg font-heading font-bold text-slate-900">My Subscriptions</h3>
               <p className="text-sm text-slate-500">Purchased Abacus and Vedic Maths level subscriptions appear here.</p>
             </div>
-            <Button variant="outline" onClick={() => navigate("/student/orders")}>View Orders</Button>
+            <Button variant="outline" onClick={() => navigate("/student/orders")}>View Payment History</Button>
           </div>
           {activeSubscriptions.length === 0 ? (
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">

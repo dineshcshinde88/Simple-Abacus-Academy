@@ -92,6 +92,7 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
   const [orders, setOrders] = useState<TrainingShopOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [redirectingProductId, setRedirectingProductId] = useState<string | null>(null);
+  const [cartProductIds, setCartProductIds] = useState<string[]>([]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -136,20 +137,12 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
     }));
   };
 
-  const createOrder = async (product: TrainingShopProduct) => {
-    if (!token) {
-      toast({ title: "Login required", description: "Please login again before purchasing.", variant: "destructive" });
-      return;
-    }
-
+  const cartItems = useMemo(() => cartProductIds.map((productId) => {
+    const product = trainingShopProducts.find((item) => item.id === productId);
+    if (!product) return null;
     const selection = selections[product.id];
     const unitPrice = selectedPrice(product, selection.option);
-    if (!selection.option || selection.quantity < 1 || unitPrice <= 0) {
-      toast({ title: "Select a valid item", description: "Please choose an option and quantity before payment.", variant: "destructive" });
-      return;
-    }
-
-    const payload: TrainingShopOrderPayload = {
+    return {
       productId: product.id,
       productName: product.name,
       category: product.category,
@@ -158,9 +151,38 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
       quantity: selection.quantity,
       unitPrice,
       finalPrice: unitPrice * selection.quantity,
+    } satisfies TrainingShopOrderPayload;
+  }).filter((item): item is TrainingShopOrderPayload => Boolean(item)), [cartProductIds, selections]);
+
+  const cartTotal = cartItems.reduce((total, item) => total + item.finalPrice, 0);
+
+  const toggleCartProduct = (productId: string) => {
+    setCartProductIds((current) => current.includes(productId) ? current.filter((id) => id !== productId) : [...current, productId]);
+  };
+
+  const createCartOrder = async () => {
+    if (!token) {
+      toast({ title: "Login required", description: "Please login again before purchasing.", variant: "destructive" });
+      return;
+    }
+    if (!cartItems.length || cartItems.some((item) => !item.selectedOption || item.quantity < 1 || item.unitPrice <= 0)) {
+      toast({ title: "Cart is empty", description: "Add at least one valid product before checkout.", variant: "destructive" });
+      return;
+    }
+
+    const payload: TrainingShopOrderPayload = {
+      productId: "multi-item-cart",
+      productName: `${cartItems.length} shop products`,
+      category: "Multiple",
+      selectedOption: "Multiple items",
+      optionLabel: "Cart",
+      quantity: cartItems.reduce((total, item) => total + item.quantity, 0),
+      unitPrice: cartTotal,
+      finalPrice: cartTotal,
+      items: cartItems,
     };
 
-    setRedirectingProductId(product.id);
+    setRedirectingProductId("cart");
     try {
       const response = await teacherCreateShopOrder(token, payload);
       sessionStorage.setItem("training_shop_checkout", JSON.stringify(response.order));
@@ -237,7 +259,7 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
               const selection = selections[product.id];
               const unitPrice = selectedPrice(product, selection.option);
               const finalPrice = unitPrice * selection.quantity;
-              const isRedirecting = redirectingProductId === product.id;
+              const isInCart = cartProductIds.includes(product.id);
 
               return (
                 <motion.article
@@ -307,9 +329,13 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
                           <p className="text-xl font-bold text-purple-900">{currency.format(finalPrice)}</p>
                         </div>
                       </div>
-                      <Button className="w-full gap-2 bg-orange-500 hover:bg-orange-600" onClick={() => createOrder(product)} disabled={isRedirecting}>
-                        {isRedirecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
-                        {isRedirecting ? "Redirecting..." : "Buy Now"}
+                      <Button
+                        variant={isInCart ? "outline" : "default"}
+                        className={isInCart ? "w-full gap-2 border-orange-500 text-orange-600" : "w-full gap-2 bg-orange-500 hover:bg-orange-600"}
+                        onClick={() => toggleCartProduct(product.id)}
+                      >
+                        <ShoppingBag className="h-4 w-4" />
+                        {isInCart ? "Remove from Cart" : "Add to Cart"}
                       </Button>
                     </div>
                   </div>
@@ -320,6 +346,36 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
         </div>
 
         <aside className="space-y-5">
+          <div className="rounded-2xl border border-orange-200 bg-white p-5 shadow-card">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold">Shopping Cart</h3>
+              <Badge className="bg-orange-500">{cartItems.length}</Badge>
+            </div>
+            <div className="mt-4 space-y-3">
+              {!cartItems.length && <p className="text-sm text-muted-foreground">Add products to place one combined order.</p>}
+              {cartItems.map((item) => (
+                <div key={item.productId} className="rounded-xl border border-border p-3 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{item.productName}</p>
+                      <p className="text-xs text-muted-foreground">{item.selectedOption} × {item.quantity}</p>
+                    </div>
+                    <button type="button" className="text-xs font-semibold text-red-600" onClick={() => toggleCartProduct(item.productId)}>Remove</button>
+                  </div>
+                  <p className="mt-2 text-right font-bold">{currency.format(item.finalPrice)}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t pt-4">
+              <span className="font-semibold">Cart Total</span>
+              <span className="text-xl font-bold text-purple-900">{currency.format(cartTotal)}</span>
+            </div>
+            <Button className="mt-4 w-full gap-2 bg-orange-500 hover:bg-orange-600" onClick={createCartOrder} disabled={!cartItems.length || redirectingProductId === "cart"}>
+              {redirectingProductId === "cart" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+              {redirectingProductId === "cart" ? "Redirecting..." : "Checkout All Items"}
+            </Button>
+          </div>
+
           <div className="rounded-2xl border border-border bg-white p-5 shadow-card">
             <div className="flex items-center justify-between">
               <h3 className="font-bold">Recently Purchased</h3>
