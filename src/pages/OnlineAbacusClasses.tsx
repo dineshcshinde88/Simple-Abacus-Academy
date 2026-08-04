@@ -6,6 +6,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Brain, Clock, Globe, GraduationCap, Layers, ShieldCheck, Sparkles, Target } from "lucide-react";
 import { placeholderImages } from "@/data/placeholderImages";
 import abacusClassesImage from "@/assets/pages/abacus-classes.png";
+import LevelSyllabus from "@/components/courses/LevelSyllabus";
+import { abacusSyllabus } from "@/data/courseSyllabus";
 
 const heroContent = {
   title: "Online Abacus Classes\nthat build speed, focus,\nand real math confidence",
@@ -26,7 +28,7 @@ const benefits = [
 ];
 
 const helpHighlights = [
-  { title: "7 levels program", desc: "A complete, step-by-step pathway from basics to advanced mental math." },
+  { title: "Foundation + 7 levels", desc: "A complete, step-by-step pathway from basics to advanced mental math." },
   { title: "3 months per level", desc: "Balanced pace with enough practice time to master each stage." },
   { title: "Certification", desc: "Level-wise exams and achievement certificates for every milestone." },
   { title: "Personal mentorship", desc: "Dedicated guidance with feedback and progress tracking." },
@@ -41,14 +43,6 @@ const features = [
   { icon: Target, title: "Performance Tracking", desc: "Regular assessments with feedback on speed and accuracy." },
 ];
 
-const syllabusPoints = [
-  "Number concepts, place value, and abacus setup",
-  "Addition and subtraction with multi-digit operations",
-  "Multiplication and division using mental abacus rules",
-  "Squares and cubes for faster math fluency",
-  "Speed math techniques and timed calculation practice",
-];
-
 const faqs = [
   {
     q: "What is abacus training?",
@@ -56,7 +50,7 @@ const faqs = [
   },
   {
     q: "How long is the course?",
-    a: "The program has 7 levels, with each level taking about three months depending on student progress.",
+    a: "The program starts with Level 0 (Foundation) and continues through Levels 1-7. Each level takes about three months depending on student progress.",
   },
   {
     q: "What age group is suitable?",
@@ -186,8 +180,8 @@ const OnlineAbacusClasses = () => (
 
       {/* Course Details */}
       <Section className="bg-white">
-        <div className="grid md:grid-cols-12 gap-10 items-start">
-          <div className="md:col-span-5">
+        <div className="grid lg:grid-cols-12 gap-10 items-start">
+          <div className="lg:col-span-4 lg:sticky lg:top-24">
             <div className="flex items-center gap-3 text-[#f97316] mb-3">
               <GraduationCap className="h-6 w-6" />
               <span className="text-sm font-semibold uppercase tracking-widest">Course Details</span>
@@ -199,15 +193,8 @@ const OnlineAbacusClasses = () => (
               A complete syllabus that strengthens fundamentals and builds advanced mental math abilities.
             </p>
           </div>
-          <div className="md:col-span-7">
-            <ul className="space-y-3">
-              {syllabusPoints.map((point) => (
-                <li key={point} className="flex items-start gap-3 text-base text-foreground">
-                  <span className="mt-2 h-2 w-2 rounded-full bg-[#4c1d95]" />
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
+          <div className="lg:col-span-8">
+            <LevelSyllabus levels={abacusSyllabus} />
           </div>
         </div>
       </Section>

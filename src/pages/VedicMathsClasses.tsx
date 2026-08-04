@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BookOpen, Brain, ChartLine, Clock, GraduationCap, Layers, Sparkles, Target } from "lucide-react";
 import { placeholderImages } from "@/data/placeholderImages";
+import LevelSyllabus from "@/components/courses/LevelSyllabus";
+import { vedicMathsSyllabus } from "@/data/courseSyllabus";
 
 const hero = {
   title: "Online Vedic Maths Classes\nfor fast, accurate calculations",
@@ -32,14 +34,6 @@ const highlights = [
   { icon: ChartLine, title: "Progress Tracking", desc: "Track speed and accuracy improvements over time." },
   { icon: Brain, title: "Mental Math Focus", desc: "Train the brain to calculate without dependency on tools." },
   { icon: Target, title: "Exam-Ready Skills", desc: "Build speed techniques that support school exams." },
-];
-
-const learnTopics = [
-  "Addition and subtraction tricks",
-  "Multiplication shortcuts",
-  "Division methods",
-  "Square and cube roots",
-  "Mental calculation techniques",
 ];
 
 const structure = [
@@ -179,8 +173,8 @@ const VedicMathsClasses = () => (
 
       {/* What Students Will Learn */}
       <Section className="bg-white">
-        <div className="grid md:grid-cols-12 gap-10 items-start">
-          <div className="md:col-span-5">
+        <div className="grid lg:grid-cols-12 gap-10 items-start">
+          <div className="lg:col-span-4 lg:sticky lg:top-24">
             <div className="flex items-center gap-3 text-[#f97316] mb-3">
               <GraduationCap className="h-6 w-6" />
               <span className="text-sm font-semibold uppercase tracking-widest">Learning Outcomes</span>
@@ -192,15 +186,8 @@ const VedicMathsClasses = () => (
               Core techniques that cover essential operations and mental math skills.
             </p>
           </div>
-          <div className="md:col-span-7">
-            <ul className="space-y-3">
-              {learnTopics.map((t) => (
-                <li key={t} className="flex items-start gap-3 text-base text-foreground">
-                  <span className="mt-2 h-2 w-2 rounded-full bg-[#4c1d95]" />
-                  <span>{t}</span>
-                </li>
-              ))}
-            </ul>
+          <div className="lg:col-span-8">
+            <LevelSyllabus levels={vedicMathsSyllabus} />
           </div>
         </div>
       </Section>

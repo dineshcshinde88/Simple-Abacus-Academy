@@ -47,7 +47,7 @@ const displayTopicName = (name: string) => name.replace(/\s*\(3D Inst\.?\)\s*/gi
 const isCalendarMethodLevelFour = (level: WorksheetLevel | undefined, topic: WorksheetTopic) => {
   const levelName = level?.level_name.toLowerCase().replace(/[^a-z0-9]/g, "") || "";
   const topicName = displayTopicName(topic.topic_name).toLowerCase().replace(/[^a-z0-9]/g, "");
-  return levelName.includes("level4") && topicName.includes("calendarmethod");
+  return levelName.includes("level4") && topicName.includes("calendar") && topicName.includes("method");
 };
 const TOKEN_KEY = "abacus_auth_token";
 
