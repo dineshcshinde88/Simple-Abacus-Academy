@@ -64,7 +64,7 @@ export const vedicMathsSyllabus: SyllabusLevel[] = [
   ] },
   { level: "Level 3", topics: [
     "Division by 5 (3D, 4D)", "Division by 25 (3D, 4D)", "Division by 50 and 125", "Division - General Method",
-    "Fraction Addition, Subtraction, Multiplication & Division", "Vertical & Crosswise Multiplication (3D)",
+    "Vertical & Crosswise Multiplication (3D)",
     "Mixed Base Multiplication - Base 100 (3D×2D, 2D×3D)", "Mixed Base Multiplication - Base 1000 (4D×3D, 3D×4D)",
   ] },
   { level: "Level 4", topics: [
