@@ -16,6 +16,45 @@ type TeacherProfile = {
   description: string;
 };
 
+const fallbackTeachers: TeacherProfile[] = [
+  {
+    name: "Ashvini Balu Talekar",
+    qualification: "Certified Abacus Trainer",
+    experience: "5+ Years Experience",
+    location: "Pune, Maharashtra",
+    specialization: "Abacus",
+    image: "/assets/teachers/ashvini-balu-talekar.png",
+    description: "Encouraging mentor who blends fun practice with clear fundamentals and personalized attention.",
+  },
+  {
+    name: "Nayana Uday Patil",
+    qualification: "Certified Abacus Trainer",
+    experience: "4+ Years Experience",
+    location: "Pune, Maharashtra",
+    specialization: "Abacus",
+    image: "/assets/teachers/nayana-uday-patil.png",
+    description: "Focuses on accuracy, speed, and confidence with child-friendly teaching and regular feedback.",
+  },
+  {
+    name: "Mahanthi Kamini Devi",
+    qualification: "Certified Abacus Trainer",
+    experience: "6+ Years Experience",
+    location: "Thane, Maharashtra",
+    specialization: "Abacus",
+    image: "/assets/teachers/mahanthi-kamini-devi.png",
+    description: "Known for engaging classes and step-by-step guidance that keeps learners motivated and consistent.",
+  },
+  {
+    name: "Poonam Yuvraj Gavhane",
+    qualification: "Certified Abacus Trainer",
+    experience: "5+ Years Experience",
+    location: "Pune, Maharashtra",
+    specialization: "Abacus",
+    image: "/assets/teachers/poonam-gavhane.png",
+    description: "Patient, structured instruction that builds number sense, focus, and confident mental math habits.",
+  },
+];
+
 const highlights = [
   {
     title: "Experienced Trainers",
@@ -36,18 +75,21 @@ const highlights = [
 ];
 
 const Teachers = () => {
-  const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
+  const [teachers, setTeachers] = useState<TeacherProfile[]>(fallbackTeachers);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${getApiBase()}/api/teachers/public`, { signal: controller.signal })
+    fetch(`${getApiBase()}/api/teachers/public`, {
+      signal: controller.signal,
+      cache: "no-store",
+    })
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((data: { teachers?: TeacherProfile[] }) => {
-        setTeachers(Array.isArray(data.teachers) ? data.teachers : []);
+        if (Array.isArray(data.teachers) && data.teachers.length > 0) {
+          setTeachers(data.teachers);
+        }
       })
-      .catch(() => {
-        setTeachers([]);
-      });
+      .catch(() => undefined);
 
     return () => controller.abort();
   }, []);
