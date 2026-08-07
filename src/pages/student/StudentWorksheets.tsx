@@ -120,9 +120,10 @@ const LevelBox = ({ level, backTo }: { level?: WorksheetLevel; backTo?: string }
     <div className="flex items-center justify-between rounded-lg bg-[#551896] px-4 py-3 text-white">
       <h2 className="text-sm font-semibold sm:text-base">{level?.level_name || "Worksheet Subscription"}</h2>
       {backTo ? (
-        <Button asChild size="icon" variant="secondary" className="h-8 w-10 rounded-md bg-white text-[#551896] hover:bg-white/90">
-          <Link to={backTo} aria-label="Back to worksheet topics" title="Back to worksheet topics">
+        <Button asChild variant="secondary" className="h-9 shrink-0 gap-2 rounded-md bg-white px-3 font-semibold text-[#551896] shadow-sm hover:bg-white/90">
+          <Link to={backTo} aria-label="Back" title="Back">
             <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
           </Link>
         </Button>
       ) : null}
@@ -514,7 +515,10 @@ const WorksheetEquation = ({ question }: { question: string }) => {
     ? `${divisionMatch[1]} ÷ ${divisionMatch[2]}`
     : question;
   const lines = normalizedQuestion.split(/\r?\n/).filter(Boolean);
-  if (lines.length <= 1) return <span className="whitespace-nowrap">{normalizedQuestion}</span>;
+  if (lines.length <= 1) {
+    const isCalendarQuestion = /^\s*Find day of week\s*:/i.test(normalizedQuestion);
+    return <span className={isCalendarQuestion ? "whitespace-normal break-words" : "whitespace-nowrap"}>{normalizedQuestion}</span>;
+  }
   return (
     <span className="inline-grid min-w-20 grid-cols-[1.25ch_auto] border-b-2 border-slate-700 pb-1 font-mono tabular-nums" aria-label={lines.join(" ")}>
       {lines.map((line, index) => {
@@ -558,11 +562,11 @@ const QuestionsPage = ({ level, topic, access }: { level?: WorksheetLevel; topic
       {loading ? <LoadingGrid /> : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {questions.map((question, index) => (
-            <Card key={question.id} className="flex min-h-36 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <Card key={question.id} className="flex min-h-36 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
               <span className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#5b21b6] text-xs font-bold text-white">
                 Q{index + 1}
               </span>
-              <p className="flex-1 text-lg font-bold text-slate-900"><WorksheetEquation question={question.question} /></p>
+              <p className="min-w-0 flex-1 text-lg font-bold leading-relaxed text-slate-900"><WorksheetEquation question={question.question} /></p>
             </Card>
           ))}
         </div>
