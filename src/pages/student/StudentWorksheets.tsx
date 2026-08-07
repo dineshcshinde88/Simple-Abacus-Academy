@@ -516,8 +516,16 @@ const WorksheetEquation = ({ question }: { question: string }) => {
     : question;
   const lines = normalizedQuestion.split(/\r?\n/).filter(Boolean);
   if (lines.length <= 1) {
-    const isCalendarQuestion = /^\s*Find day of week\s*:/i.test(normalizedQuestion);
-    return <span className={isCalendarQuestion ? "whitespace-normal break-words" : "whitespace-nowrap"}>{normalizedQuestion}</span>;
+    const calendarMatch = normalizedQuestion.match(/^\s*(Find day of week)\s*:\s*(.+)$/i);
+    if (calendarMatch) {
+      return (
+        <span className="flex flex-col gap-1 whitespace-normal">
+          <span>{calendarMatch[1]}:</span>
+          <span className="break-words">{calendarMatch[2]}</span>
+        </span>
+      );
+    }
+    return <span className="whitespace-nowrap">{normalizedQuestion}</span>;
   }
   return (
     <span className="inline-grid min-w-20 grid-cols-[1.25ch_auto] border-b-2 border-slate-700 pb-1 font-mono tabular-nums" aria-label={lines.join(" ")}>
