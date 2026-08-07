@@ -138,9 +138,9 @@ const VirtualAbacusTool = () => {
             aria-label="Virtual abacus. Use left and right arrows to choose a rod, up and down arrows for lower beads, and space for upper bead."
           >
             <motion.div
-              className="mx-auto w-full max-w-[1040px] origin-top rounded-[8px] border-[5px] border-black bg-[#111] p-1 shadow-[inset_0_2px_0_rgba(255,255,255,0.14),inset_0_-8px_18px_rgba(0,0,0,0.72),0_18px_34px_rgba(15,23,42,0.16)] sm:rounded-[12px] sm:p-[10px] md:min-w-[980px]"
+              className="mx-auto w-full max-w-[1040px] origin-top overflow-hidden rounded-[8px] border-[7px] border-black bg-[#111] shadow-[inset_0_2px_0_rgba(255,255,255,0.14),inset_0_-8px_18px_rgba(0,0,0,0.72),0_18px_34px_rgba(15,23,42,0.16)] sm:rounded-[12px] sm:border-[10px] md:min-w-[980px]"
             >
-              <div className="relative bg-gradient-to-b from-[#efefef] via-[#f8f8f8] to-[#e5e5e5] px-1 py-1 shadow-[inset_0_0_18px_rgba(0,0,0,0.24)] sm:px-2 sm:py-2">
+              <div className="relative bg-gradient-to-b from-[#efefef] via-[#f8f8f8] to-[#e5e5e5] shadow-[inset_0_0_18px_rgba(0,0,0,0.24)]">
                 <div className="absolute inset-x-0 top-[28%] z-10 h-2 bg-black shadow-[0_2px_4px_rgba(0,0,0,0.28)] sm:h-3" />
                 <div className="grid gap-0" style={{ gridTemplateColumns: `repeat(${ROD_COUNT}, minmax(0, 1fr))` }}>
                   {rods.map((rod, index) => (

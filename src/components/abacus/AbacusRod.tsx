@@ -19,7 +19,7 @@ const spring = {
 } as const;
 
 const beadClass =
-  "absolute left-1/2 z-20 h-[var(--bead-height)] w-[clamp(0.75rem,4.7vw,1.55rem)] touch-none bg-gradient-to-br from-orange-300 via-[#ff5b35] to-[#e6361e] shadow-[inset_3px_3px_5px_rgba(255,255,255,0.32),inset_-4px_-4px_7px_rgba(120,22,12,0.28),0_4px_8px_rgba(127,29,29,0.18)] outline-none [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)] focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-100 sm:w-[clamp(1.4rem,5.2vw,2.35rem)] lg:w-[2.75rem]";
+  "absolute left-1/2 z-20 h-[var(--bead-height)] w-[calc(100%+1px)] touch-none bg-gradient-to-br from-orange-300 via-[#ff5b35] to-[#e6361e] shadow-[inset_3px_3px_5px_rgba(255,255,255,0.32),inset_-4px_-4px_7px_rgba(120,22,12,0.28),0_3px_6px_rgba(127,29,29,0.16)] outline-none [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)] focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-100";
 
 const getPlaceLabel = (index: number, totalRods: number) => {
   const unitRodIndex = Math.floor(totalRods / 2);
@@ -45,11 +45,11 @@ const AbacusRod = ({
 
   return (
     <div
-      className="relative h-[clamp(9rem,56vw,15.625rem)] min-w-0 flex-1 [--bar-height:0.5rem] [--bead-height:clamp(0.6rem,3.4vw,1rem)] sm:[--bar-height:0.75rem] sm:[--bead-height:clamp(0.9rem,3.2vw,1.5rem)] md:min-w-[60px] lg:[--bead-height:1.75rem]"
+      className="relative h-[clamp(9rem,56vw,15.625rem)] min-w-0 flex-1 [--bar-height:0.5rem] [--bead-height:clamp(0.6rem,3.4vw,1rem)] [--bead-rest-gap:clamp(0.6rem,4vw,1.25rem)] sm:[--bar-height:0.75rem] sm:[--bead-height:clamp(0.9rem,3.2vw,1.5rem)] md:min-w-[60px] lg:[--bead-height:1.75rem]"
       role="group"
       aria-label={`Rod ${index + 1}, ${placeLabel}`}
     >
-      <div className="absolute left-1/2 top-[3%] z-0 h-[94%] w-[3px] -translate-x-1/2 bg-gradient-to-b from-zinc-500 via-zinc-800 to-zinc-500 shadow-[0_0_0_1px_rgba(255,255,255,0.18)] md:w-1" />
+      <div className="absolute inset-y-0 left-1/2 z-0 h-full w-[3px] -translate-x-1/2 bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.18)] md:w-1" />
       {showDividerDot && (
         <span
           className={`absolute left-1/2 top-[calc(28%+var(--bar-height)/2)] z-30 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full md:h-2 md:w-2 ${
@@ -68,7 +68,7 @@ const AbacusRod = ({
         dragConstraints={{ top: 0, bottom: 70 }}
         onClick={() => onToggleUpper(index)}
         onDragEnd={(_, info) => onUpperDrag(index, info.offset.y > 18)}
-        animate={{ top: rod.upperActive ? "calc(28% - var(--bead-height))" : "4%", x: "-50%", scale: rod.upperActive ? 1.04 : 1 }}
+        animate={{ top: rod.upperActive ? "calc(28% - var(--bead-height))" : "calc(28% - var(--bead-rest-gap) - var(--bead-height))", x: "-50%", scale: 1 }}
         transition={spring}
         whileTap={{ scale: 0.94 }}
         className={beadClass}
@@ -80,7 +80,7 @@ const AbacusRod = ({
         const isActive = beadIndex < rod.lowerActive;
         const top = isActive
           ? `calc(28% + var(--bar-height) + ${beadIndex} * var(--bead-height))`
-          : `calc(96% - ${4 - beadIndex} * var(--bead-height))`;
+          : `calc(28% + var(--bar-height) + var(--bead-rest-gap) + ${beadIndex} * var(--bead-height))`;
 
         return (
           <motion.button
@@ -91,7 +91,7 @@ const AbacusRod = ({
             dragConstraints={{ top: 60, bottom: 240 }}
             onClick={() => onSetLower(index, beadIndex)}
             onDragEnd={(_, info) => onLowerDrag(index, beadIndex, info.offset.y < -18)}
-            animate={{ top, x: "-50%", scale: isActive ? 1.04 : 1 }}
+            animate={{ top, x: "-50%", scale: 1 }}
             transition={spring}
             whileTap={{ scale: 0.94 }}
             className={beadClass}
