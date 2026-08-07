@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import StudentLayout from "@/layouts/StudentLayout";
 import { useAuth } from "@/context/AuthContext";
 import { CompletionTimestamp } from "@/components/worksheets/CompletionTimestamp";
+import { abacusSyllabus, SyllabusLevel, vedicMathsSyllabus } from "@/data/courseSyllabus";
 import { fetchStudentDashboard, StudentDashboardData } from "@/services/studentApi";
 import {
   fetchWorksheetDashboard,
@@ -172,6 +173,14 @@ const groupSubscriptions = (subscriptions: StudentSubscription[]) => {
   return Array.from(groups.entries()).map(([title, items]) => ({ title, items: sortByLevelName(items) }));
 };
 
+const syllabusForLevel = (courseTitle: string, levelName: string): SyllabusLevel | undefined => {
+  const syllabus = /vedic/i.test(courseTitle) ? vedicMathsSyllabus : abacusSyllabus;
+  const levelNumber = levelName.match(/(?:level\s*)?(\d+)/i)?.[1];
+  if (levelNumber) return syllabus.find((item) => item.level === `Level ${levelNumber}`);
+  if (/foundation/i.test(levelName)) return syllabus.find((item) => item.level === "Level 0");
+  return undefined;
+};
+
 const WorksheetCourseGroup = ({
   title,
   items,
@@ -197,12 +206,13 @@ const WorksheetCourseGroup = ({
     <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {items.map((item) => {
         const levelName = item.levelName || currentLevel?.level_name || "Level";
+        const levelSyllabus = syllabusForLevel(title, levelName);
         const card = (
           <div
-            className={`min-h-24 rounded-md border bg-white p-4 text-center transition ${
+            className={`group min-h-24 rounded-md border bg-white p-4 text-center transition ${
               disabled
                 ? "border-slate-300 opacity-75"
-                : "border-[#ff6500] hover:-translate-y-0.5 hover:shadow-md"
+                : "border-[#ff6500] hover:-translate-y-0.5 hover:shadow-md group-focus-visible:-translate-y-0.5 group-focus-visible:shadow-md"
             }`}
           >
             <h4 className="text-lg font-bold text-slate-950">{levelName}</h4>
@@ -211,6 +221,23 @@ const WorksheetCourseGroup = ({
               <span>Exp Date: {formatShortDate(item.expiryDate)}</span>
             </div>
             <p className="mt-3 text-[11px] font-semibold text-[#551896]">Open worksheets</p>
+            {levelSyllabus ? (
+              <div className="mt-0 max-h-0 overflow-hidden text-left opacity-0 transition-all duration-300 group-hover:mt-4 group-hover:max-h-96 group-hover:opacity-100 group-focus-within:mt-4 group-focus-within:max-h-96 group-focus-within:opacity-100">
+                <div className="border-t border-slate-200 pt-3">
+                  <p className="mb-2 text-xs font-bold text-[#551896]">
+                    Syllabus{levelSyllabus.title ? ` - ${levelSyllabus.title}` : ""}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {levelSyllabus.topics.map((topic) => (
+                      <li key={topic} className="flex items-start gap-2 text-[11px] leading-4 text-slate-600">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#ff6500]" />
+                        <span>{topic}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
           </div>
         );
 
@@ -222,7 +249,7 @@ const WorksheetCourseGroup = ({
           subscriptionId: item.id,
         });
         return (
-          <Link key={item.id} to={`/student/worksheets${accessSearch}`} aria-label={`Open ${levelName} worksheet topics`}>
+          <Link key={item.id} className="group block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#551896] focus-visible:ring-offset-2" to={`/student/worksheets${accessSearch}`} aria-label={`Open ${levelName} worksheet topics`}>
             {card}
           </Link>
         );
@@ -426,7 +453,7 @@ const TopicListPage = ({ level, topics, access }: { level?: WorksheetLevel; topi
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/student/dashboard" }, { label: "Worksheet Subscription" }]} />
-      <LevelBox level={level} />
+      <LevelBox level={level} backTo="/student/worksheets" />
 
       <div className="rounded-xl bg-white p-4 shadow-sm">
         <h2 className="text-base font-bold text-slate-900">Worksheets</h2>
