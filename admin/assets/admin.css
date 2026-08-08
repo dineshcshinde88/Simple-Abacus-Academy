@@ -20,6 +20,19 @@ body {
   position: sticky;
   top: 0;
   height: 100vh;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.admin-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-sidebar::-webkit-scrollbar-thumb {
+  background: #d9d2e3;
+  border-radius: 999px;
 }
 
 .admin-brand {
@@ -96,6 +109,7 @@ body {
   .admin-sidebar {
     width: 100%;
     height: auto;
+    overflow-y: visible;
     position: relative;
     display: flex;
     align-items: center;

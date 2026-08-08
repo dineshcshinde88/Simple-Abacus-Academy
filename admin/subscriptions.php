@@ -15,6 +15,13 @@ function admin_table_exists(PDO $pdo, string $table): bool
     return (int) $stmt->fetchColumn() > 0;
 }
 
+function admin_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+    $stmt->execute([$table, $column]);
+    return (int) $stmt->fetchColumn() > 0;
+}
+
 function admin_database_name(PDO $pdo): string
 {
     try {
@@ -67,6 +74,9 @@ function admin_backend_pdo(PDO $adminPdo): ?PDO
     }
 
     $parts = parse_url($databaseUrl);
+    if (!is_array($parts) && preg_match('#^mysql://([^:]+):([^@]*)@([^:/?#]+)(?::([0-9]+))?/([^?]+)#i', $databaseUrl, $match) === 1) {
+        $parts = ['user' => urldecode($match[1]), 'pass' => urldecode($match[2]), 'host' => $match[3], 'port' => $match[4] !== '' ? $match[4] : 3306, 'path' => '/' . urldecode($match[5])];
+    }
     if (!is_array($parts)) {
         return null;
     }
@@ -222,7 +232,9 @@ if ($hasNewSubscriptions && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$errors && $student && $plan) {
             $now = gmdate('Y-m-d H:i:s');
             $startDate = $startInput . ' 00:00:00';
-            $expiryDate = $expiryInput . ' 23:59:59';
+            $expiryDate = $assignmentType === 'free_scholarship'
+                ? gmdate('Y-m-d 23:59:59', strtotime($startDate . ' +90 days'))
+                : $expiryInput . ' 23:59:59';
             $assignedAmount = $assignmentType === 'free_scholarship' ? 0 : $amount;
             $notes = 'admin_assignment_type=' . $assignmentType
                 . '; assigned_by=' . ($adminName ?: 'Admin')
@@ -309,13 +321,23 @@ if (!$hasNewSubscriptions && $_SERVER['REQUEST_METHOD'] === 'POST') {
 $statusFilter = $_GET['status'] ?? '';
 $subscriptions = [];
 $students = [];
+$activeCount = 0;
+$paidCount = 0;
+$freeCount = 0;
 
 if ($hasNewSubscriptions) {
+    $hasStudentPhone = admin_column_exists($subscriptionPdo, 'students', 'phone');
+    $hasStudentPhoneCountry = admin_column_exists($subscriptionPdo, 'students', 'phone_country');
+    $studentPhoneSelect = $hasStudentPhone
+        ? ($hasStudentPhoneCountry
+            ? "CASE WHEN COALESCE(NULLIF(st.phone, ''), '') = '' THEN '-' ELSE CONCAT(COALESCE(NULLIF(st.phone_country, ''), '+91'), ' ', st.phone) END"
+            : "COALESCE(NULLIF(st.phone, ''), '-')")
+        : "'-'";
     $studentStmt = $subscriptionPdo->query(
-        'SELECT st.id, u.name, u.email
+        "SELECT st.id, u.name, u.email, {$studentPhoneSelect} AS phone
          FROM students st
          INNER JOIN users u ON u.id = st.user_id
-         ORDER BY u.name ASC, u.email ASC'
+         ORDER BY u.name ASC, u.email ASC"
     );
     $students = $studentStmt->fetchAll();
 
@@ -329,15 +351,31 @@ if ($hasNewSubscriptions) {
     );
     $worksheetPlans = $planStmt->fetchAll();
 
+    $summaryStmt = $subscriptionPdo->query(
+        "SELECT
+            SUM(CASE WHEN ss.status = 'active' AND ss.expiry_date >= UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS active_count,
+            SUM(CASE WHEN ss.payment_status = 'paid' AND COALESCE(ss.notes, '') NOT LIKE '%admin_assignment_type=free_scholarship%' THEN 1 ELSE 0 END) AS paid_count,
+            SUM(CASE WHEN COALESCE(ss.notes, '') LIKE '%admin_assignment_type=free_scholarship%' AND ss.status = 'active' AND ss.expiry_date >= UTC_TIMESTAMP() THEN 1 ELSE 0 END) AS free_count
+         FROM student_subscriptions ss
+         LEFT JOIN levels l ON l.id = ss.level_id
+         LEFT JOIN courses c ON c.id = l.course_id
+         WHERE c.slug IN ('abacus-worksheet', 'vedic-maths-worksheet')"
+    );
+    $summary = $summaryStmt->fetch() ?: [];
+    $activeCount = (int) ($summary['active_count'] ?? 0);
+    $paidCount = (int) ($summary['paid_count'] ?? 0);
+    $freeCount = (int) ($summary['free_count'] ?? 0);
+
     $where = "WHERE c.slug IN ('abacus-worksheet', 'vedic-maths-worksheet')";
     $params = [];
-    if (in_array($statusFilter, ['paid', 'unpaid'], true)) {
-        if ($statusFilter === 'unpaid') {
-            $where = "WHERE ss.payment_status IN ('unpaid', 'pending') AND c.slug IN ('abacus-worksheet', 'vedic-maths-worksheet')";
-        } else {
-            $where = "WHERE ss.payment_status = ? AND c.slug IN ('abacus-worksheet', 'vedic-maths-worksheet')";
-            $params[] = $statusFilter;
-        }
+    if ($statusFilter === 'paid') {
+        $where .= " AND ss.payment_status = 'paid' AND COALESCE(ss.notes, '') NOT LIKE '%admin_assignment_type=free_scholarship%'";
+    } elseif ($statusFilter === 'free') {
+        $where .= " AND COALESCE(ss.notes, '') LIKE '%admin_assignment_type=free_scholarship%'";
+    } elseif ($statusFilter === 'active') {
+        $where .= " AND ss.status = 'active' AND ss.expiry_date >= UTC_TIMESTAMP()";
+    } elseif ($statusFilter === 'expired') {
+        $where .= " AND (ss.status <> 'active' OR ss.expiry_date < UTC_TIMESTAMP())";
     }
 
     $sql = "
@@ -345,6 +383,7 @@ if ($hasNewSubscriptions) {
             ss.*,
             u.name AS student_name,
             u.email AS student_email,
+            {$studentPhoneSelect} AS student_phone,
             l.level_name,
             c.name AS course_name,
             c.slug AS course_slug,
@@ -424,7 +463,7 @@ if ($hasNewSubscriptions) {
               <option value="">Select student</option>
               <?php foreach ($students as $student): ?>
                 <option value="<?php echo htmlspecialchars((string) $student['id']); ?>">
-                  <?php echo htmlspecialchars(($student['name'] ?? 'Student') . ' (' . ($student['email'] ?? '-') . ')'); ?>
+                  <?php echo htmlspecialchars(($student['name'] ?? 'Student') . ' (' . ($student['phone'] ?? '-') . ' / ' . ($student['email'] ?? '-') . ')'); ?>
                 </option>
               <?php endforeach; ?>
             </select>
@@ -443,13 +482,13 @@ if ($hasNewSubscriptions) {
           <div class="col-lg-4">
             <label class="form-label">Assignment Type <span class="text-danger">*</span></label>
             <select name="assignment_type" class="form-select" id="assignment-type" required>
-              <option value="offline_paid">Offline Payment Received</option>
-              <option value="free_scholarship">Free / Scholarship</option>
+              <option value="offline_paid">Paid - External / Offline Payment</option>
+              <option value="free_scholarship">Unpaid (Free) - 3 Months</option>
             </select>
           </div>
           <div class="col-md-3">
             <label class="form-label">Start Date <span class="text-danger">*</span></label>
-            <input type="date" name="start_date" class="form-control" value="<?php echo htmlspecialchars(date('Y-m-d')); ?>" required />
+            <input type="date" name="start_date" id="assignment-start" class="form-control" value="<?php echo htmlspecialchars(date('Y-m-d')); ?>" required />
           </div>
           <div class="col-md-3">
             <label class="form-label">Expiry Date <span class="text-danger">*</span></label>
@@ -476,6 +515,11 @@ if ($hasNewSubscriptions) {
 
   <div class="card shadow-sm border-0">
     <div class="card-body">
+      <div class="row g-3 mb-4">
+        <div class="col-md-4"><div class="border rounded p-3 h-100"><div class="text-muted small">Active Subscriptions</div><div class="fs-3 fw-semibold"><?php echo $activeCount; ?></div></div></div>
+        <div class="col-md-4"><div class="border rounded p-3 h-100"><div class="text-muted small">Paid Subscriptions</div><div class="fs-3 fw-semibold text-success"><?php echo $paidCount; ?></div></div></div>
+        <div class="col-md-4"><div class="border rounded p-3 h-100"><div class="text-muted small">Unpaid (Free) - Active</div><div class="fs-3 fw-semibold text-primary"><?php echo $freeCount; ?></div></div></div>
+      </div>
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <div>
           <h5 class="card-title mb-1">Abacus &amp; Vedic Maths Worksheet Subscriptions</h5>
@@ -483,10 +527,10 @@ if ($hasNewSubscriptions) {
         </div>
         <form method="get" class="d-flex gap-2">
           <select name="status" class="form-select">
-            <option value="">All Payment Status</option>
-            <?php foreach (['paid', 'unpaid'] as $status): ?>
+            <option value="">All Subscriptions</option>
+            <?php foreach (['active' => 'Active', 'paid' => 'Paid', 'free' => 'Unpaid (Free)', 'expired' => 'Expired'] as $status => $statusLabel): ?>
               <option value="<?php echo htmlspecialchars($status); ?>" <?php echo $statusFilter === $status ? 'selected' : ''; ?>>
-                <?php echo htmlspecialchars(admin_payment_status_label($status)); ?>
+                <?php echo htmlspecialchars($statusLabel); ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -499,6 +543,7 @@ if ($hasNewSubscriptions) {
           <thead>
             <tr>
               <th>Student</th>
+              <th>Mobile</th>
               <th>Program</th>
               <th>Level</th>
               <th>Access Type</th>
@@ -512,12 +557,16 @@ if ($hasNewSubscriptions) {
           </thead>
           <tbody>
             <?php foreach ($subscriptions as $sub): ?>
-              <?php $isManual = str_starts_with((string) ($sub['notes'] ?? ''), 'admin_assignment_type='); ?>
+              <?php
+                $isManual = str_starts_with((string) ($sub['notes'] ?? ''), 'admin_assignment_type=');
+                $isFree = str_contains((string) ($sub['notes'] ?? ''), 'admin_assignment_type=free_scholarship');
+              ?>
               <tr>
                 <td>
                   <div class="fw-semibold"><?php echo htmlspecialchars($sub['student_name'] ?? '-'); ?></div>
                   <div class="text-muted small"><?php echo htmlspecialchars($sub['student_email'] ?? '-'); ?></div>
                 </td>
+                <td><?php echo htmlspecialchars($sub['student_phone'] ?? '-'); ?></td>
                 <td><?php echo htmlspecialchars($sub['course_name'] ?? '-'); ?></td>
                 <td><?php echo htmlspecialchars($sub['level_name'] ?? '-'); ?></td>
                 <td><?php echo htmlspecialchars(admin_assignment_type_label($sub['notes'] ?? null)); ?></td>
@@ -525,8 +574,8 @@ if ($hasNewSubscriptions) {
                 <td><?php echo htmlspecialchars(admin_format_date($sub['expiry_date'] ?? null)); ?></td>
                 <td><?php echo htmlspecialchars(($sub['currency'] ?? 'INR') . ' ' . number_format((float) ($sub['amount'] ?? 0), 2)); ?></td>
                 <td>
-                  <span class="badge bg-<?php echo admin_payment_status_badge($sub['payment_status'] ?? null); ?>">
-                    <?php echo htmlspecialchars(admin_payment_status_label($sub['payment_status'] ?? null)); ?>
+                  <span class="badge bg-<?php echo $isFree ? 'primary' : admin_payment_status_badge($sub['payment_status'] ?? null); ?>">
+                    <?php echo htmlspecialchars($isFree ? 'Unpaid (Free)' : admin_payment_status_label($sub['payment_status'] ?? null)); ?>
                   </span>
                 </td>
                 <td>
@@ -549,7 +598,7 @@ if ($hasNewSubscriptions) {
               </tr>
             <?php endforeach; ?>
             <?php if (!$subscriptions): ?>
-              <tr><td colspan="10" class="text-center text-muted py-4">No worksheet subscriptions found.</td></tr>
+              <tr><td colspan="11" class="text-center text-muted py-4">No worksheet subscriptions found.</td></tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -572,19 +621,23 @@ if ($hasNewSubscriptions) {
         amount.value = isFree ? '0' : (selectedPlan()?.dataset.price || '0');
       };
       const syncExpiry = () => {
-        const days = Number(selectedPlan()?.dataset.duration || 0);
+        const days = type.value === 'free_scholarship' ? 90 : Number(selectedPlan()?.dataset.duration || 0);
         if (!start.value || days <= 0) return;
         const date = new Date(`${start.value}T00:00:00`);
         date.setDate(date.getDate() + days);
         expiry.value = date.toISOString().slice(0, 10);
       };
-      type.addEventListener('change', syncAmount);
+      type.addEventListener('change', () => {
+        syncAmount();
+        syncExpiry();
+      });
       plan.addEventListener('change', () => {
         syncAmount();
         syncExpiry();
       });
       start.addEventListener('change', syncExpiry);
       syncAmount();
+      syncExpiry();
     })();
   </script>
 <?php else: ?>

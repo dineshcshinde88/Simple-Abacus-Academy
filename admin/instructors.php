@@ -288,7 +288,14 @@ foreach ($instructors as $instructor) {
   </div>
 <?php endif; ?>
 
-<div class="row g-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div class="text-muted small">Download the complete instructor list for reporting.</div>
+  <div class="d-flex gap-2">
+    <button type="button" class="btn btn-outline-success btn-sm" onclick="downloadTableCsv('admin-instructor-list','instructor-list.csv')">Download Excel</button>
+    <button type="button" class="btn btn-outline-danger btn-sm" onclick="printAdminTable('admin-instructor-list','Instructor List')">Download PDF</button>
+  </div>
+</div>
+<div class="row g-4" id="admin-instructor-list">
   <?php foreach ($groups as $status => $rows): ?>
     <div class="col-12">
       <div class="card shadow-sm border-0">

@@ -23,6 +23,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let sessionCheckTimer: number | undefined;
+    let cancelled = false;
 
     const clearAuth = () => {
       localStorage.removeItem(TOKEN_KEY);
@@ -47,6 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         const response = await getMe(token);
+        if (cancelled) return;
         setUser(response.user);
         if (response.user.role === "student") {
           sessionCheckTimer = window.setInterval(async () => {
@@ -61,14 +63,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }, STUDENT_SESSION_CHECK_MS);
         }
       } catch (error) {
+        if (cancelled) return;
         handleAuthError(error);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     void initializeAuth();
     return () => {
+      cancelled = true;
       if (sessionCheckTimer !== undefined) {
         window.clearInterval(sessionCheckTimer);
       }
@@ -81,6 +85,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       token,
       loading,
       login: async (email: string, password: string, role: "student" | "tutor") => {
+        // A login attempt starts a fresh session. Do not leave a previously
+        // authenticated account active when the new credentials are rejected.
+        setUser(null);
+        setToken(null);
+        localStorage.removeItem(TOKEN_KEY);
         const response = await loginApi(email, password, role);
         setUser(response.user);
         setToken(response.token);

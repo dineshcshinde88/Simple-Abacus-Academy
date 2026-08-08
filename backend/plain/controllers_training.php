@@ -333,6 +333,7 @@ function training_shop_order_payload(array $row): array
         'razorpayPaymentId' => $row['razorpay_payment_id'] ?? null,
         'createdAt' => (string) $row['created_at'],
         'items' => is_array($metadata['items'] ?? null) ? $metadata['items'] : [],
+        'shipping' => is_array($metadata['shipping'] ?? null) ? $metadata['shipping'] : null,
     ];
 }
 
@@ -349,6 +350,19 @@ function controller_training_teacher_shop_orders(array $ctx): void
 function controller_training_teacher_shop_create_order(array $ctx, array $data): void
 {
     ensure_training_schema();
+
+    $shippingInput = is_array($data['shipping'] ?? null) ? $data['shipping'] : [];
+    $shipping = [
+        'recipientName' => trim((string) ($shippingInput['recipientName'] ?? '')),
+        'phone' => preg_replace('/\D+/', '', (string) ($shippingInput['phone'] ?? '')),
+        'address' => trim((string) ($shippingInput['address'] ?? '')),
+        'city' => trim((string) ($shippingInput['city'] ?? '')),
+        'state' => trim((string) ($shippingInput['state'] ?? '')),
+        'pincode' => preg_replace('/\D+/', '', (string) ($shippingInput['pincode'] ?? '')),
+    ];
+    if ($shipping['recipientName'] === '' || !preg_match('/^\d{10}$/', $shipping['phone']) || $shipping['address'] === '' || $shipping['city'] === '' || $shipping['state'] === '' || !preg_match('/^\d{6}$/', $shipping['pincode'])) {
+        json_response(['message' => 'Complete delivery details are required'], 422);
+    }
 
     $items = is_array($data['items'] ?? null) ? array_values($data['items']) : [];
     if ($items !== []) {
@@ -427,7 +441,7 @@ function controller_training_teacher_shop_create_order(array $ctx, array $data):
             'final_price' => $finalPrice,
             'payment_status' => 'pending',
             'payment_url' => $paymentUrl,
-            'metadata_json' => json_encode(['source' => 'teacher_dashboard_shop', 'items' => $data['items'] ?? []], JSON_UNESCAPED_SLASHES),
+            'metadata_json' => json_encode(['source' => 'teacher_dashboard_shop', 'items' => $data['items'] ?? [], 'shipping' => $shipping], JSON_UNESCAPED_SLASHES),
             'created_at' => $now,
             'updated_at' => $now,
         ]

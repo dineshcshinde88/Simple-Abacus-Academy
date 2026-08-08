@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Award,
   Bell,
   BookOpen,
   Calendar,
@@ -45,9 +44,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import {
   Assignment,
+  CourseType,
   FeesStatus,
   InstructorDashboardProvider,
-  PerformanceStatus,
   Student,
   useInstructorDashboard,
 } from "@/context/InstructorDashboardContext";
@@ -64,6 +63,8 @@ import {
 const navItems = [
   { key: "overview", label: "Dashboard", icon: LayoutDashboard },
   { key: "courses", label: "Courses", icon: BookOpen },
+  { key: "topics", label: "Topics", icon: ClipboardList },
+  { key: "materials", label: "Materials", icon: Upload },
   { key: "students", label: "Students", icon: Users },
   { key: "shop", label: "Shop", icon: Wallet },
   { key: "trainingVideos", label: "Training Videos", icon: PlayCircle },
@@ -78,9 +79,10 @@ type StudentFormState = {
   name: string;
   parentEmail: string;
   parentMobile: string;
+  whatsappNumber: string;
   dateOfBirth: string;
   gender: string;
-  motherTongue: string;
+  course: "Abacus" | "Vedic Maths";
   joiningDate: string;
   avatarUrl: string | null;
   level: string;
@@ -92,8 +94,14 @@ type StudentFormState = {
 
 type FeeFilterValue = "all" | FeesStatus | "pending";
 
+const studentCourseLevels: Record<StudentFormState["course"], string[]> = {
+  Abacus: ["Level 0", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5", "Level 6", "Level 7"],
+  "Vedic Maths": ["Level 1", "Level 2", "Level 3", "Level 4"],
+};
+
 type BatchFormState = {
   name: string;
+  course: CourseType;
   level: string;
 };
 
@@ -107,6 +115,8 @@ type ClassFormState = {
 
 type AssignmentFormState = {
   title: string;
+  course: CourseType;
+  level: string;
   dueDate: string;
   targetType: "student" | "batch";
   targetId: string;
@@ -123,6 +133,8 @@ type PaymentFormState = {
 
 type MaterialFormState = {
   title: string;
+  course: CourseType;
+  level: string;
   type: "pdf" | "video";
   url: string;
   batchId: string;
@@ -131,12 +143,6 @@ type MaterialFormState = {
 type AnnouncementFormState = {
   title: string;
   message: string;
-};
-
-const statusBadge = (status: PerformanceStatus) => {
-  if (status === "Good") return "bg-emerald-100 text-emerald-700";
-  if (status === "Average") return "bg-amber-100 text-amber-700";
-  return "bg-rose-100 text-rose-700";
 };
 
 const feeBadge = (status: FeesStatus) =>
@@ -304,9 +310,10 @@ const StudentsSection = () => {
     name: "",
     parentEmail: "",
     parentMobile: "",
+    whatsappNumber: "",
     dateOfBirth: "",
     gender: "",
-    motherTongue: "",
+    course: "Abacus",
     joiningDate: "",
     avatarUrl: null,
     level: "Level 0",
@@ -323,15 +330,24 @@ const StudentsSection = () => {
       (feeFilter === "paid" ? student.feesStatus === "paid" : student.feesStatus !== "paid");
     return matchesSearch && matchesFee;
   });
+  const isStudentFormValid = Boolean(
+    formState.name.trim() &&
+    formState.parentEmail.trim() &&
+    /^\d{10}$/.test(formState.parentMobile) &&
+    /^\d{10}$/.test(formState.whatsappNumber) &&
+    formState.course &&
+    formState.level,
+  );
 
   const resetForm = () =>
     setFormState({
       name: "",
       parentEmail: "",
       parentMobile: "",
+      whatsappNumber: "",
       dateOfBirth: "",
       gender: "",
-      motherTongue: "",
+      course: "Abacus",
       joiningDate: "",
       avatarUrl: null,
       level: "Level 0",
@@ -359,7 +375,7 @@ const StudentsSection = () => {
       toast.error("Please enter student name, parent email, and parent mobile.");
       return;
     }
-    if (!/^\d{10}$/.test(formState.parentMobile.trim()) || !/^\d{10}$/.test(formState.motherTongue.trim())) {
+    if (!/^\d{10}$/.test(formState.parentMobile.trim()) || !/^\d{10}$/.test(formState.whatsappNumber.trim())) {
       toast.error("Mobile and WhatsApp numbers must contain exactly 10 digits.");
       return;
     }
@@ -370,9 +386,10 @@ const StudentsSection = () => {
         email: studentEmail,
         parentEmail: studentEmail,
         parentMobile: formState.parentMobile.trim(),
+        whatsappNumber: formState.whatsappNumber.trim(),
         dateOfBirth: formState.dateOfBirth,
         gender: formState.gender,
-        motherTongue: formState.motherTongue.trim(),
+        course: formState.course,
         avatarUrl: formState.avatarUrl,
         level: formState.level,
         batchId: formState.batchId === "none" ? null : formState.batchId,
@@ -389,9 +406,10 @@ const StudentsSection = () => {
         email: studentEmail,
         parentEmail: studentEmail,
         parentMobile: formState.parentMobile.trim(),
+        whatsappNumber: formState.whatsappNumber.trim(),
         dateOfBirth: formState.dateOfBirth,
         gender: formState.gender,
-        motherTongue: formState.motherTongue.trim(),
+        course: formState.course,
         avatarUrl: formState.avatarUrl,
         level: formState.level,
         batchId: formState.batchId === "none" ? null : formState.batchId,
@@ -412,9 +430,10 @@ const StudentsSection = () => {
       name: student.name,
       parentEmail: student.parentEmail || student.email,
       parentMobile: student.parentMobile || "",
+      whatsappNumber: student.whatsappNumber || student.motherTongue || "",
       dateOfBirth: student.dateOfBirth || "",
       gender: student.gender || "",
-      motherTongue: student.motherTongue || "",
+      course: student.course || "Abacus",
       joiningDate: student.joinedAt || "",
       avatarUrl: student.avatarUrl || null,
       level: student.level,
@@ -510,16 +529,50 @@ const StudentsSection = () => {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="motherTongue" className="text-xs font-normal text-slate-500">WhatsApp Number</Label>
+                <Label htmlFor="whatsappNumber" className="text-xs font-normal text-slate-500">WhatsApp Number</Label>
                 <Input
-                  id="motherTongue"
+                  id="whatsappNumber"
                   type="tel"
                   inputMode="numeric"
                   maxLength={10}
                   pattern="[0-9]{10}"
-                  value={formState.motherTongue}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, motherTongue: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                  value={formState.whatsappNumber}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, whatsappNumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-normal text-slate-500">Course</Label>
+                <Select
+                  value={formState.course}
+                  onValueChange={(course: StudentFormState["course"]) =>
+                    setFormState((prev) => ({ ...prev, course, level: studentCourseLevels[course][0] }))
+                  }
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Course" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Abacus">Abacus</SelectItem>
+                    <SelectItem value="Vedic Maths">Vedic Maths</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-normal text-slate-500">Level</Label>
+                <Select value={formState.level} onValueChange={(level) => setFormState((prev) => ({ ...prev, level }))}>
+                  <SelectTrigger><SelectValue placeholder="Select Level" /></SelectTrigger>
+                  <SelectContent>
+                    {studentCourseLevels[formState.course].map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-normal text-slate-500">Fees Status</Label>
+                <Select value={formState.feesStatus} onValueChange={(feesStatus: FeesStatus) => setFormState((prev) => ({ ...prev, feesStatus }))}>
+                  <SelectTrigger><SelectValue placeholder="Select Fees Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="joiningDate" className="text-xs font-normal text-slate-500">Joining/Joined Date</Label>
@@ -553,7 +606,7 @@ const StudentsSection = () => {
                 <Input id="profilePic" type="file" accept="image/*" onChange={handleStudentPhotoChange} />
               </div>
               <div className="flex items-end justify-end">
-                <Button className="rounded-full bg-[#465b91] px-6 hover:bg-[#384979]" onClick={handleSaveStudent}>
+                <Button disabled={!isStudentFormValid} className="rounded-full bg-[#465b91] px-6 hover:bg-[#384979]" onClick={handleSaveStudent}>
                   Submit
                 </Button>
               </div>
@@ -590,6 +643,7 @@ const StudentsSection = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Course</TableHead>
               <TableHead>Level</TableHead>
               <TableHead>Start</TableHead>
               <TableHead>End</TableHead>
@@ -604,14 +658,27 @@ const StudentsSection = () => {
               return (
                 <TableRow key={student.id}>
                   <TableCell className="font-medium">{student.name}</TableCell>
+                  <TableCell>{student.course || "Abacus"}</TableCell>
                   <TableCell>{student.level}</TableCell>
                   <TableCell>{formatDate(student.levelStartDate || "")}</TableCell>
                   <TableCell>{formatDate(student.levelEndDate || "")}</TableCell>
                   <TableCell>{batch?.name || "Unassigned"}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${feeBadge(student.feesStatus)}`}>
-                      {feeStatusLabel(student.feesStatus)}
-                    </span>
+                    <Select
+                      value={student.feesStatus}
+                      onValueChange={(feesStatus: FeesStatus) => {
+                        updateStudent(student.id, { feesStatus });
+                        toast.success(`Fees marked as ${feeStatusLabel(feesStatus)}.`);
+                      }}
+                    >
+                      <SelectTrigger className={`h-8 w-[105px] border-0 text-xs font-medium ${feeBadge(student.feesStatus)}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unpaid">Unpaid</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -744,7 +811,7 @@ const StudentDetailPanel = ({ student, onClose }: { student: Student | null; onC
 const BatchesSection = () => {
   const { batches, students, classes, addBatch, deleteBatch, assignStudentToBatch, scheduleClass, toggleAttendance } =
     useInstructorDashboard();
-  const [batchForm, setBatchForm] = useState<BatchFormState>({ name: "", level: "" });
+  const [batchForm, setBatchForm] = useState<BatchFormState>({ name: "", course: "Abacus", level: "" });
   const [classForm, setClassForm] = useState<ClassFormState>({
     batchId: batches[0]?.id || "",
     topic: "",
@@ -755,8 +822,8 @@ const BatchesSection = () => {
 
   const handleCreateBatch = () => {
     if (!batchForm.name.trim()) return;
-    addBatch({ name: batchForm.name, level: batchForm.level || "Mixed" });
-    setBatchForm({ name: "", level: "" });
+    addBatch({ name: batchForm.name, course: batchForm.course, level: batchForm.level || "Mixed" });
+    setBatchForm({ name: "", course: "Abacus", level: "" });
   };
 
   const handleScheduleClass = () => {
@@ -800,6 +867,14 @@ const BatchesSection = () => {
                   value={batchForm.name}
                   onChange={(e) => setBatchForm((prev) => ({ ...prev, name: e.target.value }))}
                 />
+                <Select value={batchForm.course} onValueChange={(course: CourseType) => setBatchForm((prev) => ({ ...prev, course }))}>
+                  <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Abacus">Abacus</SelectItem>
+                    <SelectItem value="Vedic Maths">Vedic Maths</SelectItem>
+                    <SelectItem value="Worksheet Practice">Worksheet Practice</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Input
                   placeholder="Level (e.g. Level 3)"
                   value={batchForm.level}
@@ -982,6 +1057,8 @@ const AssignmentsSection = () => {
   const { assignments, batches, students, addAssignment, addSubmission } = useInstructorDashboard();
   const [form, setForm] = useState<AssignmentFormState>({
     title: "",
+    course: "Abacus",
+    level: "Level 1",
     dueDate: "",
     targetType: "batch",
     targetId: batches[0]?.id || "",
@@ -1003,11 +1080,13 @@ const AssignmentsSection = () => {
       : form.questions.split("\n").filter(Boolean);
     addAssignment({
       title: form.title,
+      course: form.course,
+      level: form.level,
       dueDate: form.dueDate,
       assignedTo: { type: form.targetType, id: form.targetId },
       questions,
     });
-    setForm({ title: "", dueDate: "", targetType: "batch", targetId: batches[0]?.id || "", questions: "", autoGenerate: false });
+    setForm({ title: "", course: "Abacus", level: "Level 1", dueDate: "", targetType: "batch", targetId: batches[0]?.id || "", questions: "", autoGenerate: false });
   };
 
   const assignmentTargetLabel = (assignment: Assignment) => {
@@ -1037,6 +1116,17 @@ const AssignmentsSection = () => {
                 value={form.title}
                 onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
               />
+              <div className="grid grid-cols-2 gap-3">
+                <Select value={form.course} onValueChange={(course: CourseType) => setForm((prev) => ({ ...prev, course }))}>
+                  <SelectTrigger><SelectValue placeholder="Course" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Abacus">Abacus</SelectItem>
+                    <SelectItem value="Vedic Maths">Vedic Maths</SelectItem>
+                    <SelectItem value="Worksheet Practice">Worksheet Practice</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input placeholder="Level (e.g. Level 1)" value={form.level} onChange={(e) => setForm((prev) => ({ ...prev, level: e.target.value }))} />
+              </div>
               <Input type="date" value={form.dueDate} onChange={(e) => setForm((prev) => ({ ...prev, dueDate: e.target.value }))} />
               <Select value={form.targetType} onValueChange={(value: "student" | "batch") => setForm((prev) => ({ ...prev, targetType: value }))}>
                 <SelectTrigger>
@@ -1089,6 +1179,7 @@ const AssignmentsSection = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Worksheet</TableHead>
+              <TableHead>Course / Level</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead>Due Date</TableHead>
               <TableHead>Submissions</TableHead>
@@ -1099,6 +1190,7 @@ const AssignmentsSection = () => {
             {assignments.map((assignment) => (
               <TableRow key={assignment.id}>
                 <TableCell className="font-medium">{assignment.title}</TableCell>
+                <TableCell>{assignment.course || "Abacus"} / {assignment.level || "Level 1"}</TableCell>
                 <TableCell>{assignmentTargetLabel(assignment)}</TableCell>
                 <TableCell>{formatDate(assignment.dueDate)}</TableCell>
                 <TableCell>{assignment.submissions.length}</TableCell>
@@ -1158,112 +1250,6 @@ const AssignmentsSection = () => {
   );
 };
 
-const ProgressSection = () => {
-  const { students, updateProgress } = useInstructorDashboard();
-  const [editing, setEditing] = useState<{ studentId: string; marks: string; status: PerformanceStatus } | null>(null);
-
-  return (
-    <div className="space-y-6">
-      <SectionTitle title="Progress & Reports" subtitle="Track performance and mark improvements" />
-      <Card className="shadow-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Student</TableHead>
-              <TableHead>Marks</TableHead>
-              <TableHead>Level Completed</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {students.map((student) => (
-              <TableRow key={student.id}>
-                <TableCell className="font-medium">{student.name}</TableCell>
-                <TableCell>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>{student.progress.marks}%</span>
-                      <span className="text-xs text-muted-foreground">{student.level}</span>
-                    </div>
-                    <Progress value={student.progress.marks} />
-                  </div>
-                </TableCell>
-                <TableCell>{student.progress.levelCompleted}</TableCell>
-                <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadge(student.progress.status)}`}>
-                    {student.progress.status}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setEditing({
-                        studentId: student.id,
-                        marks: String(student.progress.marks),
-                        status: student.progress.status,
-                      })
-                    }
-                  >
-                    Update
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
-
-      <Card className="p-6 shadow-card">
-        <SectionTitle title="Certificates" subtitle="Generate certificates for top students" />
-        <div className="mt-4 flex flex-wrap gap-3">
-          {students.slice(0, 3).map((student) => (
-            <Button key={student.id} variant="outline" className="gap-2">
-              <Award className="h-4 w-4" /> Generate for {student.name.split(" ")[0]}
-            </Button>
-          ))}
-        </div>
-      </Card>
-
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update Progress</DialogTitle>
-          </DialogHeader>
-          {editing && (
-            <div className="space-y-3">
-              <Input
-                placeholder="Marks"
-                value={editing.marks}
-                onChange={(e) => setEditing({ ...editing, marks: e.target.value })}
-              />
-              <Select value={editing.status} onValueChange={(value: PerformanceStatus) => setEditing({ ...editing, status: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Good">Good</SelectItem>
-                  <SelectItem value="Average">Average</SelectItem>
-                  <SelectItem value="Needs Improvement">Needs Improvement</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={() => {
-                  updateProgress(editing.studentId, { marks: Number(editing.marks), status: editing.status });
-                  setEditing(null);
-                }}
-              >
-                Save
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};
 const FeesSection = () => {
   const { payments, students, addPayment } = useInstructorDashboard();
   const [form, setForm] = useState<PaymentFormState>({
@@ -1371,7 +1357,7 @@ const FeesSection = () => {
 
 const MaterialsSection = () => {
   const { materials, batches, addMaterial } = useInstructorDashboard();
-  const [form, setForm] = useState<MaterialFormState>({ title: "", type: "pdf", url: "", batchId: batches[0]?.id || "" });
+  const [form, setForm] = useState<MaterialFormState>({ title: "", course: "Abacus", level: "Level 1", type: "pdf", url: "", batchId: batches[0]?.id || "" });
   const [materialFileName, setMaterialFileName] = useState("");
   const [materialError, setMaterialError] = useState("");
   const [isPdfLoading, setIsPdfLoading] = useState(false);
@@ -1391,8 +1377,8 @@ const MaterialsSection = () => {
       setMaterialError("Please enter a video URL.");
       return;
     }
-    addMaterial({ title: form.title, type: form.type, url: form.url || "https://example.com/material", batchId: form.batchId });
-    setForm({ title: "", type: "pdf", url: "", batchId: batches[0]?.id || "" });
+    addMaterial({ title: form.title, course: form.course, level: form.level, type: form.type, url: form.url || "https://example.com/material", batchId: form.batchId });
+    setForm({ title: "", course: "Abacus", level: "Level 1", type: "pdf", url: "", batchId: batches[0]?.id || "" });
     setMaterialFileName("");
     setMaterialError("");
     setIsDialogOpen(false);
@@ -1433,6 +1419,17 @@ const MaterialsSection = () => {
             </DialogHeader>
             <div className="space-y-3">
               <Input placeholder="Title" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-3">
+                <Select value={form.course} onValueChange={(course: CourseType) => setForm((prev) => ({ ...prev, course }))}>
+                  <SelectTrigger><SelectValue placeholder="Course" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Abacus">Abacus</SelectItem>
+                    <SelectItem value="Vedic Maths">Vedic Maths</SelectItem>
+                    <SelectItem value="Worksheet Practice">Worksheet Practice</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input placeholder="Level (e.g. Level 1)" value={form.level} onChange={(e) => setForm((prev) => ({ ...prev, level: e.target.value }))} />
+              </div>
               <Select
                 value={form.type}
                 onValueChange={(value: "pdf" | "video") =>
@@ -1591,10 +1588,14 @@ const CommunicationSection = () => {
 const CoursesSection = () => {
   const { batches, assignments, materials } = useInstructorDashboard();
   const rows = [
-    { name: "Abacus", levels: "Level 1 to Level 7", topics: assignments.length, materials: materials.length },
-    { name: "Vedic Maths", levels: "Level 1 to Level 4", topics: 0, materials: 0 },
-    { name: "Worksheet Practice", levels: "Abacus and Vedic Maths", topics: assignments.reduce((sum, item) => sum + item.questions.length, 0), materials: materials.length },
-  ];
+    { name: "Abacus", levels: "Level 1 to Level 7" },
+    { name: "Vedic Maths", levels: "Level 1 to Level 4" },
+    { name: "Worksheet Practice", levels: "Abacus and Vedic Maths" },
+  ].map((course) => ({
+    ...course,
+    topics: assignments.filter((item) => (item.course || "Abacus") === course.name).length,
+    materials: materials.filter((item) => (item.course || "Abacus") === course.name).length,
+  }));
 
   return (
     <div className="space-y-6">
@@ -1623,6 +1624,7 @@ const CoursesSection = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Batch</TableHead>
+              <TableHead>Course</TableHead>
               <TableHead>Level</TableHead>
               <TableHead>Students</TableHead>
             </TableRow>
@@ -1631,6 +1633,7 @@ const CoursesSection = () => {
             {batches.map((batch) => (
               <TableRow key={batch.id}>
                 <TableCell>{batch.name}</TableCell>
+                <TableCell>{batch.course || "Abacus"}</TableCell>
                 <TableCell>{batch.level}</TableCell>
                 <TableCell>{batch.studentIds.length}</TableCell>
               </TableRow>
@@ -2331,10 +2334,10 @@ const InstructorDashboardShell = () => {
 
   useEffect(() => {
     if (!user || user.role !== "tutor") return;
-    if (!profile.name || !profile.email) {
+    if (profile.name !== user.name || profile.email !== user.email) {
       updateProfile({
-        name: profile.name || user.name,
-        email: profile.email || user.email,
+        name: user.name,
+        email: user.email,
       });
     }
   }, [profile.email, profile.name, updateProfile, user]);
@@ -2469,6 +2472,8 @@ const InstructorDashboardShell = () => {
           <main className="min-w-0 space-y-6 p-4 sm:p-6 lg:space-y-8 lg:p-8 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto md:[&_table]:table">
             {activeTab === "overview" && <OverviewSection onNavigate={handleTabChange} />}
             {activeTab === "courses" && <CoursesSection />}
+            {activeTab === "topics" && <AssignmentsSection />}
+            {activeTab === "materials" && <MaterialsSection />}
             {activeTab === "students" && <StudentsSection />}
             {activeTab === "shop" && <TeacherShopSection token={token} paymentPath="/teacher-dashboard/payment-gateway" backPath="/teacher-dashboard" />}
             {activeTab === "trainingVideos" && <TrainingVideosSection token={token} />}

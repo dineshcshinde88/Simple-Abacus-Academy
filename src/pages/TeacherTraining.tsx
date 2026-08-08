@@ -232,6 +232,8 @@ const TeacherTrainingEnquiryForm = () => {
           mobile: form.mobile,
           address: form.location || "Teacher training enquiry",
           qualification: form.message,
+          subject: selectedPrograms.join(", "),
+          message: form.message,
           programs: selectedPrograms,
         }),
       });
@@ -267,7 +269,7 @@ const TeacherTrainingEnquiryForm = () => {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button variant="outline" asChild>
-              <a href="tel:+918999164139">
+              <a href="tel:+918999164139" onClick={() => toast.info("Calling +91 89991 64139...")}>
                 <Phone className="h-4 w-4" /> Call
               </a>
             </Button>
@@ -277,7 +279,11 @@ const TeacherTrainingEnquiryForm = () => {
               </a>
             </Button>
             <Button variant="outline" asChild>
-              <a href="mailto:simpleabacuspune@gmail.com?subject=Teacher%20Training%20Enquiry">
+              <a
+                href="https://mail.google.com/mail/?view=cm&fs=1&to=simpleabacuspune@gmail.com&su=Teacher%20Training%20Enquiry"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Mail className="h-4 w-4" /> Email
               </a>
             </Button>

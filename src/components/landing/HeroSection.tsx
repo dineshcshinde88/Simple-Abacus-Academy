@@ -44,7 +44,7 @@ const slides = [
     title: "Other Services",
     highlight: "We Offer",
     body: "School workshops, competitive training, and custom camps that make math engaging, memorable, and measurable.",
-    primary: { label: "Partner With Us", to: "/contact" },
+    primary: { label: "Contact Us", to: "/contact" },
     secondary: { label: "See Programs", to: "/programs" },
     stats: [
       { num: "35+", label: "Workshops" },

@@ -600,11 +600,21 @@ if ($backendPdo && $backendStorage && admin_students_table_exists($backendPdo, $
     $hasStudentLevel = admin_students_column_exists($backendPdo, $studentTable, $studentLevelColumn);
     $hasStudentSubscriptionStatus = admin_students_column_exists($backendPdo, $studentTable, $studentStatusColumn);
     $hasStudentCreatedAt = admin_students_column_exists($backendPdo, $studentTable, $studentCreatedColumn);
+    $hasStudentTutor = admin_students_column_exists($backendPdo, $studentTable, 'tutor_id')
+        && admin_students_table_exists($backendPdo, 'tutors');
     $levelTable = admin_students_level_table($backendPdo);
     $levelNameColumn = $levelTable !== '' ? admin_students_level_name_column($backendPdo, $levelTable) : '';
     $hasLevels = $hasStudentLevel && $levelTable !== '' && admin_students_column_exists($backendPdo, $levelTable, 'id');
     $levelJoin = $hasLevels ? "LEFT JOIN {$levelTable} l ON l.id = s.{$studentLevelColumn}" : '';
-    $courseSelect = $hasLevels ? "COALESCE(l.{$levelNameColumn}, 'Not assigned')" : "'Not assigned'";
+    $instructorJoin = $hasStudentTutor
+        ? 'LEFT JOIN tutors t ON t.id = s.tutor_id LEFT JOIN users iu ON iu.id = t.user_id'
+        : '';
+    $instructorSelect = $hasStudentTutor ? "COALESCE(NULLIF(iu.name, ''), 'Not assigned')" : "'Not assigned'";
+    $courseSelect = $hasLevels
+        ? ($hasStudentCourse
+            ? "CONCAT(COALESCE(NULLIF(s.course, ''), 'Course not assigned'), ' / ', COALESCE(l.{$levelNameColumn}, 'Level not assigned'))"
+            : "COALESCE(l.{$levelNameColumn}, 'Not assigned')")
+        : "'Not assigned'";
     if (!$hasLevels && $hasStudentCourse) {
         $courseSelect = "COALESCE(NULLIF(s.course, ''), 'Not assigned')";
     }
@@ -646,12 +656,12 @@ if ($backendPdo && $backendStorage && admin_students_table_exists($backendPdo, $
     $websiteWhere = ["u.role = 'student'"];
     $websiteParams = [];
     if ($search !== '') {
-        $websiteWhere[] = $hasLevels ? "(u.name LIKE ? OR u.email LIKE ? OR l.{$levelNameColumn} LIKE ?)" : '(u.name LIKE ? OR u.email LIKE ?)';
-        $websiteParams[] = "%{$search}%";
-        $websiteParams[] = "%{$search}%";
-        if ($hasLevels) {
-            $websiteParams[] = "%{$search}%";
-        }
+        $searchFields = ['u.name', 'u.email'];
+        if ($hasStudentPhone) $searchFields[] = 's.phone';
+        if ($hasStudentCourse) $searchFields[] = 's.course';
+        if ($hasLevels) $searchFields[] = "l.{$levelNameColumn}";
+        $websiteWhere[] = '(' . implode(' OR ', array_map(static fn(string $field): string => "{$field} LIKE ?", $searchFields)) . ')';
+        foreach ($searchFields as $_) $websiteParams[] = "%{$search}%";
     }
     if ($hasStudentSubscriptionStatus && $statusFilter === 'active') {
         $websiteWhere[] = "s.{$studentStatusColumn} = 'active'";
@@ -667,11 +677,13 @@ if ($backendPdo && $backendStorage && admin_students_table_exists($backendPdo, $
           u.email,
           {$phoneSelect} AS phone,
           {$courseSelect} AS course,
+          {$instructorSelect} AS instructor_name,
           {$statusSelect} AS status,
           {$createdSelect} AS created_at
         FROM {$studentTable} s
         INNER JOIN {$backendUserTable} u ON u.id = s.{$studentUserColumn}
         {$levelJoin}
+        {$instructorJoin}
         WHERE " . implode(' AND ', $websiteWhere) . "
         ORDER BY {$createdSelect} DESC
         LIMIT 100
@@ -714,7 +726,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
 <?php endif; ?>
 
 <div class="row g-4">
-  <?php if ($hasLegacyStudentColumns): ?>
+  <?php if ($hasLegacyStudentColumns && !($backendPdo && $backendStorage)): ?>
     <div class="col-lg-4">
       <div class="card shadow-sm border-0">
         <div class="card-body">
@@ -787,7 +799,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
         </div>
       </div>
     </div>
-  <?php elseif ($backendPdo && $backendStorage): ?>
+  <?php elseif (false): ?>
     <div class="col-lg-4">
       <div class="card shadow-sm border-0">
         <div class="card-body">
@@ -867,7 +879,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
       </div>
     </div>
   <?php endif; ?>
-  <div class="<?php echo ($hasLegacyStudentColumns || ($backendPdo && $backendStorage)) ? 'col-lg-8' : 'col-12'; ?>">
+  <div class="col-12">
     <?php if ($viewStudent): ?>
       <div class="card shadow-sm border-0 mb-4">
         <div class="card-body">
@@ -971,19 +983,34 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
       </div>
     <?php endif; ?>
 
-    <?php if ($websiteStudents): ?>
+    <?php if ($backendPdo && $backendStorage): ?>
       <div class="card shadow-sm border-0 mb-4">
         <div class="card-body">
-          <h5 class="card-title mb-1">Website Enrolled Students</h5>
-          <div class="text-muted small mb-3">Students who registered from the website appear here automatically. Admin can update details or delete duplicate/test records.</div>
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+            <div><h5 class="card-title mb-1">All Students</h5><div class="text-muted small">Website students and students registered under instructor login.</div></div>
+            <div class="d-flex gap-2 d-print-none">
+              <button type="button" class="btn btn-outline-success btn-sm" onclick="downloadTableCsv('admin-student-table','student-list.csv')">Download Excel</button>
+              <button type="button" class="btn btn-outline-danger btn-sm" onclick="printAdminTable('admin-student-table','Student List')">Download PDF</button>
+            </div>
+          </div>
+          <form class="d-flex flex-wrap gap-2 mb-3" method="get">
+            <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" class="form-control" style="max-width: 280px;" placeholder="Search by name, email, or level" />
+            <select name="status" class="form-select" style="max-width: 180px;">
+              <option value="">All Status</option>
+              <option value="active" <?php echo $statusFilter === 'active' ? 'selected' : ''; ?>>Active</option>
+              <option value="inactive" <?php echo $statusFilter === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+            </select>
+            <button class="btn btn-outline-primary" type="submit">Filter</button>
+          </form>
           <div class="table-responsive">
-            <table class="table align-middle">
+            <table class="table align-middle" id="admin-student-table">
               <thead>
                 <tr>
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
                   <th>Course / Level</th>
+                  <th>Instructor</th>
                   <th>Status</th>
                   <th>Enrolled</th>
                   <th>Actions</th>
@@ -996,6 +1023,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
                     <td><?php echo htmlspecialchars($student['email']); ?></td>
                     <td><?php echo htmlspecialchars($student['phone']); ?></td>
                     <td><?php echo htmlspecialchars($student['course']); ?></td>
+                    <td><?php echo htmlspecialchars($student['instructor_name'] ?? 'Not assigned'); ?></td>
                     <td>
                       <span class="badge bg-<?php echo ($student['status'] ?? '') === 'active' ? 'success' : 'secondary'; ?>">
                         <?php echo htmlspecialchars($student['status'] ?? 'expired'); ?>
@@ -1014,6 +1042,9 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
                     </td>
                   </tr>
                 <?php endforeach; ?>
+                <?php if (!$websiteStudents): ?>
+                  <tr><td colspan="8" class="text-center text-muted py-4">No students found.</td></tr>
+                <?php endif; ?>
               </tbody>
             </table>
           </div>
@@ -1021,6 +1052,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
       </div>
     <?php endif; ?>
 
+    <?php if (!($backendPdo && $backendStorage)): ?>
     <div class="card shadow-sm border-0">
       <div class="card-body">
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -1035,9 +1067,6 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
           </form>
         </div>
 
-        <?php if (!$hasLegacyStudentColumns): ?>
-          <div class="alert alert-info py-2">Showing website/app students from the backend database.</div>
-        <?php endif; ?>
         <div class="table-responsive">
           <table class="table align-middle">
             <thead>
@@ -1074,7 +1103,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
               <?php if (!$students): ?>
                 <tr>
                   <td colspan="7" class="text-center text-muted">
-                    <?php echo $websiteStudents ? 'Manual admin students not found. Website students are shown above.' : 'No students found.'; ?>
+                    No students found.
                   </td>
                 </tr>
               <?php endif; ?>
@@ -1095,6 +1124,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
         <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
   </div>
 </div>
 

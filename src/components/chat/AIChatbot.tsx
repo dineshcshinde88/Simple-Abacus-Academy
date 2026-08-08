@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Bot, MessageCircle, SendHorizontal, X, Menu } from "lucide-react";
+import { Bot, MessageCircle, SendHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -18,10 +18,11 @@ type ChatMessage = {
 const quickPrompts = [
   "What programs do you offer?",
   "How do I book a demo class?",
-  "What is the age group?",
+  "Teacher training details",
+  "Contact information",
 ];
 
-const whatsappNumber = "919999999999";
+const whatsappNumber = "918999164139";
 const whatsappMessage = "Hi, I want to know more about your abacus program.";
 const whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`;
 
@@ -32,29 +33,53 @@ const initialMessage: ChatMessage = {
 };
 
 function getBotReply(input: string): string {
-  const text = input.toLowerCase();
+  const text = input.toLowerCase().replace(/[^a-z0-9\u0900-\u097f\s]/g, " ");
 
-  if (text.includes("program") || text.includes("course") || text.includes("level")) {
-    return "We provide structured abacus levels from beginner to advanced with practice sessions and progress tracking. You can explore full details on the Programs page.";
+  if (/\b(hi|hello|hey|namaste)\b|नमस्कार|हाय/.test(text)) {
+    return "Hello! I can help you with Abacus classes, Vedic Maths, teacher training, worksheets, demo booking, fees, timings, and contact details. What would you like to know?";
   }
 
-  if (text.includes("demo") || text.includes("trial") || text.includes("book")) {
-    return "You can book a free demo from the Contact page. Share your name, phone, and preferred time, and our team will confirm your slot.";
+  if (/demo|trial|book|डेमो/.test(text)) {
+    return "You can book a free demo on the Book Demo page. Submit the student details and selected program there; our team will contact you to confirm the session.";
   }
 
-  if (text.includes("age") || text.includes("class") || text.includes("grade")) {
+  if (/teacher|instructor|training|certif|शिक्षक|ट्रेनिंग/.test(text)) {
+    return "We offer Abacus Teacher Training and Vedic Maths Teacher Training with structured learning, practical guidance, and certification. Open the Teacher Training page to submit an enquiry.";
+  }
+
+  if (/vedic|वैदिक/.test(text)) {
+    return "Our Vedic Maths program teaches calculation techniques that improve speed, accuracy, confidence, and number sense. Visit the Vedic Maths Classes page for course details.";
+  }
+
+  if (/worksheet|practice|सराव/.test(text)) {
+    return "We provide Abacus and Vedic Maths worksheet subscriptions, timed practice, and level-based learning material. Visit the Worksheets section to view the available options.";
+  }
+
+  if (/program|course|level|abacus|कोर्स|अबॅकस/.test(text)) {
+    return "Simple Abacus offers online Abacus classes, Vedic Maths classes, Foundation plus 7 Abacus levels, worksheets, teacher training, and a digital Abacus tool. Each Abacus level is designed as a structured progression with practice and assessment.";
+  }
+
+  if (/age|grade|वय/.test(text)) {
     return "Our classes are generally best for children aged 5 to 14, with level-based batches so each student learns at the right pace.";
   }
 
-  if (text.includes("fee") || text.includes("price") || text.includes("cost")) {
-    return "Fees vary by level and batch format. Please use the Contact page and we will share the latest fee structure with available offers.";
+  if (/fee|price|cost|charges|फी|किंमत/.test(text)) {
+    return "Fees depend on the selected program, level, and batch. For the current fee details, call or WhatsApp us on +91 89991 64139, or submit the Contact form.";
   }
 
-  if (text.includes("time") || text.includes("timing") || text.includes("schedule")) {
-    return "We run weekday and weekend batches. Tell us your preferred time on the Contact page and we will recommend a suitable batch.";
+  if (/time|timing|schedule|batch|वेळ|बॅच/.test(text)) {
+    return "Batch availability can vary. Share your preferred day and time through the Contact form or WhatsApp +91 89991 64139, and our team will suggest an available batch.";
   }
 
-  return "I can help with programs, fees, demo classes, age groups, and schedules. Ask me any one of these to get started.";
+  if (/contact|phone|mobile|call|whatsapp|email|address|location|पत्ता|फोन/.test(text)) {
+    return "Contact Simple Abacus at +91 89991 64139 or simpleabacuspune@gmail.com. Our address is Kunjir Public School, Manjari Budruk, Pune, Maharashtra 412307. Working hours are Monday to Saturday, 9:00 AM to 7:00 PM.";
+  }
+
+  if (/thank|thanks|धन्यवाद/.test(text)) {
+    return "You're welcome! If you need personal assistance, share your callback details above or contact us on +91 89991 64139.";
+  }
+
+  return "I don't have a verified answer for that yet. Please rephrase your question, or ask about programs, demo classes, teacher training, worksheets, fees, timings, age group, or contact details. You can also call or WhatsApp +91 89991 64139.";
 }
 
 const AIChatbot = () => {
@@ -179,7 +204,15 @@ const AIChatbot = () => {
             <div className="bg-[#43B754] px-4 py-3 text-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <button type="button" className="rounded-full p-1 hover:bg-white/10" aria-label="Back">
+                  <button
+                    type="button"
+                    className="rounded-full p-1 hover:bg-white/10"
+                    aria-label="Restart conversation"
+                    onClick={() => {
+                      setMessages([initialMessage]);
+                      setInput("");
+                    }}
+                  >
                     <MessageCircle className="h-4 w-4" />
                   </button>
                   <div>
@@ -188,9 +221,6 @@ const AIChatbot = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" className="rounded-full p-1 hover:bg-white/10" aria-label="Menu">
-                    <Menu className="h-4 w-4" />
-                  </button>
                   <button
                     type="button"
                     aria-label="Close chatbot"
