@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { trainingShopCategories, trainingShopProducts, type TrainingShopProduct } from "@/data/trainingShopProducts";
 import {
@@ -93,6 +94,7 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [redirectingProductId, setRedirectingProductId] = useState<string | null>(null);
   const [cartProductIds, setCartProductIds] = useState<string[]>([]);
+  const [shipping, setShipping] = useState({ recipientName: "", phone: "", address: "", city: "", state: "", pincode: "" });
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -169,6 +171,10 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
       toast({ title: "Cart is empty", description: "Add at least one valid product before checkout.", variant: "destructive" });
       return;
     }
+    if (!shipping.recipientName.trim() || !/^\d{10}$/.test(shipping.phone) || !shipping.address.trim() || !shipping.city.trim() || !shipping.state.trim() || !/^\d{6}$/.test(shipping.pincode)) {
+      toast({ title: "Delivery details required", description: "Enter recipient, 10-digit phone, full address, city, state, and 6-digit pincode.", variant: "destructive" });
+      return;
+    }
 
     const payload: TrainingShopOrderPayload = {
       productId: "multi-item-cart",
@@ -180,6 +186,7 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
       unitPrice: cartTotal,
       finalPrice: cartTotal,
       items: cartItems,
+      shipping,
     };
 
     setRedirectingProductId("cart");
@@ -369,6 +376,17 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
             <div className="mt-4 flex items-center justify-between border-t pt-4">
               <span className="font-semibold">Cart Total</span>
               <span className="text-xl font-bold text-purple-900">{currency.format(cartTotal)}</span>
+            </div>
+            <div className="mt-5 space-y-3 border-t pt-4">
+              <h4 className="font-semibold">Delivery Details</h4>
+              <Input placeholder="Recipient name" value={shipping.recipientName} onChange={(e) => setShipping((prev) => ({ ...prev, recipientName: e.target.value }))} />
+              <Input type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile number" value={shipping.phone} onChange={(e) => setShipping((prev) => ({ ...prev, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))} />
+              <Textarea placeholder="Complete delivery address" value={shipping.address} onChange={(e) => setShipping((prev) => ({ ...prev, address: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="City" value={shipping.city} onChange={(e) => setShipping((prev) => ({ ...prev, city: e.target.value }))} />
+                <Input placeholder="State" value={shipping.state} onChange={(e) => setShipping((prev) => ({ ...prev, state: e.target.value }))} />
+              </div>
+              <Input inputMode="numeric" maxLength={6} placeholder="6-digit pincode" value={shipping.pincode} onChange={(e) => setShipping((prev) => ({ ...prev, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) }))} />
             </div>
             <Button className="mt-4 w-full gap-2 bg-orange-500 hover:bg-orange-600" onClick={createCartOrder} disabled={!cartItems.length || redirectingProductId === "cart"}>
               {redirectingProductId === "cart" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}

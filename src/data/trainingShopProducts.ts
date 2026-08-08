@@ -23,7 +23,7 @@ export type TrainingShopProduct = {
 };
 
 const abacusLevels = ["Foundation", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5", "Level 6", "Level 7"];
-const regularLevels = ["Level 1", "Level 2", "Level 3", "Level 4", "Level 5", "Level 6", "Level 7"];
+const abacusBookLevels = ["Level 0", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5", "Level 6", "Level 7"];
 const vedicLevels = ["Level 1", "Level 2", "Level 3", "Level 4"];
 
 export const trainingShopProducts: TrainingShopProduct[] = [
@@ -38,21 +38,11 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     options: abacusLevels.map((label) => ({ label, price: 332 })),
   },
   {
-    id: "student-abacus-kit-regular",
-    name: "Student Abacus Kit (Regular)",
-    category: "Abacus Kits",
-    description: "Level-wise regular kit for continuing students with books and certificate.",
-    includes: ["2 Books (Classwork + Homework)", "1 Certificate"],
-    optionLabel: "Level",
-    image: abacusKitRegularImage,
-    options: regularLevels.map((label) => ({ label, price: 235 })),
-  },
-  {
     id: "student-abacus-kit-school",
     name: "Student Abacus Kit (For School)",
     category: "Abacus Kits",
-    description: "School-ready kit with classwork book, abacus tool, certificate, and medal.",
-    includes: ["1 Book (Classwork)", "1 Student Abacus Tool", "1 Certificate", "1 Medal"],
+    description: "School-ready kit with a classwork book, student abacus tool, and certificate.",
+    includes: ["1 Book (Classwork)", "1 Student Abacus Tool", "1 Certificate"],
     optionLabel: "Level",
     image: abacusForSchoolImage,
     options: abacusLevels.map((label) => ({ label, price: 199 })),
@@ -105,13 +95,14 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     id: "level-wise-abacus-book",
     name: "Level-wise Abacus Book",
     category: "Abacus Books",
-    description: "Choose a classwork or homework book for Foundation through Level 7.",
-    optionLabel: "Book",
+    description: "Level-wise Abacus book for Foundation through Level 7.",
+    includes: ["1 Book"],
+    optionLabel: "Book / Level",
     image: abacusKitRegularImage,
-    options: abacusLevels.flatMap((level) => [
-      { label: `${level} - Classwork`, price: 99 },
-      { label: `${level} - Homework`, price: 99 },
-    ]),
+    options: [
+      ...abacusBookLevels.map((level) => ({ label: `Classwork - ${level}`, price: 99 })),
+      ...abacusBookLevels.map((level) => ({ label: `Homework - ${level}`, price: 99 })),
+    ],
   },
 ];
 

@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export type FeesStatus = "paid" | "unpaid";
 export type PerformanceStatus = "Good" | "Average" | "Needs Improvement";
+export type CourseType = "Abacus" | "Vedic Maths" | "Worksheet Practice";
 
 export type Student = {
   id: string;
@@ -11,9 +12,11 @@ export type Student = {
   email: string;
   parentEmail?: string;
   parentMobile?: string;
+  whatsappNumber?: string;
   dateOfBirth?: string;
   gender?: string;
   motherTongue?: string;
+  course?: "Abacus" | "Vedic Maths";
   avatarUrl?: string | null;
   level: string;
   batchId: string | null;
@@ -31,6 +34,7 @@ export type Student = {
 export type Batch = {
   id: string;
   name: string;
+  course?: CourseType;
   level: string;
   studentIds: string[];
 };
@@ -48,6 +52,8 @@ export type ClassSession = {
 export type Assignment = {
   id: string;
   title: string;
+  course?: CourseType;
+  level?: string;
   questions: string[];
   assignedTo: { type: "student" | "batch"; id: string };
   dueDate: string;
@@ -57,6 +63,8 @@ export type Assignment = {
 export type Material = {
   id: string;
   title: string;
+  course?: CourseType;
+  level?: string;
   type: "pdf" | "video";
   url: string;
   batchId: string;
@@ -184,6 +192,9 @@ const readDashboardState = (key: string, user: AuthUser | null): InstructorDashb
         profile: {
           ...fallback.profile,
           ...(parsed.profile || {}),
+          // Never allow locally cached profile data to replace the signed-in identity.
+          name: user?.name || fallback.profile.name,
+          email: user?.email || fallback.profile.email,
         },
       };
     } catch {
@@ -373,7 +384,12 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
   };
 
   const updateProfile: InstructorDashboardContextType["updateProfile"] = (updates) => {
-    setProfile((prev) => ({ ...prev, ...updates }));
+    setProfile((prev) => ({
+      ...prev,
+      ...updates,
+      name: user?.name || updates.name || prev.name,
+      email: user?.email || updates.email || prev.email,
+    }));
   };
 
   const value = useMemo(

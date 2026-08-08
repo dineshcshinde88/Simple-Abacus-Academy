@@ -296,15 +296,24 @@ function controller_instructor_apply(array $data): void
 
     save_website_enquiry('teacher_training', $data);
 
-    send_plain_mail(
-        (string) envv('INSTRUCTOR_NOTIFICATION_EMAIL', 'simpleabacuspune@gmail.com'),
-        'New Instructor Registration',
-        "Instructor Application\nName: {$data['name']}\nEmail: {$data['email']}\nMobile: {$data['mobile']}",
-        (string) $data['email'],
-        (string) $data['name']
-    );
+    $canNotifyAfterResponse = finish_json_response(['message' => 'Application received'], 201);
+    $sendEmailSynchronously = strtolower((string) envv('INSTRUCTOR_SEND_EMAIL_SYNC', 'false')) === 'true';
 
-    json_response(['message' => 'Application received']);
+    if ($canNotifyAfterResponse || $sendEmailSynchronously) {
+        try {
+            send_plain_mail(
+                (string) envv('INSTRUCTOR_NOTIFICATION_EMAIL', 'simpleabacuspune@gmail.com'),
+                'New Instructor Registration',
+                "Instructor Application\nName: {$data['name']}\nEmail: {$data['email']}\nMobile: {$data['mobile']}",
+                (string) $data['email'],
+                (string) $data['name']
+            );
+        } catch (Throwable $e) {
+            error_log('Instructor notification failed: ' . $e->getMessage());
+        }
+    }
+
+    exit;
 }
 
 function public_teacher_course_label(?string $courseType): string

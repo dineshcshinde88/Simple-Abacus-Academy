@@ -83,7 +83,7 @@ const levelMatches = (plan: LevelPlan, level: string) => {
 
 const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
   const { toast } = useToast();
-  const { token, user } = useAuth();
+  const { token, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [duration, setDuration] = useState<Duration>("3-months");
@@ -139,15 +139,15 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
   };
 
   const handleProceedToPayment = async () => {
-    if (!agreedToTerms || isProcessingPayment || selectedLevels.length === 0) return;
+    if (!agreedToTerms || isProcessingPayment || authLoading || selectedLevels.length === 0) return;
     const activeToken = token || window.localStorage.getItem(TOKEN_KEY) || "";
 
-    if (!activeToken) {
+    if (!activeToken || !user) {
       setShowAuthChoice(true);
       return;
     }
 
-    if (user && user.role !== "student") {
+    if (user.role !== "student") {
       toast({ title: "Student login required", description: "Please login with a student account before payment." });
       navigate(`/student-login?redirect=${encodeURIComponent(checkoutRedirect)}`);
       return;
@@ -310,10 +310,10 @@ const WorksheetPurchaseFlow = ({ config }: { config: CourseConfig }) => {
                     </label>
                     <Button
                       className="mt-5 w-full rounded-md bg-[#4B1E83] py-6 font-semibold hover:bg-[#3c176a]"
-                      disabled={!agreedToTerms || isProcessingPayment || selectedLevels.length === 0}
+                      disabled={!agreedToTerms || isProcessingPayment || authLoading || selectedLevels.length === 0}
                       onClick={() => void handleProceedToPayment()}
                     >
-                      {isProcessingPayment ? "Starting Payment..." : "Proceed to Payment ->"}
+                      {authLoading ? "Checking Login..." : isProcessingPayment ? "Starting Payment..." : "Proceed to Payment ->"}
                     </Button>
                   </aside>
                 </div>

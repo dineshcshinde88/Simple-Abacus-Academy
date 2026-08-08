@@ -748,7 +748,7 @@ const PracticePage = ({ level, topic, access }: { level?: WorksheetLevel; topic:
       <Breadcrumbs items={[{ label: "Worksheet Subscription", to: "/student/worksheets" }, { label: "Practice Now" }]} />
       <LevelBox level={level} backTo={backToTopics} />
 
-      <Card className="rounded-xl border-0 bg-white p-5 shadow-md">
+      <Card className="rounded-xl border-0 bg-white p-3 shadow-md sm:p-5">
         <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900">
@@ -1025,7 +1025,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
 
         <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_280px]">
           <div className="min-h-[420px] space-y-7">
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
+            <div className="flex flex-col gap-3 rounded-lg bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
               <div className="flex items-center gap-3">
                 <span className="h-9 rounded-l-md border-l-4 border-[#551896]" />
                 <span className="text-sm font-bold text-slate-950">Question No : {index + 1}</span>
@@ -1038,7 +1038,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
                   <RotateCcw className="h-4 w-4" />
                 </button>
               </div>
-              <Button type="button" size="sm" className="bg-[#551896] hover:bg-[#421173]" onClick={speakQuestion} disabled={!current || speaking}>
+              <Button type="button" size="sm" className="w-full bg-[#551896] hover:bg-[#421173] sm:w-auto" onClick={speakQuestion} disabled={!current || speaking}>
                 <Volume2 className="mr-2 h-4 w-4" />
                 {speaking ? "Speaking" : "Voice"}
               </Button>
@@ -1057,28 +1057,28 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center">
               <Button
                 type="button"
                 variant="ghost"
-                className="text-sm font-semibold text-slate-500 hover:text-[#551896]"
+                className="w-full text-sm font-semibold text-slate-500 hover:text-[#551896] sm:w-auto"
                 disabled={index === 0}
                 onClick={() => selectQuestion(Math.max(0, index - 1))}
               >
                 <ChevronLeft className="mr-1 h-4 w-4" />
                 Previous
               </Button>
-              <Button type="button" className="bg-[#10c986] text-white hover:bg-[#0fb777]" onClick={saveAndNext}>
+              <Button type="button" className="w-full bg-[#10c986] text-white hover:bg-[#0fb777] sm:w-auto" onClick={saveAndNext}>
                 <Save className="mr-2 h-4 w-4" />
                 Save & Next
               </Button>
               {checkAnswerEnabled ? (
-                <Button type="button" className="bg-[#551896] text-white hover:bg-[#421173]" disabled={!answer.trim() || !current} onClick={checkCurrentAnswer}>
+                <Button type="button" className="w-full bg-[#551896] text-white hover:bg-[#421173] sm:w-auto" disabled={!answer.trim() || !current} onClick={checkCurrentAnswer}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   Check Answer
                 </Button>
               ) : null}
-              <Button type="button" disabled={submitting} className="bg-[#f04b3f] text-white hover:bg-[#dc382d]" onClick={submitExam}>
+              <Button type="button" disabled={submitting} className="w-full bg-[#f04b3f] text-white hover:bg-[#dc382d] sm:w-auto" onClick={submitExam}>
                 <Send className="mr-2 h-4 w-4" />
                 {submitting ? "Submitting..." : "Submit Exam"}
               </Button>
@@ -1089,12 +1089,12 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
             ) : null}
           </div>
 
-          <aside className="rounded-xl bg-slate-50 p-5 shadow-[0_8px_24px_rgba(15,23,42,0.10)]">
+          <aside className="rounded-xl bg-slate-50 p-3 shadow-[0_8px_24px_rgba(15,23,42,0.10)] sm:p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-700">
               <BarChart3 className="h-4 w-4 text-[#551896]" />
               Question Navigator
             </div>
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-5 gap-2 sm:gap-3">
               {questions.map((question, questionIndex) => {
                 const isActive = questionIndex === index;
                 const isAnswered = Boolean(answers[question.id]);

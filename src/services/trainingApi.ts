@@ -49,6 +49,14 @@ export type TrainingShopOrderPayload = {
   unitPrice: number;
   finalPrice: number;
   items?: Array<Omit<TrainingShopOrderPayload, "items">>;
+  shipping?: {
+    recipientName: string;
+    phone: string;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+  };
 };
 
 export type TrainingShopOrder = TrainingShopOrderPayload & {

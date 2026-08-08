@@ -108,6 +108,15 @@ function admin_dashboard_count(PDO $pdo, string $sql): int
     }
 }
 
+function admin_dashboard_amount(PDO $pdo, string $sql): float
+{
+    try {
+        return (float) $pdo->query($sql)->fetchColumn();
+    } catch (Throwable $e) {
+        return 0.0;
+    }
+}
+
 function admin_dashboard_rows(PDO $pdo, string $sql): array
 {
     try {
@@ -147,6 +156,10 @@ $totalSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SE
   + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE payment_status = 'paid'") : 0);
 $totalUnpaidSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0)
   + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0);
+$totalPaidFees = ($hasLegacySubscriptions && admin_dashboard_column_exists($pdo, 'subscriptions', 'amount') ? admin_dashboard_amount($pdo, "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE payment_status = 'paid'") : 0)
+  + ($hasAppSubscriptions && admin_dashboard_column_exists($backendPdo, 'student_subscriptions', 'amount') ? admin_dashboard_amount($backendPdo, "SELECT COALESCE(SUM(amount), 0) FROM student_subscriptions WHERE payment_status = 'paid'") : 0);
+$totalUnpaidFees = ($hasLegacySubscriptions && admin_dashboard_column_exists($pdo, 'subscriptions', 'amount') ? admin_dashboard_amount($pdo, "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0)
+  + ($hasAppSubscriptions && admin_dashboard_column_exists($backendPdo, 'student_subscriptions', 'amount') ? admin_dashboard_amount($backendPdo, "SELECT COALESCE(SUM(amount), 0) FROM student_subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0);
 $totalDemos = (int) $pdo->query('SELECT COUNT(*) FROM demo_bookings')->fetchColumn()
   + ($hasAppDemoBookings ? admin_dashboard_count($backendPdo, 'SELECT COUNT(*) FROM demo_bookings') : 0);
 $approvedInstructors = $hasAppInstructors ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM instructors WHERE status = 'approved' AND is_verified = 1") : 0;
@@ -164,13 +177,15 @@ $pendingInstructors = $hasAppInstructors ? admin_dashboard_count($backendPdo, "S
   <div class="col-md-6 col-xl-3">
     <div class="card card-metric p-3">
       <div class="text-muted small">Paid Fees</div>
-      <div class="fs-3 fw-bold"><?php echo $totalSubscriptions; ?></div>
+      <div class="fs-3 fw-bold">₹<?php echo number_format($totalPaidFees, 2); ?></div>
+      <div class="text-muted small"><?php echo $totalSubscriptions; ?> paid subscription(s)</div>
     </div>
   </div>
   <div class="col-md-6 col-xl-3">
     <div class="card card-metric p-3">
       <div class="text-muted small">Unpaid Fees</div>
-      <div class="fs-3 fw-bold"><?php echo $totalUnpaidSubscriptions; ?></div>
+      <div class="fs-3 fw-bold">₹<?php echo number_format($totalUnpaidFees, 2); ?></div>
+      <div class="text-muted small"><?php echo $totalUnpaidSubscriptions; ?> unpaid/pending subscription(s)</div>
     </div>
   </div>
   <div class="col-md-6 col-xl-3">
@@ -206,24 +221,27 @@ $pendingInstructors = $hasAppInstructors ? admin_dashboard_count($backendPdo, "S
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function () {
   const ctx = document.getElementById('overviewChart');
-  if (ctx) {
+  if (ctx && typeof Chart !== 'undefined') {
     new Chart(ctx, {
       type: 'bar',
       data: {
         labels: ['Students', 'Paid Fees', 'Unpaid Fees', 'Demos', 'Teachers', 'Pending Tutors'],
-        datasets: [{
-          label: 'Counts',
-          data: [<?php echo $totalStudents; ?>, <?php echo $totalSubscriptions; ?>, <?php echo $totalUnpaidSubscriptions; ?>, <?php echo $totalDemos; ?>, <?php echo $totalTeachers; ?>, <?php echo $pendingInstructors; ?>],
-          backgroundColor: ['#4b1e83', '#f97316', '#facc15', '#0ea5e9', '#22c55e', '#ef4444'],
-          borderRadius: 8
-        }]
+        datasets: [
+          { label: 'Counts', yAxisID: 'yCount', data: [<?php echo $totalStudents; ?>, null, null, <?php echo $totalDemos; ?>, <?php echo $totalTeachers; ?>, <?php echo $pendingInstructors; ?>], backgroundColor: ['#4b1e83', '#4b1e83', '#4b1e83', '#0ea5e9', '#22c55e', '#ef4444'], borderRadius: 8 },
+          { label: 'Fee Amount (₹)', yAxisID: 'yFees', data: [null, <?php echo json_encode($totalPaidFees); ?>, <?php echo json_encode($totalUnpaidFees); ?>, null, null, null], backgroundColor: ['#f97316', '#f97316', '#facc15', '#f97316', '#f97316', '#f97316'], borderRadius: 8 }
+        ]
       },
       options: {
-        plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true } }
+        plugins: { legend: { display: true } },
+        scales: {
+          yCount: { beginAtZero: true, position: 'left', title: { display: true, text: 'Count' }, ticks: { precision: 0 } },
+          yFees: { beginAtZero: true, position: 'right', title: { display: true, text: 'Fee Amount (₹)' }, grid: { drawOnChartArea: false } }
+        }
       }
     });
   }
+});
 </script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
