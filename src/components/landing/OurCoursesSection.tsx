@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import abacusCourseImage from "@/assets/courses/abacus.png";
-import vedicMathsCourseImage from "@/assets/courses/vedic-maths.png";
+import abacusCourseImage from "@/assets/courses/abacus-new.jfif";
+import vedicMathsCourseImage from "@/assets/courses/vedic-maths-new.png";
 
 const courses = [
   {
@@ -37,11 +37,17 @@ const OurCoursesSection = () => (
             key={course.title}
             className="rounded-2xl border border-secondary/20 bg-white shadow-card overflow-hidden flex flex-col"
           >
-            <div className="h-56 md:h-64 w-full overflow-hidden bg-slate-50">
+            <div className="relative h-56 w-full overflow-hidden bg-slate-100 md:h-64">
+              <img
+                src={course.image}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full scale-110 object-cover opacity-25 blur-xl"
+              />
               <img
                 src={course.image}
                 alt={course.title}
-                className="h-full w-full object-contain"
+                className="relative z-10 h-full w-full object-contain object-center"
                 loading="lazy"
               />
             </div>
