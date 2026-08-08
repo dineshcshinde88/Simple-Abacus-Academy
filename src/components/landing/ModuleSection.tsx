@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import abacusStudentsImage from "@/assets/modules/abacus-for-students.png";
-import vedicStudentsImage from "@/assets/modules/vedic-maths-for-students.png";
-import instructorsImage from "@/assets/modules/abacus-vedic-instructors.png";
+import abacusStudentsImage from "@/assets/modules/abacus-for-students-new.png";
+import vedicStudentsImage from "@/assets/modules/vedic-maths-for-students-new.png";
+import instructorsImage from "@/assets/modules/abacus-vedic-instructors-new.png";
 
 const modules = [
   {
