@@ -22,7 +22,7 @@ const beadClass =
   "absolute left-1/2 z-20 h-[var(--bead-height)] w-[calc(100%+1px)] touch-none bg-gradient-to-br from-orange-300 via-[#ff5b35] to-[#e6361e] shadow-[inset_3px_3px_5px_rgba(255,255,255,0.32),inset_-4px_-4px_7px_rgba(120,22,12,0.28),0_3px_6px_rgba(127,29,29,0.16)] outline-none [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)] focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-100";
 
 const getPlaceLabel = (index: number, totalRods: number) => {
-  const unitRodIndex = Math.floor(totalRods / 2);
+  const unitRodIndex = totalRods - 1;
   const place = unitRodIndex - index;
 
   if (place === 0) return "ones";
@@ -45,7 +45,7 @@ const AbacusRod = ({
 
   return (
     <div
-      className="relative h-[clamp(9rem,56vw,15.625rem)] min-w-0 flex-1 [--bar-height:0.5rem] [--bead-height:clamp(0.6rem,3.4vw,1rem)] [--bead-rest-gap:clamp(0.6rem,4vw,1.25rem)] sm:[--bar-height:0.75rem] sm:[--bead-height:clamp(0.9rem,3.2vw,1.5rem)] md:min-w-[60px] lg:[--bead-height:1.75rem]"
+      className="relative h-[clamp(6.75rem,28vw,8rem)] min-w-0 flex-1 [--bar-height:0.5rem] [--bead-height:clamp(0.6rem,3.4vw,1rem)] [--bead-rest-gap:clamp(0.6rem,4vw,1.25rem)] sm:h-[clamp(9rem,32vw,15.625rem)] sm:[--bar-height:0.75rem] sm:[--bead-height:clamp(0.9rem,3.2vw,1.5rem)] lg:[--bead-height:1.75rem]"
       role="group"
       aria-label={`Rod ${index + 1}, ${placeLabel}`}
     >

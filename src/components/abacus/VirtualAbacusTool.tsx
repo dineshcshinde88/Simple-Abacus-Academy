@@ -135,11 +135,11 @@ const VirtualAbacusTool = () => {
           <div
             tabIndex={0}
             onKeyDown={handleKeyboardControl}
-            className="overflow-x-auto overscroll-x-contain pb-3 outline-none focus-visible:ring-2 focus-visible:ring-orange-500 [-webkit-overflow-scrolling:touch]"
+            className="overflow-hidden pb-3 outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
             aria-label="Virtual abacus. Use left and right arrows to choose a rod, up and down arrows for lower beads, and space for upper bead."
           >
             <motion.div
-              className="mx-auto w-full min-w-[720px] max-w-[1040px] origin-top overflow-hidden rounded-[8px] border-[7px] border-black bg-[#111] shadow-[inset_0_2px_0_rgba(255,255,255,0.14),inset_0_-8px_18px_rgba(0,0,0,0.72),0_18px_34px_rgba(15,23,42,0.16)] sm:rounded-[12px] sm:border-[10px] md:min-w-[980px]"
+              className="mx-auto w-full max-w-[1040px] origin-top overflow-hidden rounded-[8px] border-[5px] border-black bg-[#111] shadow-[inset_0_2px_0_rgba(255,255,255,0.14),inset_0_-8px_18px_rgba(0,0,0,0.72),0_18px_34px_rgba(15,23,42,0.16)] sm:rounded-[12px] sm:border-[10px]"
             >
               <div className="relative bg-gradient-to-b from-[#efefef] via-[#f8f8f8] to-[#e5e5e5] shadow-[inset_0_0_18px_rgba(0,0,0,0.24)]">
                 <div className="absolute inset-x-0 top-[28%] z-10 h-2 bg-black shadow-[0_2px_4px_rgba(0,0,0,0.28)] sm:h-3" />
@@ -161,7 +161,7 @@ const VirtualAbacusTool = () => {
             </motion.div>
           </div>
 
-          <div className="mx-auto mt-5 flex max-w-[1040px] flex-col items-stretch justify-between gap-4 rounded-2xl border border-[#dce5ef] bg-[#f8fbff] px-4 py-5 shadow-[0_12px_28px_rgba(15,23,42,0.06)] sm:mt-10 sm:flex-row sm:items-center sm:px-8">
+          <div className="mx-auto mt-5 flex max-w-[1040px] min-w-0 flex-col items-stretch justify-between gap-4 rounded-2xl border border-[#dce5ef] bg-[#f8fbff] px-3 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)] sm:mt-10 sm:flex-row sm:items-center sm:px-8 sm:py-5">
             <div className="flex min-h-10 flex-wrap items-center justify-center gap-3 sm:justify-start sm:gap-4">
               <span className="text-xs font-black uppercase tracking-[0.16em] text-[#58708f] sm:text-sm">
                 Current Value:
@@ -173,7 +173,7 @@ const VirtualAbacusTool = () => {
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 6 }}
-                    className="font-heading text-3xl font-black leading-none text-[#1267f1] sm:text-4xl"
+                    className="min-w-0 break-all font-heading text-2xl font-black leading-none text-[#1267f1] sm:text-4xl"
                   >
                     {formatAbacusValue(currentValue)}
                   </motion.span>
@@ -196,7 +196,7 @@ const VirtualAbacusTool = () => {
                 type="button"
                 variant="outline"
                 onClick={() => setShowCount((value) => !value)}
-                className="h-11 rounded-full border-[#ff3150] bg-white px-4 font-heading font-bold text-[#ff3150] hover:bg-[#fff1f3] hover:text-[#ff3150] sm:px-6"
+                className="h-10 rounded-full border-[#ff3150] bg-white px-2 text-xs font-heading font-bold text-[#ff3150] hover:bg-[#fff1f3] hover:text-[#ff3150] sm:h-11 sm:px-6 sm:text-sm"
               >
                 {showCount ? (
                   <EyeOff className="mr-2 h-4 w-4" />
@@ -208,7 +208,7 @@ const VirtualAbacusTool = () => {
               <Button
                 type="button"
                 onClick={resetAbacus}
-                className="h-11 rounded-full bg-[#181e25] px-4 font-heading font-bold text-white hover:bg-black sm:px-7"
+                className="h-10 rounded-full bg-[#181e25] px-2 text-xs font-heading font-bold text-white hover:bg-black sm:h-11 sm:px-7 sm:text-sm"
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Reset
