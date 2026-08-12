@@ -1,7 +1,8 @@
 import { getApiBase } from "@/lib/apiBase";
 
 const API_BASE = getApiBase();
-const REQUEST_TIMEOUT_MS = 20000;
+const JSON_REQUEST_TIMEOUT_MS = 45000;
+const UPLOAD_REQUEST_TIMEOUT_MS = 90000;
 
 export class ApiError extends Error {
   status: number;
@@ -20,8 +21,11 @@ export type InstructorRegistrationResponse = {
 
 async function request<T>(path: string, body: unknown): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const isFormData = body instanceof FormData;
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    isFormData ? UPLOAD_REQUEST_TIMEOUT_MS : JSON_REQUEST_TIMEOUT_MS,
+  );
 
   let response: Response;
   try {
@@ -33,7 +37,10 @@ async function request<T>(path: string, body: unknown): Promise<T> {
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ApiError("The instructor request is taking too long. Please try again.", 0);
+      throw new ApiError(
+        "The server did not respond in time. Please check your connection and try again.",
+        0,
+      );
     }
     throw new ApiError("Unable to reach the instructor registration server. Please try again.", 0);
   } finally {

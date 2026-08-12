@@ -35,6 +35,15 @@ const InstructorRegistration = () => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const updateProfilePicture = (file: File | null) => {
+    if (file && file.size > 2 * 1024 * 1024) {
+      setProfilePicture(null);
+      toast.error("Profile picture must be 2MB or smaller.");
+      return;
+    }
+    setProfilePicture(file);
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (
@@ -245,8 +254,9 @@ const InstructorRegistration = () => {
                     id="profilePicture"
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
-                    onChange={(event) => setProfilePicture(event.target.files?.[0] ?? null)}
+                    onChange={(event) => updateProfilePicture(event.target.files?.[0] ?? null)}
                   />
+                  <p className="text-xs text-muted-foreground">JPG, PNG or WebP, maximum 2MB.</p>
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="address">Address</Label>
