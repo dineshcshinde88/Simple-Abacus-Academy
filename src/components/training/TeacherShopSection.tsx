@@ -93,7 +93,7 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
   const [orders, setOrders] = useState<TrainingShopOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [redirectingProductId, setRedirectingProductId] = useState<string | null>(null);
-  const [cartProductIds, setCartProductIds] = useState<string[]>([]);
+  const [cartItems, setCartItems] = useState<TrainingShopOrderPayload[]>([]);
   const [shipping, setShipping] = useState({ recipientName: "", phone: "", address: "", city: "", state: "", pincode: "" });
 
   const filteredProducts = useMemo(() => {
@@ -139,12 +139,10 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
     }));
   };
 
-  const cartItems = useMemo(() => cartProductIds.map((productId) => {
-    const product = trainingShopProducts.find((item) => item.id === productId);
-    if (!product) return null;
+  const addCartItem = (product: TrainingShopProduct) => {
     const selection = selections[product.id];
     const unitPrice = selectedPrice(product, selection.option);
-    return {
+    const nextItem: TrainingShopOrderPayload = {
       productId: product.id,
       productName: product.name,
       category: product.category,
@@ -153,14 +151,33 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
       quantity: selection.quantity,
       unitPrice,
       finalPrice: unitPrice * selection.quantity,
-    } satisfies TrainingShopOrderPayload;
-  }).filter((item): item is TrainingShopOrderPayload => Boolean(item)), [cartProductIds, selections]);
+    };
+
+    setCartItems((current) => {
+      const existingIndex = current.findIndex(
+        (item) => item.productId === nextItem.productId && item.selectedOption === nextItem.selectedOption,
+      );
+      if (existingIndex === -1) return [...current, nextItem];
+
+      return current.map((item, index) => {
+        if (index !== existingIndex) return item;
+        const quantity = item.quantity + nextItem.quantity;
+        return { ...item, quantity, finalPrice: item.unitPrice * quantity };
+      });
+    });
+    toast({
+      title: "Added to cart",
+      description: `${product.name} - ${selection.option} × ${selection.quantity}`,
+    });
+  };
+
+  const removeCartItem = (productId: string, selectedOption: string) => {
+    setCartItems((current) => current.filter(
+      (item) => !(item.productId === productId && item.selectedOption === selectedOption),
+    ));
+  };
 
   const cartTotal = cartItems.reduce((total, item) => total + item.finalPrice, 0);
-
-  const toggleCartProduct = (productId: string) => {
-    setCartProductIds((current) => current.includes(productId) ? current.filter((id) => id !== productId) : [...current, productId]);
-  };
 
   const createCartOrder = async () => {
     if (!token) {
@@ -266,7 +283,9 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
               const selection = selections[product.id];
               const unitPrice = selectedPrice(product, selection.option);
               const finalPrice = unitPrice * selection.quantity;
-              const isInCart = cartProductIds.includes(product.id);
+              const isInCart = cartItems.some(
+                (item) => item.productId === product.id && item.selectedOption === selection.option,
+              );
 
               return (
                 <motion.article
@@ -339,10 +358,10 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
                       <Button
                         variant={isInCart ? "outline" : "default"}
                         className={isInCart ? "w-full gap-2 border-orange-500 text-orange-600" : "w-full gap-2 bg-orange-500 hover:bg-orange-600"}
-                        onClick={() => toggleCartProduct(product.id)}
+                        onClick={() => addCartItem(product)}
                       >
                         <ShoppingBag className="h-4 w-4" />
-                        {isInCart ? "Remove from Cart" : "Add to Cart"}
+                        {isInCart ? "Add More" : "Add to Cart"}
                       </Button>
                     </div>
                   </div>
@@ -361,13 +380,13 @@ const TeacherShopSection = ({ token, paymentPath = "/training/payment-gateway", 
             <div className="mt-4 space-y-3">
               {!cartItems.length && <p className="text-sm text-muted-foreground">Add products to place one combined order.</p>}
               {cartItems.map((item) => (
-                <div key={item.productId} className="rounded-xl border border-border p-3 text-sm">
+                <div key={`${item.productId}-${item.selectedOption}`} className="rounded-xl border border-border p-3 text-sm">
                   <div className="flex justify-between gap-3">
                     <div>
                       <p className="font-semibold">{item.productName}</p>
                       <p className="text-xs text-muted-foreground">{item.selectedOption} × {item.quantity}</p>
                     </div>
-                    <button type="button" className="text-xs font-semibold text-red-600" onClick={() => toggleCartProduct(item.productId)}>Remove</button>
+                    <button type="button" className="text-xs font-semibold text-red-600" onClick={() => removeCartItem(item.productId, item.selectedOption)}>Remove</button>
                   </div>
                   <p className="mt-2 text-right font-bold">{currency.format(item.finalPrice)}</p>
                 </div>

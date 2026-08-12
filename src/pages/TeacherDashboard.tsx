@@ -62,9 +62,7 @@ import {
 
 const navItems = [
   { key: "overview", label: "Dashboard", icon: LayoutDashboard },
-  { key: "courses", label: "Courses", icon: BookOpen },
   { key: "topics", label: "Topics", icon: ClipboardList },
-  { key: "materials", label: "Materials", icon: Upload },
   { key: "students", label: "Students", icon: Users },
   { key: "shop", label: "Shop", icon: Wallet },
   { key: "trainingVideos", label: "Training Videos", icon: PlayCircle },
@@ -73,7 +71,7 @@ const navItems = [
   { key: "settings", label: "Settings", icon: Settings },
 ] as const;
 
-type NavKey = (typeof navItems)[number]["key"];
+type NavKey = (typeof navItems)[number]["key"] | "courses" | "materials";
 
 type StudentFormState = {
   name: string;
