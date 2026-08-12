@@ -71,8 +71,9 @@ const VirtualAbacusTool = () => {
 
   const setLower = (index: number, beadIndex: number) => {
     updateRod(index, (rod) => {
-      const selectedCount = beadIndex + 1;
-      const lowerActive = selectedCount === rod.lowerActive ? beadIndex : selectedCount;
+      // Clicking an active bead moves it and every bead below it away from the bar.
+      // Clicking an inactive bead moves it and every bead above it toward the bar.
+      const lowerActive = beadIndex < rod.lowerActive ? beadIndex : beadIndex + 1;
       return { ...rod, lowerActive: clamp(lowerActive, 0, 4) };
     });
   };
@@ -113,7 +114,7 @@ const VirtualAbacusTool = () => {
     }
   };
 
-  const refreshAbacus = () => {
+  const resetAbacus = () => {
     setRods(createEmptyRods());
     setShowCount(true);
     setFocusedRod(ROD_COUNT - 1);
@@ -206,11 +207,11 @@ const VirtualAbacusTool = () => {
               </Button>
               <Button
                 type="button"
-                onClick={refreshAbacus}
+                onClick={resetAbacus}
                 className="h-11 rounded-full bg-[#181e25] px-4 font-heading font-bold text-white hover:bg-black sm:px-7"
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Zoom
+                Reset
               </Button>
               <button
                 type="button"

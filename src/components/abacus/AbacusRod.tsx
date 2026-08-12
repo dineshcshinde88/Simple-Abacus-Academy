@@ -66,7 +66,7 @@ const AbacusRod = ({
         drag="y"
         dragElastic={0.12}
         dragConstraints={{ top: 0, bottom: 70 }}
-        onClick={() => onToggleUpper(index)}
+        onTap={() => onToggleUpper(index)}
         onDragEnd={(_, info) => onUpperDrag(index, info.offset.y > 18)}
         animate={{ top: rod.upperActive ? "calc(28% - var(--bead-height))" : "calc(28% - var(--bead-rest-gap) - var(--bead-height))", x: "-50%", scale: 1 }}
         transition={spring}
@@ -89,7 +89,7 @@ const AbacusRod = ({
             drag="y"
             dragElastic={0.12}
             dragConstraints={{ top: 60, bottom: 240 }}
-            onClick={() => onSetLower(index, beadIndex)}
+            onTap={() => onSetLower(index, beadIndex)}
             onDragEnd={(_, info) => onLowerDrag(index, beadIndex, info.offset.y < -18)}
             animate={{ top, x: "-50%", scale: 1 }}
             transition={spring}

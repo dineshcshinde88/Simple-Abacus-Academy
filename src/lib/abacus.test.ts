@@ -7,18 +7,18 @@ import {
 } from "./abacus";
 
 describe("abacus place values", () => {
-  it("uses the center marker as ones", () => {
+  it("uses the rightmost rod as ones", () => {
     const rods = createEmptyRods();
-    rods[0] = { upperActive: false, lowerActive: 1 };
+    rods[rods.length - 1] = { upperActive: false, lowerActive: 3 };
 
-    expect(calculateAbacusValue(rods)).toBe("10000000");
-    expect(formatAbacusValue(calculateAbacusValue(rods))).toBe("10,000,000");
+    expect(calculateAbacusValue(rods)).toBe("3");
+    expect(formatAbacusValue(calculateAbacusValue(rods))).toBe("3");
   });
 
-  it("maps every rod around the center marker", () => {
-    const rods = numberToRods("12345678.1234567");
+  it("maps every rod as a whole-number place", () => {
+    const rods = numberToRods("123456789012345");
 
-    expect(calculateAbacusValue(rods)).toBe("12345678.1234567");
-    expect(formatAbacusValue(calculateAbacusValue(rods))).toBe("12,345,678.1234567");
+    expect(calculateAbacusValue(rods)).toBe("123456789012345");
+    expect(formatAbacusValue(calculateAbacusValue(rods))).toBe("123,456,789,012,345");
   });
 });
