@@ -39,6 +39,7 @@ import {
   WorksheetQuestion,
   WorksheetTopic,
 } from "@/services/worksheetSubApi";
+import { formatVisualizationQuestionForSpeech } from "@/lib/worksheetSpeech";
 
 const PRACTICE_LIMIT = 60;
 const WORKSHEET_PRACTICE_SECONDS = 600;
@@ -855,6 +856,10 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
 
   useEffect(() => {
     setCheckResult(null);
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeaking(false);
   }, [current?.id]);
 
   useEffect(() => {
@@ -894,20 +899,20 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
     if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
       window.speechSynthesis.cancel();
     }
-    const spokenText = current.question
-      .replace(/x/gi, " multiplied by ")
-      .replace(/\+/g, " plus ")
-      .replace(/-/g, " minus ")
-      .replace(/\//g, " divided by ");
-    const utterance = new SpeechSynthesisUtterance(`Question number ${index + 1}. ${spokenText}`);
-    utterance.rate = 0.78;
+    const spokenText = formatVisualizationQuestionForSpeech(current.question);
+    const utterance = new SpeechSynthesisUtterance(
+      `Question number ${index + 1}. Listen carefully. ${spokenText}.`,
+    );
+    utterance.rate = 0.64;
     utterance.pitch = 1;
     const availableVoices = window.speechSynthesis.getVoices();
     const voiceChoices = availableVoices.length ? availableVoices : voices;
     const preferredVoice =
-      voiceChoices.find((voice) => voice.default) ||
       voiceChoices.find((voice) => voice.lang.toLowerCase() === "en-in") ||
+      voiceChoices.find((voice) => voice.lang.toLowerCase() === "en-gb") ||
+      voiceChoices.find((voice) => voice.lang.toLowerCase() === "en-us") ||
       voiceChoices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ||
+      voiceChoices.find((voice) => voice.default) ||
       null;
 
     if (preferredVoice) {
