@@ -91,8 +91,9 @@ const StudentProfile = () => {
       setSaving(true);
       const response = await updateStudentProfile(token, form);
       const refreshed = await fetchStudentProfile(token);
-      setProfile(refreshed.profile);
-      populateForm(refreshed.profile);
+      const updatedProfile = { ...refreshed.profile, ...(response.profile || {}) };
+      setProfile(updatedProfile);
+      populateForm(updatedProfile);
       setEditing(false);
       toast({ title: "Profile updated", description: response.message });
     } catch (error) {
