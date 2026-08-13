@@ -219,20 +219,34 @@ function controller_student_profile(array $ctx): void
         $subscriptionOverview = ['current' => null, 'history' => []];
     }
 
+    $currentSubscription = is_array($subscriptionOverview['current'] ?? null)
+        ? $subscriptionOverview['current']
+        : [];
+    $subscriptionCourse = trim((string) ($currentSubscription['courseName'] ?? $currentSubscription['course_name'] ?? ''));
+    $subscriptionLevel = trim((string) ($currentSubscription['levelName'] ?? $currentSubscription['level_name'] ?? ''));
+    $subscriptionPlan = trim((string) ($currentSubscription['planName'] ?? $currentSubscription['plan_name'] ?? ''));
+    $storedCourse = trim((string) ($student['course'] ?? ''));
+    $storedCourseName = trim((string) ($student['course_name'] ?? ''));
+    $storedLevel = trim((string) ($student['level_name'] ?? ''));
+    $storedPlan = trim((string) ($student['subscription_plan'] ?? ''));
+
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+
     json_response([
         'profile' => [
             'id' => $student['id'],
             'name' => $student['user_name'] ?? '',
             'email' => $student['user_email'] ?? '',
-            'course' => $student['course'] ?? '',
+            'course' => $subscriptionCourse !== '' ? $subscriptionCourse : $storedCourse,
             'phoneCountry' => $student['phone_country'] ?? '+91',
             'phone' => $student['phone'] ?? '',
             'gender' => $student['gender'] ?? '',
             'motherTongue' => $student['mother_tongue'] ?? '',
             'dob' => $student['dob'] ?? null,
-            'level' => $student['level_name'] ?? null,
-            'courseName' => $student['course_name'] ?? null,
-            'subscriptionPlan' => $student['subscription_plan'] ?? null,
+            'level' => $subscriptionLevel !== '' ? $subscriptionLevel : ($storedLevel !== '' ? $storedLevel : null),
+            'courseName' => $subscriptionCourse !== '' ? $subscriptionCourse : ($storedCourseName !== '' ? $storedCourseName : null),
+            'subscriptionPlan' => $subscriptionPlan !== '' ? $subscriptionPlan : ($storedPlan !== '' ? $storedPlan : null),
             'subscriptionStatus' => $student['subscription_status'] ?? 'expired',
             'subscriptionStart' => $student['subscription_start'] ?? null,
             'subscriptionEnd' => $student['subscription_end'] ?? null,

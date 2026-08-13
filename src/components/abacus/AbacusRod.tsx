@@ -64,8 +64,9 @@ const AbacusRod = ({
       <motion.button
         type="button"
         drag="y"
-        dragElastic={0.12}
-        dragConstraints={{ top: 0, bottom: 70 }}
+        dragElastic={0}
+        dragMomentum={false}
+        dragConstraints={{ top: 0, bottom: 0 }}
         onTap={() => onToggleUpper(index)}
         onDragEnd={(_, info) => onUpperDrag(index, info.offset.y > 18)}
         animate={{ top: rod.upperActive ? "calc(28% - var(--bead-height))" : "calc(28% - var(--bead-rest-gap) - var(--bead-height))", x: "-50%", scale: 1 }}
@@ -87,8 +88,9 @@ const AbacusRod = ({
             key={beadIndex}
             type="button"
             drag="y"
-            dragElastic={0.04}
-            dragConstraints={{ top: -45, bottom: 45 }}
+            dragElastic={0}
+            dragMomentum={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
             onTap={() => onSetLower(index, beadIndex)}
             onDragEnd={(_, info) => onLowerDrag(index, beadIndex, info.offset.y < -18)}
             animate={{ top, x: "-50%", scale: 1 }}

@@ -83,8 +83,10 @@ export async function fetchStudentDashboard(token: string): Promise<StudentDashb
 
 export async function fetchStudentProfile(token: string): Promise<{ profile: StudentProfileData }> {
   const response = await fetch(`${API_BASE}/api/student/profile`, {
+    cache: "no-store",
     headers: {
       Authorization: `Bearer ${token}`,
+      "Cache-Control": "no-cache",
     },
   });
 

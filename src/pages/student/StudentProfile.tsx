@@ -174,7 +174,7 @@ const StudentProfile = () => {
               <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div><Label htmlFor="profile-name">Full Name</Label><Input id="profile-name" className="mt-2" value={form.name} onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))} /></div>
                 <div><Label>Email</Label><Input className="mt-2" value={profile?.email || ""} disabled /></div>
-                <div><Label htmlFor="profile-course">Course</Label><Input id="profile-course" className="mt-2" value={form.course} onChange={(e) => setForm((v) => ({ ...v, course: e.target.value }))} /></div>
+                <div><Label>Course</Label><Input className="mt-2" value={profile?.course || profile?.courseName || ""} disabled /></div>
                 <div>
                   <Label htmlFor="profile-phone">Mobile Number</Label>
                   <div className="mt-2 flex gap-2">
@@ -196,7 +196,6 @@ const StudentProfile = () => {
                   </div>
                 </div>
                 <div><Label htmlFor="profile-gender">Gender</Label><select id="profile-gender" className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.gender} onChange={(e) => setForm((v) => ({ ...v, gender: e.target.value }))}><option value="">Select gender</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
-                <div><Label htmlFor="profile-language">Mother Tongue</Label><Input id="profile-language" className="mt-2" value={form.motherTongue} onChange={(e) => setForm((v) => ({ ...v, motherTongue: e.target.value }))} /></div>
                 <div><Label htmlFor="profile-dob">Date Of Birth</Label><Input id="profile-dob" type="date" className="mt-2" value={form.dob} onChange={(e) => setForm((v) => ({ ...v, dob: e.target.value }))} /></div>
                 <div className="flex items-end gap-2 md:col-span-2 xl:col-span-2"><Button type="button" onClick={saveProfile} disabled={saving}><Save className="mr-2 h-4 w-4" />{saving ? "Saving..." : "Save Changes"}</Button><Button type="button" variant="outline" onClick={() => { if (profile) populateForm(profile); setEditing(false); }} disabled={saving}><X className="mr-2 h-4 w-4" />Cancel</Button></div>
               </div>
@@ -206,7 +205,6 @@ const StudentProfile = () => {
               <InfoItem label="Course" value={profile?.course || profile?.courseName} />
               <InfoItem label="Mobile Number" value={formatPhone(profile?.phoneCountry, profile?.phone)} />
               <InfoItem label="Gender" value={profile?.gender} />
-              <InfoItem label="Mother Tongue" value={profile?.motherTongue} />
               <InfoItem label="Date Of Birth" value={formatDate(profile?.dob)} />
               <InfoItem label="Allocated Level" value={profile?.level} />
               <InfoItem label="Subscription Plan" value={profile?.subscriptionPlan} />
