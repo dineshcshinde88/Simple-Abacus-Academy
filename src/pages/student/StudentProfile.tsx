@@ -47,7 +47,7 @@ const StudentProfile = () => {
   const populateForm = (value: StudentProfileData) => setForm({
     name: value.name || "",
     course: value.course || "",
-    phoneCountry: value.phoneCountry || "+91",
+    phoneCountry: "+91",
     phone: value.phone || "",
     gender: value.gender || "",
     motherTongue: value.motherTongue || "",
@@ -175,7 +175,26 @@ const StudentProfile = () => {
                 <div><Label htmlFor="profile-name">Full Name</Label><Input id="profile-name" className="mt-2" value={form.name} onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))} /></div>
                 <div><Label>Email</Label><Input className="mt-2" value={profile?.email || ""} disabled /></div>
                 <div><Label htmlFor="profile-course">Course</Label><Input id="profile-course" className="mt-2" value={form.course} onChange={(e) => setForm((v) => ({ ...v, course: e.target.value }))} /></div>
-                <div><Label htmlFor="profile-phone">Mobile Number</Label><div className="mt-2 flex gap-2"><Input className="w-24" value={form.phoneCountry} onChange={(e) => setForm((v) => ({ ...v, phoneCountry: e.target.value }))} /><Input id="profile-phone" inputMode="numeric" value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value.replace(/\D/g, "").slice(0, 15) }))} /></div></div>
+                <div>
+                  <Label htmlFor="profile-phone">Mobile Number</Label>
+                  <div className="mt-2 flex gap-2">
+                    <div
+                      aria-label="Country code plus 91"
+                      className="flex h-10 w-20 shrink-0 items-center justify-center rounded-md border border-input bg-slate-100 text-sm font-semibold text-slate-700"
+                    >
+                      +91
+                    </div>
+                    <Input
+                      id="profile-phone"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      placeholder="Mobile number"
+                      value={form.phone}
+                      onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value.replace(/\D/g, "").slice(0, 15) }))}
+                    />
+                  </div>
+                </div>
                 <div><Label htmlFor="profile-gender">Gender</Label><select id="profile-gender" className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.gender} onChange={(e) => setForm((v) => ({ ...v, gender: e.target.value }))}><option value="">Select gender</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
                 <div><Label htmlFor="profile-language">Mother Tongue</Label><Input id="profile-language" className="mt-2" value={form.motherTongue} onChange={(e) => setForm((v) => ({ ...v, motherTongue: e.target.value }))} /></div>
                 <div><Label htmlFor="profile-dob">Date Of Birth</Label><Input id="profile-dob" type="date" className="mt-2" value={form.dob} onChange={(e) => setForm((v) => ({ ...v, dob: e.target.value }))} /></div>
