@@ -87,8 +87,8 @@ const AbacusRod = ({
             key={beadIndex}
             type="button"
             drag="y"
-            dragElastic={0.12}
-            dragConstraints={{ top: 60, bottom: 240 }}
+            dragElastic={0.04}
+            dragConstraints={{ top: -45, bottom: 45 }}
             onTap={() => onSetLower(index, beadIndex)}
             onDragEnd={(_, info) => onLowerDrag(index, beadIndex, info.offset.y < -18)}
             animate={{ top, x: "-50%", scale: 1 }}
