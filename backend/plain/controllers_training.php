@@ -395,7 +395,9 @@ function controller_training_teacher_shop_create_order(array $ctx, array $data):
         $data['category'] = 'Multiple';
         $data['selectedOption'] = 'Multiple items';
         $data['optionLabel'] = 'Cart';
-        $data['quantity'] = array_sum(array_column($normalizedItems, 'quantity'));
+        // Item quantities are preserved in metadata_json. The combined cart is
+        // one payable order, otherwise the aggregate total gets multiplied again.
+        $data['quantity'] = 1;
         $data['unitPrice'] = $calculatedTotal;
         $data['finalPrice'] = $calculatedTotal;
     }

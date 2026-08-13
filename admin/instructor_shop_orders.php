@@ -5,35 +5,55 @@ require_once __DIR__ . '/includes/header.php';
 
 function shop_orders_pdo(PDO $adminPdo): ?PDO
 {
-    $envPath = __DIR__ . '/../backend/.env';
-    if (!is_file($envPath)) return $adminPdo;
-    $databaseUrl = '';
-    foreach (file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
-        if (str_starts_with(trim($line), 'DATABASE_URL=')) {
-            $databaseUrl = trim(substr(trim($line), strlen('DATABASE_URL=')), " \t\n\r\0\x0B\"'");
-            break;
+    $env = [];
+    foreach ([__DIR__ . '/../backend/.env', __DIR__ . '/../.env'] as $envPath) {
+        if (!is_file($envPath)) continue;
+        foreach (file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) continue;
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+            if (!array_key_exists($key, $env)) $env[$key] = trim(trim($value), "\"'");
         }
     }
-    $parts = $databaseUrl !== '' ? parse_url($databaseUrl) : false;
-    if (!is_array($parts) && preg_match('#^mysql://([^:]+):([^@]*)@([^:/?#]+)(?::([0-9]+))?/([^?]+)#i', $databaseUrl, $match) === 1) {
-        $parts = [
-            'user' => urldecode($match[1]),
-            'pass' => urldecode($match[2]),
-            'host' => $match[3],
-            'port' => $match[4] !== '' ? $match[4] : 3306,
-            'path' => '/' . urldecode($match[5]),
-        ];
+
+    $host = '';
+    $port = '3306';
+    $database = '';
+    $username = '';
+    $password = '';
+    $databaseUrl = trim((string) ($env['DATABASE_URL'] ?? ''));
+    if ($databaseUrl !== '') {
+        $parts = parse_url($databaseUrl);
+        if (!is_array($parts) && preg_match('#^mysql://([^:]+):([^@]*)@([^:/?#]+)(?::([0-9]+))?/([^?]+)#i', $databaseUrl, $match) === 1) {
+            $parts = ['user' => urldecode($match[1]), 'pass' => urldecode($match[2]), 'host' => $match[3], 'port' => $match[4] !== '' ? $match[4] : 3306, 'path' => '/' . urldecode($match[5])];
+        }
+        if (is_array($parts)) {
+            $host = (string) ($parts['host'] ?? 'localhost');
+            $port = (string) ($parts['port'] ?? '3306');
+            $database = trim((string) ($parts['path'] ?? ''), '/');
+            $username = urldecode((string) ($parts['user'] ?? ''));
+            $password = urldecode((string) ($parts['pass'] ?? ''));
+        }
     }
-    if (!is_array($parts) || empty($parts['path']) || empty($parts['user'])) return $adminPdo;
+
+    if ($database === '' || $username === '') {
+        $host = trim((string) ($env['DB_HOST'] ?? 'localhost')) ?: 'localhost';
+        $port = trim((string) ($env['DB_PORT'] ?? '3306')) ?: '3306';
+        $database = trim((string) ($env['DB_DATABASE'] ?? ''));
+        $username = trim((string) ($env['DB_USERNAME'] ?? ''));
+        $password = (string) ($env['DB_PASSWORD'] ?? '');
+    }
+    if ($database === '' || $username === '') return null;
+
     try {
-        $backendDatabase = trim((string) $parts['path'], '/');
         $adminDatabase = (string) $adminPdo->query('SELECT DATABASE()')->fetchColumn();
-        if ($backendDatabase === $adminDatabase) return $adminPdo;
+        if ($database === $adminDatabase && in_array(strtolower($host), ['localhost', '127.0.0.1', '::1'], true)) return $adminPdo;
         return new PDO(
-            'mysql:host=' . ($parts['host'] ?? 'localhost') . ';port=' . ($parts['port'] ?? 3306) . ';dbname=' . $backendDatabase . ';charset=utf8mb4',
-            urldecode($parts['user']),
-            urldecode($parts['pass'] ?? ''),
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+            "mysql:host={$host};port={$port};dbname={$database};charset=utf8mb4",
+            $username,
+            $password,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]
         );
     } catch (Throwable $e) {
         error_log('Instructor shop admin database connection failed: ' . $e->getMessage());
@@ -54,7 +74,11 @@ $paymentStatus = preg_replace('/[^a-z_]/', '', (string) ($_GET['payment_status']
 $orders = [];
 if ($pdo) {
     try {
-        $sql = 'SELECT o.*, u.name AS instructor_name, u.email AS instructor_email FROM teacher_shop_orders o LEFT JOIN users u ON u.id = o.teacher_user_id';
+        $sql = 'SELECT o.*, u.name AS instructor_name, u.email AS instructor_email,
+                       i.country_code AS instructor_country_code, i.mobile AS instructor_mobile
+                FROM teacher_shop_orders o
+                LEFT JOIN users u ON u.id = o.teacher_user_id
+                LEFT JOIN instructors i ON LOWER(i.email) = LOWER(u.email)';
         $params = [];
         if ($paymentStatus !== '') { $sql .= ' WHERE o.payment_status = ?'; $params[] = $paymentStatus; }
         $sql .= ' ORDER BY o.created_at DESC';
@@ -80,7 +104,7 @@ if ($pdo) {
       <?php foreach ($orders as $order): $meta = json_decode((string) ($order['metadata_json'] ?? ''), true) ?: []; $items = is_array($meta['items'] ?? null) && $meta['items'] ? $meta['items'] : [[ 'productName' => $order['product_name'], 'category' => $order['category'], 'selectedOption' => $order['selected_option'], 'quantity' => $order['quantity'], 'unitPrice' => $order['unit_price'], 'finalPrice' => $order['final_price'] ]]; $shipping = is_array($meta['shipping'] ?? null) ? $meta['shipping'] : []; $courierStatus = (string) ($meta['courierStatus'] ?? 'pending'); ?>
       <tr>
         <td><strong><?php echo htmlspecialchars($order['invoice_number']); ?></strong><div class="small text-muted"><?php echo htmlspecialchars($order['id']); ?></div></td>
-        <td><?php echo htmlspecialchars($order['instructor_name'] ?? 'Unknown'); ?><div class="small text-muted"><?php echo htmlspecialchars($order['instructor_email'] ?? ''); ?></div></td>
+        <td><?php echo htmlspecialchars($order['instructor_name'] ?? 'Unknown'); ?><div class="small text-muted"><?php echo htmlspecialchars($order['instructor_email'] ?? ''); ?></div><?php if (!empty($order['instructor_mobile'])): ?><div class="small text-muted"><?php echo htmlspecialchars(trim((string) ($order['instructor_country_code'] ?? '') . ' ' . (string) $order['instructor_mobile'])); ?></div><?php endif; ?></td>
         <td><ol class="mb-0 ps-3"><?php foreach ($items as $item): ?><li class="mb-2"><strong><?php echo htmlspecialchars((string) ($item['productName'] ?? 'Product')); ?></strong><?php if (!empty($item['category'])): ?><div class="small text-muted">Category: <?php echo htmlspecialchars((string) $item['category']); ?></div><?php endif; ?><div><?php echo htmlspecialchars((string) ($item['optionLabel'] ?? 'Option')); ?>: <?php echo htmlspecialchars((string) ($item['selectedOption'] ?? '')); ?></div><div>Qty: <?php echo (int) ($item['quantity'] ?? 1); ?><?php if (isset($item['unitPrice'])): ?> × ₹<?php echo number_format((float) $item['unitPrice'], 2); ?><?php endif; ?><?php if (isset($item['finalPrice'])): ?> = <strong>₹<?php echo number_format((float) $item['finalPrice'], 2); ?></strong><?php endif; ?></div></li><?php endforeach; ?></ol></td>
         <td><?php if ($shipping): ?><strong><?php echo htmlspecialchars((string) ($shipping['recipientName'] ?? '')); ?></strong><div><?php echo htmlspecialchars((string) ($shipping['phone'] ?? '')); ?></div><div class="small"><?php echo nl2br(htmlspecialchars((string) ($shipping['address'] ?? ''))); ?></div><div class="small"><?php echo htmlspecialchars(trim((string) ($shipping['city'] ?? '') . ', ' . (string) ($shipping['state'] ?? ''), ', ')); ?> - <?php echo htmlspecialchars((string) ($shipping['pincode'] ?? '')); ?></div><?php else: ?><span class="text-muted">Not captured for this older order</span><?php endif; ?></td>
         <td>₹<?php echo number_format((float) $order['final_price'], 2); ?></td>

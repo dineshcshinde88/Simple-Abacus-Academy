@@ -4,7 +4,6 @@ import abacusKitRegularImage from "@/assets/abacus kit regular.png";
 import abacusTshirtImage from "@/assets/t-shirt.png";
 import abacusToolImage from "@/assets/abacus tool a kit.png";
 import certificateImage from "@/assets/certificate.png";
-import vedicMathematicsKitNewImage from "@/assets/vedic mathematics kit new.png";
 
 export type TrainingShopOption = {
   label: string;
@@ -88,7 +87,7 @@ export const trainingShopProducts: TrainingShopProduct[] = [
     description: "Level-wise Vedic Maths learning kit with book and certificate.",
     includes: ["1 Book", "1 Certificate"],
     optionLabel: "Level",
-    image: vedicMathematicsKitNewImage,
+    image: "/vedic-mathematics-kit.png",
     options: vedicLevels.map((label) => ({ label, price: 99 })),
   },
   {

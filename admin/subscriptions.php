@@ -122,27 +122,41 @@ function admin_env_value(string $path, string $key): string
 
 function admin_backend_pdo(PDO $adminPdo): ?PDO
 {
-    $databaseUrl = admin_env_value(__DIR__ . '/../backend/.env', 'DATABASE_URL');
+    $backendEnv = __DIR__ . '/../backend/.env';
+    $rootEnv = __DIR__ . '/../.env';
+    $databaseUrl = admin_env_value($backendEnv, 'DATABASE_URL');
     if ($databaseUrl === '') {
-        $databaseUrl = admin_env_value(__DIR__ . '/../.env', 'DATABASE_URL');
-    }
-    if ($databaseUrl === '') {
-        return null;
+        $databaseUrl = admin_env_value($rootEnv, 'DATABASE_URL');
     }
 
-    $parts = parse_url($databaseUrl);
-    if (!is_array($parts) && preg_match('#^mysql://([^:]+):([^@]*)@([^:/?#]+)(?::([0-9]+))?/([^?]+)#i', $databaseUrl, $match) === 1) {
-        $parts = ['user' => urldecode($match[1]), 'pass' => urldecode($match[2]), 'host' => $match[3], 'port' => $match[4] !== '' ? $match[4] : 3306, 'path' => '/' . urldecode($match[5])];
-    }
-    if (!is_array($parts)) {
-        return null;
+    $host = '';
+    $port = '3306';
+    $db = '';
+    $user = '';
+    $pass = '';
+
+    if ($databaseUrl !== '') {
+        $parts = parse_url($databaseUrl);
+        if (!is_array($parts) && preg_match('#^mysql://([^:]+):([^@]*)@([^:/?#]+)(?::([0-9]+))?/([^?]+)#i', $databaseUrl, $match) === 1) {
+            $parts = ['user' => urldecode($match[1]), 'pass' => urldecode($match[2]), 'host' => $match[3], 'port' => $match[4] !== '' ? $match[4] : 3306, 'path' => '/' . urldecode($match[5])];
+        }
+        if (is_array($parts)) {
+            $host = (string) ($parts['host'] ?? 'localhost');
+            $port = (string) ($parts['port'] ?? '3306');
+            $db = isset($parts['path']) ? trim((string) $parts['path'], '/') : '';
+            $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
+            $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
+        }
     }
 
-    $host = (string) ($parts['host'] ?? 'localhost');
-    $port = (string) ($parts['port'] ?? '3306');
-    $db = isset($parts['path']) ? trim((string) $parts['path'], '/') : '';
-    $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
-    $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
+    if ($db === '' || $user === '') {
+        $envPath = is_file($backendEnv) ? $backendEnv : $rootEnv;
+        $host = admin_env_value($envPath, 'DB_HOST') ?: 'localhost';
+        $port = admin_env_value($envPath, 'DB_PORT') ?: '3306';
+        $db = admin_env_value($envPath, 'DB_DATABASE');
+        $user = admin_env_value($envPath, 'DB_USERNAME');
+        $pass = admin_env_value($envPath, 'DB_PASSWORD');
+    }
 
     if ($db === '' || $user === '') {
         return null;
@@ -385,14 +399,25 @@ $freeCount = 0;
 if ($hasNewSubscriptions) {
     $studentPhoneColumn = admin_first_existing_column($subscriptionPdo, 'students', ['phone', 'mobile', 'mobile_number', 'mobileNumber']);
     $studentPhoneCountryColumn = admin_first_existing_column($subscriptionPdo, 'students', ['phone_country', 'phoneCountry', 'country_code', 'countryCode']);
-    $studentPhoneSelect = $studentPhoneColumn !== null
+    $hasProfileDetails = admin_table_exists($subscriptionPdo, 'student_profile_details');
+    $profileDetailsJoin = $hasProfileDetails
+        ? 'LEFT JOIN student_profile_details spd ON spd.user_id = st.user_id'
+        : '';
+    $studentPhoneSelect = $hasProfileDetails
+        ? ($studentPhoneColumn !== null
+            ? "CASE WHEN COALESCE(NULLIF(TRIM(spd.phone), ''), NULLIF(TRIM(st.`{$studentPhoneColumn}`), '')) IS NULL THEN '-' ELSE TRIM(CONCAT(COALESCE(NULLIF(TRIM(spd.phone_country), ''), "
+                . ($studentPhoneCountryColumn !== null ? "NULLIF(TRIM(st.`{$studentPhoneCountryColumn}`), ''), " : '')
+                . "'+91'), ' ', COALESCE(NULLIF(TRIM(spd.phone), ''), NULLIF(TRIM(st.`{$studentPhoneColumn}`), '')))) END"
+            : "CASE WHEN COALESCE(NULLIF(TRIM(spd.phone), ''), '') = '' THEN '-' ELSE TRIM(CONCAT(COALESCE(NULLIF(TRIM(spd.phone_country), ''), '+91'), ' ', spd.phone)) END")
+        : ($studentPhoneColumn !== null
         ? ($studentPhoneCountryColumn !== null
             ? "CASE WHEN COALESCE(NULLIF(TRIM(st.`{$studentPhoneColumn}`), ''), '') = '' THEN '-' ELSE TRIM(CONCAT(COALESCE(NULLIF(TRIM(st.`{$studentPhoneCountryColumn}`), ''), '+91'), ' ', st.`{$studentPhoneColumn}`)) END"
             : "COALESCE(NULLIF(TRIM(st.`{$studentPhoneColumn}`), ''), '-')")
-        : "'-'";
+        : "'-'");
     $studentStmt = $subscriptionPdo->query(
         "SELECT st.id, u.name, u.email, {$studentPhoneSelect} AS phone
          FROM students st
+         {$profileDetailsJoin}
          INNER JOIN users u ON u.id = st.user_id
          ORDER BY u.name ASC, u.email ASC"
     );
@@ -450,6 +475,7 @@ if ($hasNewSubscriptions) {
             pa.status AS payment_attempt_status
         FROM student_subscriptions ss
         INNER JOIN students st ON st.id = ss.student_id
+        {$profileDetailsJoin}
         INNER JOIN users u ON u.id = st.user_id
         LEFT JOIN levels l ON l.id = ss.level_id
         LEFT JOIN courses c ON c.id = l.course_id

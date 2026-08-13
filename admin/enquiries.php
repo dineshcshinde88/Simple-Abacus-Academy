@@ -1,6 +1,15 @@
 <?php
-$pageTitle = 'Website Enquiries';
-$activeMenu = 'enquiries';
+$forcedEnquiryType = $forcedEnquiryType ?? '';
+$pageTitle = match ($forcedEnquiryType) {
+    'contact' => 'Contact Messages',
+    'teacher_training' => 'Teacher Training Enquiries',
+    default => 'Website Enquiries',
+};
+$activeMenu = match ($forcedEnquiryType) {
+    'contact' => 'contact_messages',
+    'teacher_training' => 'teacher_training_enquiries',
+    default => 'enquiries',
+};
 require_once __DIR__ . '/includes/header.php';
 
 function enquiry_env_value(array $paths, string $key): string
@@ -25,27 +34,37 @@ function enquiry_env_value(array $paths, string $key): string
 
 function enquiry_backend_pdo(PDO $adminPdo, ?string &$error = null): ?PDO
 {
-    $databaseUrl = enquiry_env_value([
-        __DIR__ . '/../backend/.env',
-        __DIR__ . '/../.env',
-    ], 'DATABASE_URL');
+    $envPaths = [__DIR__ . '/../backend/.env', __DIR__ . '/../.env'];
+    $databaseUrl = enquiry_env_value($envPaths, 'DATABASE_URL');
+    $host = '';
+    $port = '3306';
+    $database = '';
+    $username = '';
+    $password = '';
 
-    if ($databaseUrl === '') {
-        $error = 'DATABASE_URL is missing. Configure the admin server to use the same database as api.simpleabacus.com.';
-        return null;
+    if ($databaseUrl !== '') {
+        $parts = parse_url($databaseUrl);
+        if (is_array($parts)) {
+            $host = (string) ($parts['host'] ?? 'localhost');
+            $port = (string) ($parts['port'] ?? '3306');
+            $database = trim((string) ($parts['path'] ?? ''), '/');
+            $username = urldecode((string) ($parts['user'] ?? ''));
+            $password = urldecode((string) ($parts['pass'] ?? ''));
+        }
     }
 
-    $parts = parse_url($databaseUrl);
-    if (!is_array($parts) || empty($parts['path']) || !array_key_exists('user', $parts)) {
-        $error = 'DATABASE_URL is invalid.';
-        return null;
+    if ($database === '' || $username === '') {
+        $host = enquiry_env_value($envPaths, 'DB_HOST') ?: 'localhost';
+        $port = enquiry_env_value($envPaths, 'DB_PORT') ?: '3306';
+        $database = enquiry_env_value($envPaths, 'DB_DATABASE');
+        $username = enquiry_env_value($envPaths, 'DB_USERNAME');
+        $password = enquiry_env_value($envPaths, 'DB_PASSWORD');
     }
 
-    $host = (string) ($parts['host'] ?? 'localhost');
-    $port = (string) ($parts['port'] ?? '3306');
-    $database = trim((string) $parts['path'], '/');
-    $username = urldecode((string) ($parts['user'] ?? ''));
-    $password = urldecode((string) ($parts['pass'] ?? ''));
+    if ($database === '' || $username === '') {
+        $error = 'Backend database settings are missing. Configure DATABASE_URL or DB_DATABASE/DB_USERNAME in backend/.env.';
+        return null;
+    }
 
     try {
         $adminDatabase = (string) $adminPdo->query('SELECT DATABASE()')->fetchColumn();
@@ -142,7 +161,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$type = preg_replace('/[^a-z_]/', '', (string) ($_GET['type'] ?? ''));
+$type = $forcedEnquiryType !== ''
+    ? preg_replace('/[^a-z_]/', '', (string) $forcedEnquiryType)
+    : preg_replace('/[^a-z_]/', '', (string) ($_GET['type'] ?? ''));
 $statusFilter = preg_replace('/[^a-z_]/', '', (string) ($_GET['status'] ?? ''));
 if ($type !== '' && !array_key_exists($type, $labels)) {
     $type = '';
@@ -209,16 +230,18 @@ if ($backendPdo) {
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
       <div>
-        <h5 class="card-title mb-1">Website Enquiries</h5>
-        <div class="text-muted small">Messages submitted through Contact Us and other website enquiry forms.</div>
+        <h5 class="card-title mb-1"><?php echo match ($forcedEnquiryType) { 'contact' => 'Contact Us Messages', 'teacher_training' => 'Teacher Training Enquiries', default => 'Website Enquiries' }; ?></h5>
+        <div class="text-muted small"><?php echo match ($forcedEnquiryType) { 'contact' => 'Messages submitted through the Contact Us page.', 'teacher_training' => 'Enquiries submitted through the Teacher Training form.', default => 'Messages submitted through Contact Us and other website enquiry forms.' }; ?></div>
       </div>
       <form method="get" class="d-flex flex-wrap gap-2">
+        <?php if ($forcedEnquiryType === ''): ?>
         <select name="type" class="form-select">
           <option value="">All types</option>
           <?php foreach ($labels as $value => $label): ?>
             <option value="<?php echo $value; ?>" <?php echo $type === $value ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
           <?php endforeach; ?>
         </select>
+        <?php endif; ?>
         <select name="status" class="form-select">
           <option value="">All statuses</option>
           <?php foreach ($allowedStatuses as $status): ?>

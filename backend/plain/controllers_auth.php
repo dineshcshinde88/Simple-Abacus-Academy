@@ -286,6 +286,9 @@ function controller_auth_register(array $data): void
 
     if ($role === 'student') {
         ensure_student_registration_schema();
+        if (function_exists('ensure_student_profile_details_schema')) {
+            ensure_student_profile_details_schema();
+        }
     }
 
     $pdo = db_conn();
@@ -322,11 +325,12 @@ function controller_auth_register(array $data): void
         );
 
         if ($role === 'student') {
+            $studentId = uuid_v4();
             db_exec_sql(
                 "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, course, {$studentPhoneCountryColumn}, phone, gender, {$studentMotherTongueColumn}, dob, {$studentCreatedColumn}, {$studentUpdatedColumn})
                  VALUES (:id, :user_id, :course, :phone_country, :phone, :gender, :mother_tongue, :dob, :created_at, :updated_at)",
                 [
-                    'id' => uuid_v4(),
+                    'id' => $studentId,
                     'user_id' => $userId,
                     'course' => $course,
                     'phone_country' => $phoneCountry !== '' ? $phoneCountry : '+91',
@@ -338,6 +342,25 @@ function controller_auth_register(array $data): void
                     'updated_at' => $now,
                 ]
             );
+            if (function_exists('ensure_student_profile_details_schema')) {
+                db_exec_sql(
+                    'INSERT INTO student_profile_details
+                        (user_id, student_id, phone_country, phone, gender, dob, updated_at)
+                     VALUES (:user_id, :student_id, :phone_country, :phone, :gender, :dob, :updated_at)
+                     ON DUPLICATE KEY UPDATE
+                        student_id = VALUES(student_id), phone_country = VALUES(phone_country),
+                        phone = VALUES(phone), gender = VALUES(gender), dob = VALUES(dob), updated_at = VALUES(updated_at)',
+                    [
+                        'user_id' => $userId,
+                        'student_id' => $studentId,
+                        'phone_country' => $phoneCountry !== '' ? $phoneCountry : '+91',
+                        'phone' => preg_replace('/\D+/', '', $phone) ?? '',
+                        'gender' => strtolower($gender),
+                        'dob' => $dobValue,
+                        'updated_at' => $now,
+                    ]
+                );
+            }
         } else {
             db_exec_sql(
                 "INSERT INTO {$tutorsWriteTable} (id, {$tutorUserColumn}, {$tutorCreatedColumn}, {$tutorUpdatedColumn}) VALUES (:id, :user_id, :created_at, :updated_at)",
@@ -357,6 +380,8 @@ function controller_auth_register(array $data): void
     $user = db_one('SELECT id, name, email, role, created_at, updated_at FROM users WHERE id = :id', ['id' => $userId]);
     if (($user['role'] ?? '') === 'student') {
         $user['session_id'] = issue_student_auth_session((string) $user['id']);
+    } elseif (($user['role'] ?? '') === 'tutor') {
+        $user['session_id'] = issue_instructor_auth_session((string) $user['id']);
     }
     json_response([
         'token' => jwt_create($user),
@@ -448,6 +473,8 @@ function controller_auth_login(array $data): void
     ];
     if ($safe['role'] === 'student') {
         $safe['session_id'] = issue_student_auth_session((string) $safe['id']);
+    } elseif ($safe['role'] === 'tutor') {
+        $safe['session_id'] = issue_instructor_auth_session((string) $safe['id']);
     }
 
     json_response([

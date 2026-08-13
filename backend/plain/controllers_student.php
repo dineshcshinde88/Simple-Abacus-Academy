@@ -1,5 +1,21 @@
 <?php
 
+function ensure_student_profile_details_schema(): void
+{
+    db_exec_sql(
+        'CREATE TABLE IF NOT EXISTS student_profile_details (
+            user_id CHAR(36) PRIMARY KEY,
+            student_id CHAR(36) NULL,
+            phone_country VARCHAR(10) NOT NULL DEFAULT "+91",
+            phone VARCHAR(40) NOT NULL DEFAULT "",
+            gender VARCHAR(30) NOT NULL DEFAULT "",
+            dob DATE NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX idx_student_profile_details_student (student_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+}
+
 function controller_student_dashboard(array $ctx): void
 {
     $student = current_student($ctx['user']['id']);
@@ -201,6 +217,12 @@ function controller_student_profile(array $ctx): void
         json_response(['message' => 'Student not found'], 404);
     }
 
+    ensure_student_profile_details_schema();
+    $savedDetails = db_one(
+        'SELECT phone_country, phone, gender, dob FROM student_profile_details WHERE user_id = :user_id LIMIT 1',
+        ['user_id' => $ctx['user']['id']]
+    );
+
     if (function_exists('sync_student_subscription_state')) {
         try {
             sync_student_subscription_state((string) $student['id']);
@@ -229,6 +251,9 @@ function controller_student_profile(array $ctx): void
     $storedCourseName = trim((string) ($student['course_name'] ?? ''));
     $storedLevel = trim((string) ($student['level_name'] ?? ''));
     $storedPlan = trim((string) ($student['subscription_plan'] ?? ''));
+    $hasCurrentSubscription = $currentSubscription !== []
+        && strtolower((string) ($currentSubscription['status'] ?? $currentSubscription['subscription_status'] ?? 'active')) === 'active'
+        && strtolower((string) ($currentSubscription['paymentStatus'] ?? $currentSubscription['payment_status'] ?? 'paid')) === 'paid';
 
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
     header('Pragma: no-cache');
@@ -239,17 +264,17 @@ function controller_student_profile(array $ctx): void
             'name' => $student['user_name'] ?? '',
             'email' => $student['user_email'] ?? '',
             'course' => $subscriptionCourse !== '' ? $subscriptionCourse : $storedCourse,
-            'phoneCountry' => $student['phone_country'] ?? '+91',
-            'phone' => $student['phone'] ?? '',
-            'gender' => $student['gender'] ?? '',
+            'phoneCountry' => $savedDetails['phone_country'] ?? $student['phone_country'] ?? '+91',
+            'phone' => $savedDetails['phone'] ?? $student['phone'] ?? '',
+            'gender' => $savedDetails['gender'] ?? $student['gender'] ?? '',
             'motherTongue' => $student['mother_tongue'] ?? '',
-            'dob' => $student['dob'] ?? null,
+            'dob' => $savedDetails['dob'] ?? $student['dob'] ?? null,
             'level' => $subscriptionLevel !== '' ? $subscriptionLevel : ($storedLevel !== '' ? $storedLevel : null),
             'courseName' => $subscriptionCourse !== '' ? $subscriptionCourse : ($storedCourseName !== '' ? $storedCourseName : null),
             'subscriptionPlan' => $subscriptionPlan !== '' ? $subscriptionPlan : ($storedPlan !== '' ? $storedPlan : null),
-            'subscriptionStatus' => $student['subscription_status'] ?? 'expired',
-            'subscriptionStart' => $student['subscription_start'] ?? null,
-            'subscriptionEnd' => $student['subscription_end'] ?? null,
+            'subscriptionStatus' => $hasCurrentSubscription ? 'active' : ($student['subscription_status'] ?? 'expired'),
+            'subscriptionStart' => $currentSubscription['startDate'] ?? $currentSubscription['start_date'] ?? $student['subscription_start'] ?? null,
+            'subscriptionEnd' => $currentSubscription['expiryDate'] ?? $currentSubscription['end_date'] ?? $student['subscription_end'] ?? null,
             'createdAt' => $student['created_at'] ?? null,
             'subscriptions' => $subscriptionOverview['history'] ?? [],
         ],
@@ -261,6 +286,7 @@ function controller_student_profile_update(array $ctx, array $data): void
     if (function_exists('ensure_student_registration_schema')) {
         ensure_student_registration_schema();
     }
+    ensure_student_profile_details_schema();
 
     $student = current_student($ctx['user']['id']);
     if (!$student) {
@@ -288,6 +314,7 @@ function controller_student_profile_update(array $ctx, array $data): void
     $usersTable = auth_writable_table(['users', 'user', 'User']);
     $studentsTable = auth_writable_table(['students', 'student', 'Student']);
     $userUpdatedColumn = auth_table_column($usersTable, 'updated_at', 'updatedAt');
+    $studentUserColumn = auth_table_column($studentsTable, 'user_id', 'userId');
     $studentPhoneCountryColumn = auth_table_column($studentsTable, 'phone_country', 'phoneCountry');
     $studentMotherTongueColumn = auth_table_column($studentsTable, 'mother_tongue', 'motherTongue');
     $studentUpdatedColumn = auth_table_column($studentsTable, 'updated_at', 'updatedAt');
@@ -303,7 +330,8 @@ function controller_student_profile_update(array $ctx, array $data): void
         db_exec_sql(
             "UPDATE {$studentsTable} SET course = :course, {$studentPhoneCountryColumn} = :phone_country,
                 phone = :phone, gender = :gender, {$studentMotherTongueColumn} = :mother_tongue,
-                dob = :dob, {$studentUpdatedColumn} = :updated_at WHERE id = :id",
+                dob = :dob, {$studentUpdatedColumn} = :updated_at
+             WHERE id = :id OR {$studentUserColumn} = :user_id",
             [
                 'course' => $course,
                 'phone_country' => $phoneCountry !== '' ? $phoneCountry : '+91',
@@ -313,8 +341,35 @@ function controller_student_profile_update(array $ctx, array $data): void
                 'dob' => $dob !== '' ? date('Y-m-d', strtotime($dob)) : null,
                 'updated_at' => $now,
                 'id' => $student['id'],
+                'user_id' => $ctx['user']['id'],
             ]
         );
+
+        db_exec_sql(
+            'INSERT INTO student_profile_details
+                (user_id, student_id, phone_country, phone, gender, dob, updated_at)
+             VALUES (:user_id, :student_id, :phone_country, :phone, :gender, :dob, :updated_at)
+             ON DUPLICATE KEY UPDATE
+                student_id = VALUES(student_id), phone_country = VALUES(phone_country),
+                phone = VALUES(phone), gender = VALUES(gender), dob = VALUES(dob), updated_at = VALUES(updated_at)',
+            [
+                'user_id' => $ctx['user']['id'],
+                'student_id' => $student['id'],
+                'phone_country' => $phoneCountry !== '' ? $phoneCountry : '+91',
+                'phone' => $phone,
+                'gender' => $gender,
+                'dob' => $dob !== '' ? date('Y-m-d', strtotime($dob)) : null,
+                'updated_at' => $now,
+            ]
+        );
+
+        $savedStudent = db_one(
+            'SELECT phone, phone_country FROM student_profile_details WHERE user_id = :user_id LIMIT 1',
+            ['user_id' => $ctx['user']['id']]
+        );
+        if (!$savedStudent || trim((string) ($savedStudent['phone'] ?? '')) !== $phone) {
+            throw new RuntimeException('Student mobile number was not persisted.');
+        }
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -324,7 +379,16 @@ function controller_student_profile_update(array $ctx, array $data): void
         json_response(['message' => 'Profile could not be updated. Please try again.'], 500);
     }
 
-    json_response(['message' => 'Profile updated successfully.']);
+    json_response([
+        'message' => 'Profile updated successfully.',
+        'profile' => [
+            'name' => $name,
+            'phoneCountry' => $phoneCountry !== '' ? $phoneCountry : '+91',
+            'phone' => $phone,
+            'gender' => $gender,
+            'dob' => $dob !== '' ? date('Y-m-d', strtotime($dob)) : null,
+        ],
+    ]);
 }
 
 function controller_student_videos(array $ctx): void

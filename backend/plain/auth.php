@@ -17,7 +17,7 @@ function jwt_create(array $payload): string
         'exp' => time() + $ttl,
     ];
 
-    if (($payload['role'] ?? '') === 'student' && !empty($payload['session_id'])) {
+    if (in_array(($payload['role'] ?? ''), ['student', 'tutor'], true) && !empty($payload['session_id'])) {
         $claims['sid'] = (string) $payload['session_id'];
     }
 
@@ -51,6 +51,38 @@ function issue_student_auth_session(string $userId): string
     $now = now_sql();
     db_exec_sql(
         'INSERT INTO student_auth_sessions (user_id, session_id, created_at, updated_at)
+         VALUES (:user_id, :session_id, :created_at, :updated_at)
+         ON DUPLICATE KEY UPDATE session_id = VALUES(session_id), updated_at = VALUES(updated_at)',
+        [
+            'user_id' => $userId,
+            'session_id' => $sessionId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]
+    );
+    return $sessionId;
+}
+
+function ensure_instructor_auth_session_schema(): void
+{
+    db_exec_sql(
+        'CREATE TABLE IF NOT EXISTS instructor_auth_sessions (
+            user_id CHAR(36) PRIMARY KEY,
+            session_id CHAR(36) NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX idx_instructor_auth_sessions_session (session_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+}
+
+function issue_instructor_auth_session(string $userId): string
+{
+    ensure_instructor_auth_session_schema();
+    $sessionId = uuid_v4();
+    $now = now_sql();
+    db_exec_sql(
+        'INSERT INTO instructor_auth_sessions (user_id, session_id, created_at, updated_at)
          VALUES (:user_id, :session_id, :created_at, :updated_at)
          ON DUPLICATE KEY UPDATE session_id = VALUES(session_id), updated_at = VALUES(updated_at)',
         [
@@ -106,6 +138,21 @@ function require_auth(): array
         }
     }
 
+    if (($user['role'] ?? '') === 'tutor') {
+        ensure_instructor_auth_session_schema();
+        $activeSessionId = (string) db_value(
+            'SELECT session_id FROM instructor_auth_sessions WHERE user_id = :user_id LIMIT 1',
+            ['user_id' => $id]
+        );
+        $tokenSessionId = (string) ($payload['sid'] ?? '');
+        if ($activeSessionId === '' || $tokenSessionId === '' || !hash_equals($activeSessionId, $tokenSessionId)) {
+            json_response([
+                'message' => 'Your instructor account was logged in on another device.',
+                'code' => 'INSTRUCTOR_SESSION_REPLACED',
+            ], 401);
+        }
+    }
+
     return ['payload' => $payload, 'user' => $user];
 }
 
@@ -134,6 +181,13 @@ function current_student(string $userId): ?array
          LEFT JOIN levels l ON l.id = s.level_id
          LEFT JOIN courses c ON c.id = l.course_id
          WHERE s.user_id = :user_id
+         ORDER BY EXISTS (
+             SELECT 1 FROM student_subscriptions ss
+             WHERE ss.student_id = s.id
+               AND ss.status = "active"
+               AND ss.payment_status IN ("paid", "captured", "success")
+               AND ss.expiry_date >= UTC_TIMESTAMP()
+         ) DESC, s.updated_at DESC, s.created_at DESC
          LIMIT 1',
         ['user_id' => $userId]
     );
@@ -147,6 +201,13 @@ function current_student(string $userId): ?array
              LEFT JOIN levels l ON l.id = s.level_id
              LEFT JOIN courses c ON c.id = l.course_id
              WHERE s.user_id = :user_id
+             ORDER BY EXISTS (
+                 SELECT 1 FROM student_subscriptions ss
+                 WHERE ss.student_id = s.id
+                   AND ss.status = "active"
+                   AND ss.payment_status IN ("paid", "captured", "success")
+                   AND ss.expiry_date >= UTC_TIMESTAMP()
+             ) DESC, s.updated_at DESC, s.created_at DESC
              LIMIT 1',
             ['user_id' => $userId]
         );
