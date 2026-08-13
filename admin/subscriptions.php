@@ -22,6 +22,63 @@ function admin_column_exists(PDO $pdo, string $table, string $column): bool
     return (int) $stmt->fetchColumn() > 0;
 }
 
+function admin_first_existing_column(PDO $pdo, string $table, array $columns): ?string
+{
+    foreach ($columns as $column) {
+        if (admin_column_exists($pdo, $table, $column)) {
+            return $column;
+        }
+    }
+    return null;
+}
+
+function admin_student_phone_map(PDO $pdo): array
+{
+    if (!admin_table_exists($pdo, 'students') || !admin_column_exists($pdo, 'students', 'email')) {
+        return [];
+    }
+
+    $phoneColumn = admin_first_existing_column($pdo, 'students', ['phone', 'mobile', 'mobile_number', 'mobileNumber']);
+    if ($phoneColumn === null) {
+        return [];
+    }
+    $countryColumn = admin_first_existing_column($pdo, 'students', ['phone_country', 'phoneCountry', 'country_code', 'countryCode']);
+    $countrySelect = $countryColumn !== null ? "`{$countryColumn}`" : "'+91'";
+    $rows = $pdo->query(
+        "SELECT LOWER(TRIM(email)) AS email, TRIM(`{$phoneColumn}`) AS phone, {$countrySelect} AS phone_country
+         FROM students
+         WHERE COALESCE(NULLIF(TRIM(email), ''), '') <> ''
+           AND COALESCE(NULLIF(TRIM(`{$phoneColumn}`), ''), '') <> ''"
+    )->fetchAll();
+
+    $map = [];
+    foreach ($rows as $row) {
+        $email = strtolower(trim((string) ($row['email'] ?? '')));
+        $phone = trim((string) ($row['phone'] ?? ''));
+        $country = trim((string) ($row['phone_country'] ?? ''));
+        if ($email !== '' && $phone !== '') {
+            $map[$email] = trim(($country !== '' ? $country : '+91') . ' ' . $phone);
+        }
+    }
+    return $map;
+}
+
+function admin_fill_subscription_phones(array $subscriptions, array $phoneMap): array
+{
+    foreach ($subscriptions as &$subscription) {
+        $currentPhone = trim((string) ($subscription['student_phone'] ?? ''));
+        if ($currentPhone !== '' && $currentPhone !== '-') {
+            continue;
+        }
+        $email = strtolower(trim((string) ($subscription['student_email'] ?? '')));
+        if ($email !== '' && isset($phoneMap[$email])) {
+            $subscription['student_phone'] = $phoneMap[$email];
+        }
+    }
+    unset($subscription);
+    return $subscriptions;
+}
+
 function admin_database_name(PDO $pdo): string
 {
     try {
@@ -326,12 +383,12 @@ $paidCount = 0;
 $freeCount = 0;
 
 if ($hasNewSubscriptions) {
-    $hasStudentPhone = admin_column_exists($subscriptionPdo, 'students', 'phone');
-    $hasStudentPhoneCountry = admin_column_exists($subscriptionPdo, 'students', 'phone_country');
-    $studentPhoneSelect = $hasStudentPhone
-        ? ($hasStudentPhoneCountry
-            ? "CASE WHEN COALESCE(NULLIF(st.phone, ''), '') = '' THEN '-' ELSE CONCAT(COALESCE(NULLIF(st.phone_country, ''), '+91'), ' ', st.phone) END"
-            : "COALESCE(NULLIF(st.phone, ''), '-')")
+    $studentPhoneColumn = admin_first_existing_column($subscriptionPdo, 'students', ['phone', 'mobile', 'mobile_number', 'mobileNumber']);
+    $studentPhoneCountryColumn = admin_first_existing_column($subscriptionPdo, 'students', ['phone_country', 'phoneCountry', 'country_code', 'countryCode']);
+    $studentPhoneSelect = $studentPhoneColumn !== null
+        ? ($studentPhoneCountryColumn !== null
+            ? "CASE WHEN COALESCE(NULLIF(TRIM(st.`{$studentPhoneColumn}`), ''), '') = '' THEN '-' ELSE TRIM(CONCAT(COALESCE(NULLIF(TRIM(st.`{$studentPhoneCountryColumn}`), ''), '+91'), ' ', st.`{$studentPhoneColumn}`)) END"
+            : "COALESCE(NULLIF(TRIM(st.`{$studentPhoneColumn}`), ''), '-')")
         : "'-'";
     $studentStmt = $subscriptionPdo->query(
         "SELECT st.id, u.name, u.email, {$studentPhoneSelect} AS phone
@@ -404,6 +461,7 @@ if ($hasNewSubscriptions) {
     $listStmt = $subscriptionPdo->prepare($sql);
     $listStmt->execute($params);
     $subscriptions = $listStmt->fetchAll();
+    $subscriptions = admin_fill_subscription_phones($subscriptions, admin_student_phone_map($pdo));
 } else {
     if (isset($_GET['delete'])) {
         $id = (int) $_GET['delete'];
@@ -423,9 +481,17 @@ if ($hasNewSubscriptions) {
         }
     }
 
-    $listStmt = $pdo->prepare("SELECT s.*, st.name AS student_name, st.email AS student_email FROM subscriptions s JOIN students st ON s.student_id = st.id {$where} ORDER BY s.id DESC");
+    $legacyPhoneColumn = admin_first_existing_column($pdo, 'students', ['phone', 'mobile', 'mobile_number', 'mobileNumber']);
+    $legacyCountryColumn = admin_first_existing_column($pdo, 'students', ['phone_country', 'phoneCountry', 'country_code', 'countryCode']);
+    $legacyPhoneSelect = $legacyPhoneColumn !== null
+        ? ($legacyCountryColumn !== null
+            ? "CASE WHEN COALESCE(NULLIF(TRIM(st.`{$legacyPhoneColumn}`), ''), '') = '' THEN '-' ELSE TRIM(CONCAT(COALESCE(NULLIF(TRIM(st.`{$legacyCountryColumn}`), ''), '+91'), ' ', st.`{$legacyPhoneColumn}`)) END"
+            : "COALESCE(NULLIF(TRIM(st.`{$legacyPhoneColumn}`), ''), '-')")
+        : "'-'";
+    $listStmt = $pdo->prepare("SELECT s.*, st.name AS student_name, st.email AS student_email, {$legacyPhoneSelect} AS student_phone FROM subscriptions s JOIN students st ON s.student_id = st.id {$where} ORDER BY s.id DESC");
     $listStmt->execute($params);
     $subscriptions = $listStmt->fetchAll();
+    $subscriptions = admin_fill_subscription_phones($subscriptions, admin_student_phone_map($pdo));
     $students = $pdo->query('SELECT id, name FROM students ORDER BY name ASC')->fetchAll();
 }
 ?>

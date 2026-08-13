@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, Mail, Phone, UserRound } from "lucide-react";
+import { CalendarDays, Mail, Pencil, Phone, Save, UserRound, X } from "lucide-react";
 import StudentLayout from "@/layouts/StudentLayout";
-import { fetchStudentProfile, StudentProfileData } from "@/services/studentApi";
+import { fetchStudentProfile, StudentProfileData, updateStudentProfile } from "@/services/studentApi";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const TOKEN_KEY = "abacus_auth_token";
 
@@ -37,6 +40,19 @@ const StudentProfile = () => {
   const { toast } = useToast();
   const [profile, setProfile] = useState<StudentProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", course: "", phoneCountry: "+91", phone: "", gender: "", motherTongue: "", dob: "" });
+
+  const populateForm = (value: StudentProfileData) => setForm({
+    name: value.name || "",
+    course: value.course || "",
+    phoneCountry: value.phoneCountry || "+91",
+    phone: value.phone || "",
+    gender: value.gender || "",
+    motherTongue: value.motherTongue || "",
+    dob: value.dob ? value.dob.slice(0, 10) : "",
+  });
 
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
@@ -49,6 +65,7 @@ const StudentProfile = () => {
       try {
         const response = await fetchStudentProfile(token);
         setProfile(response.profile);
+        populateForm(response.profile);
       } catch (error) {
         toast({
           title: "Profile error",
@@ -66,6 +83,24 @@ const StudentProfile = () => {
     () => (profile?.subscriptions || []).filter((item) => item.status === "active" && item.paymentStatus === "paid"),
     [profile?.subscriptions],
   );
+
+  const saveProfile = async () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    try {
+      setSaving(true);
+      const response = await updateStudentProfile(token, form);
+      const refreshed = await fetchStudentProfile(token);
+      setProfile(refreshed.profile);
+      populateForm(refreshed.profile);
+      setEditing(false);
+      toast({ title: "Profile updated", description: response.message });
+    } catch (error) {
+      toast({ title: "Update failed", description: error instanceof Error ? error.message : "Please try again." });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <StudentLayout
@@ -128,11 +163,25 @@ const StudentProfile = () => {
           </section>
 
           <section className="rounded-2xl bg-white p-6 shadow-card">
-            <div className="flex items-center gap-3">
-              <UserRound className="h-5 w-5 text-[#5b21b6]" />
-              <h3 className="text-lg font-heading font-bold text-slate-900">Student Information</h3>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <UserRound className="h-5 w-5 text-[#5b21b6]" />
+                <h3 className="text-lg font-heading font-bold text-slate-900">Student Information</h3>
+              </div>
+              {!editing && <Button type="button" size="sm" onClick={() => setEditing(true)}><Pencil className="mr-2 h-4 w-4" />Edit Profile</Button>}
             </div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {editing ? (
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div><Label htmlFor="profile-name">Full Name</Label><Input id="profile-name" className="mt-2" value={form.name} onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))} /></div>
+                <div><Label>Email</Label><Input className="mt-2" value={profile?.email || ""} disabled /></div>
+                <div><Label htmlFor="profile-course">Course</Label><Input id="profile-course" className="mt-2" value={form.course} onChange={(e) => setForm((v) => ({ ...v, course: e.target.value }))} /></div>
+                <div><Label htmlFor="profile-phone">Mobile Number</Label><div className="mt-2 flex gap-2"><Input className="w-24" value={form.phoneCountry} onChange={(e) => setForm((v) => ({ ...v, phoneCountry: e.target.value }))} /><Input id="profile-phone" inputMode="numeric" value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value.replace(/\D/g, "").slice(0, 15) }))} /></div></div>
+                <div><Label htmlFor="profile-gender">Gender</Label><select id="profile-gender" className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.gender} onChange={(e) => setForm((v) => ({ ...v, gender: e.target.value }))}><option value="">Select gender</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
+                <div><Label htmlFor="profile-language">Mother Tongue</Label><Input id="profile-language" className="mt-2" value={form.motherTongue} onChange={(e) => setForm((v) => ({ ...v, motherTongue: e.target.value }))} /></div>
+                <div><Label htmlFor="profile-dob">Date Of Birth</Label><Input id="profile-dob" type="date" className="mt-2" value={form.dob} onChange={(e) => setForm((v) => ({ ...v, dob: e.target.value }))} /></div>
+                <div className="flex items-end gap-2 md:col-span-2 xl:col-span-2"><Button type="button" onClick={saveProfile} disabled={saving}><Save className="mr-2 h-4 w-4" />{saving ? "Saving..." : "Save Changes"}</Button><Button type="button" variant="outline" onClick={() => { if (profile) populateForm(profile); setEditing(false); }} disabled={saving}><X className="mr-2 h-4 w-4" />Cancel</Button></div>
+              </div>
+            ) : <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <InfoItem label="Full Name" value={profile?.name} />
               <InfoItem label="Email" value={profile?.email} />
               <InfoItem label="Course" value={profile?.course || profile?.courseName} />
@@ -142,7 +191,7 @@ const StudentProfile = () => {
               <InfoItem label="Date Of Birth" value={formatDate(profile?.dob)} />
               <InfoItem label="Allocated Level" value={profile?.level} />
               <InfoItem label="Subscription Plan" value={profile?.subscriptionPlan} />
-            </div>
+            </div>}
           </section>
 
           <section className="rounded-2xl bg-white p-6 shadow-card">

@@ -242,6 +242,77 @@ function controller_student_profile(array $ctx): void
     ]);
 }
 
+function controller_student_profile_update(array $ctx, array $data): void
+{
+    if (function_exists('ensure_student_registration_schema')) {
+        ensure_student_registration_schema();
+    }
+
+    $student = current_student($ctx['user']['id']);
+    if (!$student) {
+        json_response(['message' => 'Student not found'], 404);
+    }
+
+    $name = trim((string) ($data['name'] ?? ''));
+    $course = trim((string) ($data['course'] ?? ''));
+    $phoneCountry = trim((string) ($data['phoneCountry'] ?? '+91'));
+    $phone = preg_replace('/\D+/', '', (string) ($data['phone'] ?? '')) ?? '';
+    $gender = strtolower(trim((string) ($data['gender'] ?? '')));
+    $motherTongue = trim((string) ($data['motherTongue'] ?? ''));
+    $dob = trim((string) ($data['dob'] ?? ''));
+
+    if ($name === '' || !preg_match('/^[0-9]{7,15}$/', $phone)) {
+        json_response(['message' => 'Enter a valid name and mobile number.'], 422);
+    }
+    if ($gender !== '' && !in_array($gender, ['male', 'female', 'other'], true)) {
+        json_response(['message' => 'Select a valid gender.'], 422);
+    }
+    if ($dob !== '' && strtotime($dob) === false) {
+        json_response(['message' => 'Enter a valid date of birth.'], 422);
+    }
+
+    $usersTable = auth_writable_table(['users', 'user', 'User']);
+    $studentsTable = auth_writable_table(['students', 'student', 'Student']);
+    $userUpdatedColumn = auth_table_column($usersTable, 'updated_at', 'updatedAt');
+    $studentPhoneCountryColumn = auth_table_column($studentsTable, 'phone_country', 'phoneCountry');
+    $studentMotherTongueColumn = auth_table_column($studentsTable, 'mother_tongue', 'motherTongue');
+    $studentUpdatedColumn = auth_table_column($studentsTable, 'updated_at', 'updatedAt');
+    $now = now_sql();
+
+    $pdo = db_conn();
+    $pdo->beginTransaction();
+    try {
+        db_exec_sql(
+            "UPDATE {$usersTable} SET name = :name, {$userUpdatedColumn} = :updated_at WHERE id = :id",
+            ['name' => $name, 'updated_at' => $now, 'id' => $ctx['user']['id']]
+        );
+        db_exec_sql(
+            "UPDATE {$studentsTable} SET course = :course, {$studentPhoneCountryColumn} = :phone_country,
+                phone = :phone, gender = :gender, {$studentMotherTongueColumn} = :mother_tongue,
+                dob = :dob, {$studentUpdatedColumn} = :updated_at WHERE id = :id",
+            [
+                'course' => $course,
+                'phone_country' => $phoneCountry !== '' ? $phoneCountry : '+91',
+                'phone' => $phone,
+                'gender' => $gender,
+                'mother_tongue' => $motherTongue,
+                'dob' => $dob !== '' ? date('Y-m-d', strtotime($dob)) : null,
+                'updated_at' => $now,
+                'id' => $student['id'],
+            ]
+        );
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('[StudentProfile] update failed: ' . $e->getMessage());
+        json_response(['message' => 'Profile could not be updated. Please try again.'], 500);
+    }
+
+    json_response(['message' => 'Profile updated successfully.']);
+}
+
 function controller_student_videos(array $ctx): void
 {
     $student = current_student($ctx['user']['id']);

@@ -22,6 +22,7 @@ if ($method === 'GET' && $path === '/api/auth/me') {     controller_auth_me(requ
 if ($method === 'POST' && $path === '/api/auth/change-password') {     controller_auth_change_password(require_auth(), $data); }
 if ($method === 'GET' && $path === '/api/student/dashboard') {     controller_student_dashboard(require_role(['student'])); }
 if ($method === 'GET' && $path === '/api/student/profile') {     controller_student_profile(require_role(['student'])); }
+if ($method === 'PATCH' && $path === '/api/student/profile') {     controller_student_profile_update(require_role(['student']), $data); }
 if ($method === 'GET' && $path === '/api/student/subscriptions/plans') {     controller_student_subscription_plans(require_role(['student'])); }
 if ($method === 'GET' && $path === '/api/student/subscriptions/summary') {     controller_student_subscription_summary(require_role(['student'])); }
 if ($method === 'GET' && $path === '/api/student/subscription-orders') {     controller_student_subscription_orders(require_role(['student'])); }

@@ -96,6 +96,20 @@ export async function fetchStudentProfile(token: string): Promise<{ profile: Stu
   return response.json();
 }
 
+export async function updateStudentProfile(
+  token: string,
+  payload: Pick<StudentProfileData, "name" | "course" | "phoneCountry" | "phone" | "gender" | "motherTongue"> & { dob: string },
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE}/api/student/profile`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error((data as { message?: string }).message || "Failed to update profile");
+  return data as { message: string };
+}
+
 export async function fetchStudentCourses(token: string): Promise<{ courses: StudentCourseData[] }> {
   const response = await fetch(`${API_BASE}/api/student/courses`, {
     headers: {
