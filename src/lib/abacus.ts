@@ -5,6 +5,7 @@ export type RodState = {
 
 export const ROD_COUNT = 15;
 export const MAX_DIGIT = 9;
+export const UNIT_ROD_INDEX = Math.floor(ROD_COUNT / 2);
 
 export const createEmptyRods = (count = ROD_COUNT): RodState[] =>
   Array.from({ length: count }, () => ({ upperActive: false, lowerActive: 0 }));
@@ -13,9 +14,11 @@ export const createEmptyRods = (count = ROD_COUNT): RodState[] =>
 export const getRodDigit = (rod: RodState) =>
   (rod.upperActive ? 5 : 0) + rod.lowerActive;
 
-// The rightmost rod is ones; every rod to its left is the next whole-number place.
-export const calculateAbacusValue = (rods: RodState[]) => {
+// The yellow center marker is ones. Rods to its left are higher whole-number places.
+// Rods to its right are available for bead practice but are not part of the displayed count.
+export const calculateAbacusValue = (rods: RodState[], unitRodIndex = Math.floor(rods.length / 2)) => {
   const digits = rods
+    .slice(0, unitRodIndex + 1)
     .map((rod) => String(getRodDigit(rod)))
     .join("")
     .replace(/^0+(?=\d)/, "");
@@ -26,9 +29,11 @@ export const calculateAbacusValue = (rods: RodState[]) => {
 // Converts a number into bead states without allowing impossible soroban digits.
 export const numberToRods = (value: string | number, count = ROD_COUNT): RodState[] => {
   const [rawInteger = ""] = String(value).split(".");
-  const integerDigits = rawInteger.replace(/\D/g, "").slice(-count).padStart(count, "0");
+  const unitRodIndex = Math.floor(count / 2);
+  const integerDigits = rawInteger.replace(/\D/g, "").slice(-(unitRodIndex + 1)).padStart(unitRodIndex + 1, "0");
+  const digits = `${integerDigits}${"0".repeat(count - unitRodIndex - 1)}`;
 
-  return integerDigits.split("").map((digit) => {
+  return digits.split("").map((digit) => {
     const parsed = Math.min(Number(digit), MAX_DIGIT);
     return {
       upperActive: parsed >= 5,

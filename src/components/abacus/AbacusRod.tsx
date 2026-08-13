@@ -22,7 +22,7 @@ const beadClass =
   "absolute left-1/2 z-20 h-[var(--bead-height)] w-[calc(100%+1px)] touch-none bg-gradient-to-br from-orange-300 via-[#ff5b35] to-[#e6361e] shadow-[inset_3px_3px_5px_rgba(255,255,255,0.32),inset_-4px_-4px_7px_rgba(120,22,12,0.28),0_3px_6px_rgba(127,29,29,0.16)] outline-none [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)] focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-100";
 
 const getPlaceLabel = (index: number, totalRods: number) => {
-  const unitRodIndex = totalRods - 1;
+  const unitRodIndex = Math.floor(totalRods / 2);
   const place = unitRodIndex - index;
 
   if (place === 0) return "ones";

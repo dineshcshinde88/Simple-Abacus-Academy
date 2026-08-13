@@ -211,7 +211,7 @@ const VirtualAbacusTool = () => {
                 className="h-10 rounded-full bg-[#181e25] px-2 text-xs font-heading font-bold text-white hover:bg-black sm:h-11 sm:px-7 sm:text-sm"
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Reset
+                Zoom
               </Button>
               <button
                 type="button"

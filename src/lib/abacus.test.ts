@@ -7,18 +7,25 @@ import {
 } from "./abacus";
 
 describe("abacus place values", () => {
-  it("uses the rightmost rod as ones", () => {
+  it("uses the yellow center-marker rod as ones", () => {
     const rods = createEmptyRods();
-    rods[rods.length - 1] = { upperActive: false, lowerActive: 3 };
+    rods[Math.floor(rods.length / 2)] = { upperActive: false, lowerActive: 3 };
 
     expect(calculateAbacusValue(rods)).toBe("3");
     expect(formatAbacusValue(calculateAbacusValue(rods))).toBe("3");
   });
 
-  it("maps every rod as a whole-number place", () => {
-    const rods = numberToRods("123456789012345");
+  it("maps whole-number digits through the center rod", () => {
+    const rods = numberToRods("12345678");
 
-    expect(calculateAbacusValue(rods)).toBe("123456789012345");
-    expect(formatAbacusValue(calculateAbacusValue(rods))).toBe("123,456,789,012,345");
+    expect(calculateAbacusValue(rods)).toBe("12345678");
+    expect(formatAbacusValue(calculateAbacusValue(rods))).toBe("12,345,678");
+  });
+
+  it("ignores practice rods to the right of the center marker", () => {
+    const rods = createEmptyRods();
+    rods[Math.floor(rods.length / 2) + 1] = { upperActive: true, lowerActive: 4 };
+
+    expect(calculateAbacusValue(rods)).toBe("0");
   });
 });
