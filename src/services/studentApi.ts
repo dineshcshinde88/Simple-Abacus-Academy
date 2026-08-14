@@ -98,7 +98,7 @@ export async function fetchStudentProfile(token: string): Promise<{ profile: Stu
 
 export async function updateStudentProfile(
   token: string,
-  payload: Pick<StudentProfileData, "name" | "course" | "phoneCountry" | "phone" | "gender" | "motherTongue"> & { dob: string },
+  payload: Pick<StudentProfileData, "name" | "course" | "phoneCountry" | "phone" | "gender"> & { dob: string },
 ): Promise<{ message: string; profile?: Partial<StudentProfileData> }> {
   const response = await fetch(`${API_BASE}/api/student/profile`, {
     method: "PATCH",

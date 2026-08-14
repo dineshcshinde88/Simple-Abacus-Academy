@@ -844,6 +844,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
   const [startedAt] = useState(() => new Date().toISOString());
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [speaking, setSpeaking] = useState(false);
+  const [showMobileNavigator, setShowMobileNavigator] = useState(false);
   const current = questions[index];
   const levelQuery = worksheetRouteSearch(access);
   const backToTopics = `/student/worksheets${worksheetRouteSearch({ ...access, view: "topics" })}`;
@@ -1029,7 +1030,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
         </div>
 
         <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_280px]">
-          <div className="min-h-[420px] space-y-7">
+          <div className="min-h-[300px] space-y-6 md:min-h-[420px] md:space-y-7">
             <div className="flex flex-col gap-3 rounded-lg bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
               <div className="flex items-center gap-3">
                 <span className="h-9 rounded-l-md border-l-4 border-[#551896]" />
@@ -1092,9 +1093,18 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
             {checkAnswerEnabled ? (
               <p className="text-xs text-slate-500">Note: Check Answer is available only in Visualization Mode. It does not affect your worksheet score or examination results.</p>
             ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-[#551896] text-[#551896] lg:hidden"
+              onClick={() => setShowMobileNavigator((value) => !value)}
+            >
+              <BarChart3 className="mr-2 h-4 w-4" />
+              {showMobileNavigator ? "Hide Question Navigator" : "Show Question Navigator"}
+            </Button>
           </div>
 
-          <aside className="rounded-xl bg-slate-50 p-3 shadow-[0_8px_24px_rgba(15,23,42,0.10)] sm:p-5">
+          <aside className={`${showMobileNavigator ? "block" : "hidden"} max-h-[55vh] overflow-y-auto rounded-xl bg-slate-50 p-3 shadow-[0_8px_24px_rgba(15,23,42,0.10)] sm:p-5 lg:block lg:max-h-none lg:overflow-visible`}>
             <div className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-700">
               <BarChart3 className="h-4 w-4 text-[#551896]" />
               Question Navigator
@@ -1114,7 +1124,7 @@ const VisualizationPage = ({ level, topic, access }: { level?: WorksheetLevel; t
                           ? "bg-[#11894e]"
                           : "bg-[#551896] hover:bg-[#431275]"
                     }`}
-                    onClick={() => selectQuestion(questionIndex)}
+                    onClick={() => { selectQuestion(questionIndex); setShowMobileNavigator(false); }}
                   >
                     {questionIndex + 1}
                   </button>

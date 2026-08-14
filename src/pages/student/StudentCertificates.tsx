@@ -14,6 +14,11 @@ const levelNumber = (value?: string | null) => {
   return values.reduce((highest, item) => Math.max(highest, Number(item.match(/\d+/)?.[0] || 0)), 0);
 };
 
+type CertificateCourse = "Abacus" | "Vedic Maths";
+
+const certificateCourse = (planName?: string | null, levelName?: string | null): CertificateCourse =>
+  `${planName || ""} ${levelName || ""}`.toLowerCase().includes("vedic") ? "Vedic Maths" : "Abacus";
+
 const StudentCertificates = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -37,23 +42,35 @@ const StudentCertificates = () => {
       .finally(() => setLoading(false));
   }, [navigate, toast]);
 
-  const availableLevels = useMemo(() => {
-    const values = [levelNumber(data?.level)];
+  const availableCertificates = useMemo(() => {
+    const highestByCourse = new Map<CertificateCourse, number>();
     for (const subscription of data?.subscriptions || []) {
-      values.push(levelNumber(subscription.levelName), levelNumber(subscription.planName));
+      if (subscription.status !== "active" || subscription.paymentStatus !== "paid") continue;
+      const course = certificateCourse(subscription.planName, subscription.levelName);
+      const highest = Math.min(course === "Vedic Maths" ? 4 : 7, Math.max(
+        levelNumber(subscription.levelName),
+        levelNumber(subscription.planName),
+      ));
+      if (highest > (highestByCourse.get(course) || 0)) highestByCourse.set(course, highest);
     }
-    return Math.min(7, Math.max(...values, 0));
+    if (highestByCourse.size === 0) {
+      const fallback = Math.min(7, levelNumber(data?.level));
+      if (fallback > 0) highestByCourse.set("Abacus", fallback);
+    }
+    return Array.from(highestByCourse.entries()).flatMap(([course, highest]) =>
+      Array.from({ length: highest }, (_, index) => ({ course, level: index + 1 })),
+    );
   }, [data]);
 
-  const handleDownload = async (level: number) => {
+  const handleDownload = async (course: CertificateCourse, level: number) => {
     if (!data?.name) return;
     try {
       await downloadStudentCertificate({
         studentName: data.name,
         levelName: `Level ${level}`,
-        courseName: "Abacus",
+        courseName: course,
       });
-      toast({ title: "Certificate downloaded", description: `Your Level ${level} certificate PDF is ready.` });
+      toast({ title: "Certificate downloaded", description: `Your ${course} Level ${level} certificate PDF is ready.` });
     } catch {
       toast({ title: "Download failed", description: "Please try downloading the certificate again.", variant: "destructive" });
     }
@@ -74,14 +91,14 @@ const StudentCertificates = () => {
             <div className="rounded-full bg-white/20 p-4"><Award className="h-8 w-8" /></div>
             <div>
               <h2 className="text-xl font-heading font-bold">Course Completion Certificates</h2>
-              <p className="mt-1 text-sm text-white/80">Available PDFs include your name, course level, issue date and certificate ID.</p>
+              <p className="mt-1 text-sm text-white/80">Download available Abacus and Vedic Maths level certificates.</p>
             </div>
           </div>
         </div>
 
         {loading ? (
           <div className="rounded-2xl bg-white p-8 text-center text-slate-500 shadow-card">Loading certificates...</div>
-        ) : availableLevels === 0 ? (
+        ) : availableCertificates.length === 0 ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center shadow-card">
             <LockKeyhole className="mx-auto h-9 w-9 text-amber-600" />
             <h3 className="mt-3 font-heading text-lg font-bold text-slate-900">No certificate is available yet</h3>
@@ -89,16 +106,16 @@ const StudentCertificates = () => {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
-            {Array.from({ length: availableLevels }, (_, index) => index + 1).map((level) => (
-              <div key={level} className="flex items-center justify-between gap-4 rounded-2xl bg-white p-5 shadow-card">
+            {availableCertificates.map(({ course, level }) => (
+              <div key={`${course}-${level}`} className="flex items-center justify-between gap-4 rounded-2xl bg-white p-5 shadow-card">
                 <div className="flex items-center gap-4">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 font-bold text-[#5b21b6]">{level}</div>
                   <div>
-                    <h3 className="font-heading font-bold text-slate-900">Abacus Level {level}</h3>
+                    <h3 className="font-heading font-bold text-slate-900">{course} Level {level}</h3>
                     <p className="text-xs font-semibold text-emerald-600">Available</p>
                   </div>
                 </div>
-                <Button onClick={() => void handleDownload(level)} className="bg-orange-500 hover:bg-orange-600">
+                <Button onClick={() => void handleDownload(course, level)} className="bg-orange-500 hover:bg-orange-600">
                   <Download className="mr-2 h-4 w-4" /> PDF
                 </Button>
               </div>

@@ -42,7 +42,7 @@ const StudentProfile = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", course: "", phoneCountry: "+91", phone: "", gender: "", motherTongue: "", dob: "" });
+  const [form, setForm] = useState({ name: "", course: "", phoneCountry: "+91", phone: "", gender: "", dob: "" });
 
   const populateForm = (value: StudentProfileData) => setForm({
     name: value.name || "",
@@ -50,7 +50,6 @@ const StudentProfile = () => {
     phoneCountry: "+91",
     phone: value.phone || "",
     gender: value.gender || "",
-    motherTongue: value.motherTongue || "",
     dob: value.dob ? value.dob.slice(0, 10) : "",
   });
 
