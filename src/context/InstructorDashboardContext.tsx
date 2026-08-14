@@ -115,7 +115,7 @@ type InstructorDashboardContextType = {
   deleteStudent: (id: string) => void;
   addBatch: (batch: Omit<Batch, "id" | "studentIds">) => void;
   deleteBatch: (id: string) => void;
-  assignStudentToBatch: (studentId: string, batchId: string) => void;
+  assignStudentToBatch: (studentId: string, batchId: string) => Promise<void>;
   scheduleClass: (session: Omit<ClassSession, "id" | "attendance">) => void;
   toggleAttendance: (classId: string, studentId: string) => void;
   addAssignment: (assignment: Omit<Assignment, "id" | "submissions">) => void;
@@ -312,9 +312,9 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
     });
   };
 
-  const assignStudentToBatch: InstructorDashboardContextType["assignStudentToBatch"] = (studentId, batchId) => {
-    if (!token) return;
-    void assignTutorBatchStudent(token, batchId, studentId).then(() => {
+  const assignStudentToBatch: InstructorDashboardContextType["assignStudentToBatch"] = async (studentId, batchId) => {
+    if (!token) throw new Error("Your instructor session has expired. Please sign in again.");
+    await assignTutorBatchStudent(token, batchId, studentId);
     setStudents((prev) => prev.map((student) => (student.id === studentId ? { ...student, batchId } : student)));
     setBatches((prev) =>
       prev.map((batch) =>
@@ -324,7 +324,6 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
       ),
     );
     addActivity("Assigned student to batch");
-    });
   };
 
   const scheduleClass: InstructorDashboardContextType["scheduleClass"] = (session) => {

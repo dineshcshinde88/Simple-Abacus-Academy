@@ -817,6 +817,8 @@ const BatchesSection = () => {
     time: "",
     meetingLink: "",
   });
+  const [selectedStudents, setSelectedStudents] = useState<Record<string, string>>({});
+  const [assigningBatchId, setAssigningBatchId] = useState<string | null>(null);
 
   const handleCreateBatch = () => {
     if (!batchForm.name.trim()) return;
@@ -842,6 +844,25 @@ const BatchesSection = () => {
     deleteBatch(batchId);
     setClassForm((prev) => ({ ...prev, batchId: prev.batchId === batchId ? "" : prev.batchId }));
     toast.success("Batch removed");
+  };
+
+  const handleAssignStudent = async (batchId: string) => {
+    const studentId = selectedStudents[batchId];
+    if (!studentId) {
+      toast.error("Please select a student first.");
+      return;
+    }
+
+    try {
+      setAssigningBatchId(batchId);
+      await assignStudentToBatch(studentId, batchId);
+      setSelectedStudents((current) => ({ ...current, [batchId]: "" }));
+      toast.success("Student assigned to batch. The scheduled class will now appear in the student's Batches tab.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not assign student to this batch.");
+    } finally {
+      setAssigningBatchId(null);
+    }
   };
 
   return (
@@ -967,7 +988,10 @@ const BatchesSection = () => {
               <div className="space-y-2">
                 <p className="text-sm font-medium">Assign students</p>
                 <div className="flex gap-2">
-                  <Select onValueChange={(value) => value && assignStudentToBatch(value, batch.id)}>
+                  <Select
+                    value={selectedStudents[batch.id] || ""}
+                    onValueChange={(value) => setSelectedStudents((current) => ({ ...current, [batch.id]: value }))}
+                  >
                     <SelectTrigger className="flex-1">
                       <SelectValue placeholder="Select student" />
                     </SelectTrigger>
@@ -981,7 +1005,14 @@ const BatchesSection = () => {
                         ))}
                     </SelectContent>
                   </Select>
-                  <Button variant="outline">Assign</Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!selectedStudents[batch.id] || assigningBatchId === batch.id}
+                    onClick={() => void handleAssignStudent(batch.id)}
+                  >
+                    {assigningBatchId === batch.id ? "Assigning..." : "Assign"}
+                  </Button>
                 </div>
               </div>
               <div className="space-y-2">
