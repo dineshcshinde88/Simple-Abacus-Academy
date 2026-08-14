@@ -42,7 +42,7 @@ const BookDemo = () => {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [gender, setGender] = useState("");
-  const [motherTongue, setMotherTongue] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [dob, setDob] = useState("");
   const [formStatus, setFormStatus] = useState<FormStatus>(null);
 
@@ -71,7 +71,7 @@ const BookDemo = () => {
       return;
     }
 
-    if (!/^\d{10}$/.test(mobile.trim()) || !/^\d{10}$/.test(motherTongue.trim())) {
+    if (!/^\d{10}$/.test(mobile.trim()) || !/^\d{10}$/.test(whatsappNumber.trim())) {
       const message = "Mobile and WhatsApp numbers must contain exactly 10 digits.";
       setFormStatus({ type: "error", message });
       toast.error(message);
@@ -105,7 +105,7 @@ const BookDemo = () => {
           email,
           mobile,
           gender,
-          motherTongue,
+          whatsappNumber,
           dob,
           programs,
         }),
@@ -123,7 +123,7 @@ const BookDemo = () => {
       setEmail("");
       setMobile("");
       setGender("");
-      setMotherTongue("");
+      setWhatsappNumber("");
       setDob("");
       refreshCaptcha();
       setSelectedPrograms({ abacus: true, vedic: false });
@@ -238,16 +238,16 @@ const BookDemo = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="mother-tongue">WhatsApp Number</Label>
+                      <Label htmlFor="whatsapp-number">WhatsApp Number</Label>
                       <Input
-                        id="mother-tongue"
+                        id="whatsapp-number"
                         type="tel"
                         inputMode="numeric"
                         maxLength={10}
                         pattern="[0-9]{10}"
                         placeholder="10-digit WhatsApp Number"
-                        value={motherTongue}
-                        onChange={(event) => setMotherTongue(event.target.value.replace(/\D/g, "").slice(0, 10))}
+                        value={whatsappNumber}
+                        onChange={(event) => setWhatsappNumber(event.target.value.replace(/\D/g, "").slice(0, 10))}
                       />
                     </div>
                     <div className="space-y-2">

@@ -207,7 +207,11 @@ function controller_demo_book(array $data): void
     $programs = $data['programs'] ?? [];
     $programsText = is_array($programs) && !empty($programs) ? implode(', ', $programs) : 'N/A';
     $gender = trim((string) ($data['gender'] ?? ''));
-    $motherTongue = trim((string) ($data['motherTongue'] ?? ''));
+    // `motherTongue` is retained as a fallback for requests sent by older frontend builds.
+    $whatsappNumber = preg_replace('/\D+/', '', (string) ($data['whatsappNumber'] ?? $data['motherTongue'] ?? ''));
+    if (strlen($whatsappNumber) !== 10) {
+        json_response(['message' => 'WhatsApp number must contain exactly 10 digits'], 422);
+    }
     $dob = trim((string) ($data['dob'] ?? ''));
     $messageParts = [
         'Programs: ' . $programsText,
@@ -215,8 +219,8 @@ function controller_demo_book(array $data): void
     if ($gender !== '') {
         $messageParts[] = 'Gender: ' . $gender;
     }
-    if ($motherTongue !== '') {
-        $messageParts[] = 'Mother Tongue: ' . $motherTongue;
+    if ($whatsappNumber !== '') {
+        $messageParts[] = 'WhatsApp Number: ' . $whatsappNumber;
     }
     if ($dob !== '') {
         $messageParts[] = 'Date of Birth: ' . $dob;

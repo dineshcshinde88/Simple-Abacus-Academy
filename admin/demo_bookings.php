@@ -151,7 +151,7 @@ usort($bookings, static function (array $a, array $b): int {
                 </span>
               </td>
               <td><?php echo htmlspecialchars($booking['source'] === 'website' ? 'Website Form' : 'Admin'); ?></td>
-              <td style="white-space: pre-line;"><?php echo htmlspecialchars($booking['message']); ?></td>
+              <td style="white-space: pre-line;"><?php echo htmlspecialchars((string) preg_replace('/^Mother Tongue:/mi', 'WhatsApp Number:', (string) $booking['message'])); ?></td>
               <td class="d-flex gap-2">
                 <?php if ($booking['status'] !== 'completed'): ?>
                   <a class="btn btn-sm btn-outline-success" href="demo_bookings.php?complete=<?php echo (int) $booking['id']; ?>&source=<?php echo urlencode($booking['source']); ?>">Mark Completed</a>
