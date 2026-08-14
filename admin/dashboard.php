@@ -61,24 +61,39 @@ function admin_dashboard_env_value(string $path, string $key): string
 
 function admin_dashboard_backend_pdo(PDO $adminPdo): ?PDO
 {
-    $databaseUrl = admin_dashboard_env_value(__DIR__ . '/../backend/.env', 'DATABASE_URL');
-    if ($databaseUrl === '') {
-        $databaseUrl = admin_dashboard_env_value(__DIR__ . '/../.env', 'DATABASE_URL');
-    }
-    if ($databaseUrl === '') {
-        return null;
+    $envPaths = [__DIR__ . '/../backend/.env', __DIR__ . '/../.env'];
+    $envValue = static function (string $key) use ($envPaths): string {
+        foreach ($envPaths as $path) {
+            $value = admin_dashboard_env_value($path, $key);
+            if ($value !== '') return $value;
+        }
+        return '';
+    };
+
+    $host = '';
+    $port = '3306';
+    $db = '';
+    $user = '';
+    $pass = '';
+    $databaseUrl = $envValue('DATABASE_URL');
+    if ($databaseUrl !== '') {
+        $parts = parse_url($databaseUrl);
+        if (is_array($parts)) {
+            $host = (string) ($parts['host'] ?? 'localhost');
+            $port = (string) ($parts['port'] ?? '3306');
+            $db = isset($parts['path']) ? trim((string) $parts['path'], '/') : '';
+            $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
+            $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
+        }
     }
 
-    $parts = parse_url($databaseUrl);
-    if (!is_array($parts)) {
-        return null;
+    if ($db === '' || $user === '') {
+        $host = $envValue('DB_HOST') ?: 'localhost';
+        $port = $envValue('DB_PORT') ?: '3306';
+        $db = $envValue('DB_DATABASE');
+        $user = $envValue('DB_USERNAME');
+        $pass = $envValue('DB_PASSWORD');
     }
-
-    $host = (string) ($parts['host'] ?? 'localhost');
-    $port = (string) ($parts['port'] ?? '3306');
-    $db = isset($parts['path']) ? trim((string) $parts['path'], '/') : '';
-    $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
-    $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
 
     if ($db === '' || $user === '') {
         return null;
@@ -152,19 +167,19 @@ $hasAppInstructors = $backendPdo && admin_dashboard_table_exists($backendPdo, 'i
 $legacyStudents = admin_dashboard_count($pdo, 'SELECT COUNT(*) FROM students');
 $appStudents = $hasAppStudents ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM users WHERE role = 'student'") : 0;
 $totalStudents = $legacyStudents + $appStudents;
-$totalSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE payment_status = 'paid'") : 0)
-  + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE payment_status = 'paid'") : 0);
-$totalUnpaidSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0)
-  + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0);
-$totalPaidFees = ($hasLegacySubscriptions && admin_dashboard_column_exists($pdo, 'subscriptions', 'amount') ? admin_dashboard_amount($pdo, "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE payment_status = 'paid'") : 0)
-  + ($hasAppSubscriptions && admin_dashboard_column_exists($backendPdo, 'student_subscriptions', 'amount') ? admin_dashboard_amount($backendPdo, "SELECT COALESCE(SUM(amount), 0) FROM student_subscriptions WHERE payment_status = 'paid'") : 0);
-$totalUnpaidFees = ($hasLegacySubscriptions && admin_dashboard_column_exists($pdo, 'subscriptions', 'amount') ? admin_dashboard_amount($pdo, "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0)
-  + ($hasAppSubscriptions && admin_dashboard_column_exists($backendPdo, 'student_subscriptions', 'amount') ? admin_dashboard_amount($backendPdo, "SELECT COALESCE(SUM(amount), 0) FROM student_subscriptions WHERE payment_status IN ('unpaid', 'pending')") : 0);
+$totalSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE LOWER(payment_status) IN ('paid', 'captured', 'success', 'successful')") : 0)
+  + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE LOWER(payment_status) IN ('paid', 'captured', 'success', 'successful')") : 0);
+$totalUnpaidSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')") : 0)
+  + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')") : 0);
+$totalPaidFees = ($hasLegacySubscriptions && admin_dashboard_column_exists($pdo, 'subscriptions', 'amount') ? admin_dashboard_amount($pdo, "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE LOWER(payment_status) IN ('paid', 'captured', 'success', 'successful')") : 0)
+  + ($hasAppSubscriptions && admin_dashboard_column_exists($backendPdo, 'student_subscriptions', 'amount') ? admin_dashboard_amount($backendPdo, "SELECT COALESCE(SUM(amount), 0) FROM student_subscriptions WHERE LOWER(payment_status) IN ('paid', 'captured', 'success', 'successful')") : 0);
+$totalUnpaidFees = ($hasLegacySubscriptions && admin_dashboard_column_exists($pdo, 'subscriptions', 'amount') ? admin_dashboard_amount($pdo, "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')") : 0)
+  + ($hasAppSubscriptions && admin_dashboard_column_exists($backendPdo, 'student_subscriptions', 'amount') ? admin_dashboard_amount($backendPdo, "SELECT COALESCE(SUM(amount), 0) FROM student_subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')") : 0);
 $totalDemos = (int) $pdo->query('SELECT COUNT(*) FROM demo_bookings')->fetchColumn()
   + ($hasAppDemoBookings ? admin_dashboard_count($backendPdo, 'SELECT COUNT(*) FROM demo_bookings') : 0);
 $approvedInstructors = $hasAppInstructors ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM instructors WHERE status = 'approved' AND is_verified = 1") : 0;
 $totalTeachers = (int) $pdo->query('SELECT COUNT(*) FROM teachers')->fetchColumn() + $approvedInstructors;
-$pendingInstructors = $hasAppInstructors ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM instructors WHERE status = 'pending'") : 0;
+$pendingInstructors = $hasAppInstructors ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM instructors WHERE LOWER(status) = 'pending'") : 0;
 
 ?>
 <div class="row g-4 mb-4">
