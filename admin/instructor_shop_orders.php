@@ -100,7 +100,7 @@ if ($pdo) {
     </div>
     <?php if (!$pdo): ?><div class="alert alert-warning">Website database is not connected.</div><?php endif; ?>
     <?php if ($loadError): ?><div class="alert alert-danger"><?php echo htmlspecialchars($loadError); ?></div><?php endif; ?>
-    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Invoice</th><th>Instructor</th><th>Purchased Items</th><th>Delivery Details</th><th>Total</th><th>Payment</th><th>Courier</th><th>Date</th></tr></thead><tbody>
+    <div class="table-responsive"><table id="instructor-orders-table" class="table align-middle"><thead><tr><th>Invoice</th><th>Instructor</th><th>Purchased Items</th><th>Delivery Details</th><th>Total</th><th>Payment</th><th>Courier</th><th>Date</th></tr></thead><tbody>
       <?php foreach ($orders as $order): $meta = json_decode((string) ($order['metadata_json'] ?? ''), true) ?: []; $items = is_array($meta['items'] ?? null) && $meta['items'] ? $meta['items'] : [[ 'productName' => $order['product_name'], 'category' => $order['category'], 'selectedOption' => $order['selected_option'], 'quantity' => $order['quantity'], 'unitPrice' => $order['unit_price'], 'finalPrice' => $order['final_price'] ]]; $shipping = is_array($meta['shipping'] ?? null) ? $meta['shipping'] : []; $courierStatus = (string) ($meta['courierStatus'] ?? 'pending'); ?>
       <tr>
         <td><strong><?php echo htmlspecialchars($order['invoice_number']); ?></strong><div class="small text-muted"><?php echo htmlspecialchars($order['id']); ?></div></td>
@@ -117,4 +117,76 @@ if ($pdo) {
     </tbody></table></div>
   </div>
 </div>
+
+<div class="modal fade" id="instructorOrderDetailsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div><h5 class="modal-title">Instructor Order Details</h5><div id="order-details-invoice" class="small text-muted"></div></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-4">
+          <div class="col-lg-8"><h6>Purchased Items</h6><div id="order-details-items" class="mt-3"></div></div>
+          <div class="col-lg-4"><h6>Delivery Details</h6><div id="order-details-delivery" class="mt-3"></div><h6 class="mt-4">Payment Details</h6><div id="order-details-payment" class="mt-3"></div></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #instructor-orders-table > tbody > tr { height: 86px; }
+  #instructor-orders-table > tbody > tr > td { max-width: 230px; vertical-align: middle; }
+  #instructor-orders-table .order-summary { min-width: 130px; }
+  #instructor-orders-table .order-instructor-email { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #order-details-items ol { margin-bottom: 0; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const table = document.getElementById('instructor-orders-table');
+  const modalElement = document.getElementById('instructorOrderDetailsModal');
+  if (!table || !modalElement || typeof bootstrap === 'undefined') return;
+  const modal = new bootstrap.Modal(modalElement);
+
+  table.querySelectorAll('tbody > tr').forEach(function (row) {
+    const cells = row.querySelectorAll(':scope > td');
+    if (cells.length < 8) return;
+
+    const invoice = cells[0].querySelector('strong')?.textContent?.trim() || 'Order';
+    const itemsHtml = cells[2].innerHTML;
+    const deliveryHtml = cells[3].innerHTML;
+    const paymentHtml = cells[5].innerHTML;
+    const itemCount = cells[2].querySelectorAll('li').length || 1;
+    const unitCount = Array.from(cells[2].querySelectorAll('li')).reduce(function (total, item) {
+      const match = item.textContent.match(/Qty:\s*(\d+)/i);
+      return total + (match ? Number(match[1]) : 1);
+    }, 0) || itemCount;
+
+    const email = cells[1].querySelector('.small.text-muted');
+    if (email) email.classList.add('order-instructor-email');
+
+    cells[2].innerHTML = '<div class="order-summary"><strong>' + itemCount + ' product(s)</strong><div class="small text-muted">' + unitCount + ' total unit(s)</div></div>';
+    const recipient = cells[3].querySelector('strong')?.textContent?.trim();
+    cells[3].innerHTML = recipient
+      ? '<strong>' + recipient.replace(/[&<>"']/g, function (char) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[char]; }) + '</strong><div class="small text-muted">View full address in details</div>'
+      : '<span class="small text-muted">Address unavailable</span>';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-sm btn-outline-primary mt-2 text-nowrap';
+    button.textContent = 'View Details';
+    button.addEventListener('click', function () {
+      document.getElementById('order-details-invoice').textContent = invoice;
+      document.getElementById('order-details-items').innerHTML = itemsHtml;
+      document.getElementById('order-details-delivery').innerHTML = deliveryHtml;
+      document.getElementById('order-details-payment').innerHTML = paymentHtml;
+      modal.show();
+    });
+    cells[2].appendChild(button);
+  });
+});
+</script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
