@@ -368,7 +368,7 @@ const StudentsSection = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleSaveStudent = () => {
+  const handleSaveStudent = async () => {
     if (!formState.name.trim() || !formState.parentEmail.trim() || !formState.parentMobile.trim()) {
       toast.error("Please enter student name, parent email, and parent mobile.");
       return;
@@ -399,24 +399,29 @@ const StudentsSection = () => {
       setEditingStudent(null);
       toast.success("Student updated.");
     } else {
-      addStudent({
-        name: formState.name.trim(),
-        email: studentEmail,
-        parentEmail: studentEmail,
-        parentMobile: formState.parentMobile.trim(),
-        whatsappNumber: formState.whatsappNumber.trim(),
-        dateOfBirth: formState.dateOfBirth,
-        gender: formState.gender,
-        course: formState.course,
-        avatarUrl: formState.avatarUrl,
-        level: formState.level,
-        batchId: formState.batchId === "none" ? null : formState.batchId,
-        levelStartDate: formState.levelStartDate,
-        levelEndDate: formState.levelEndDate,
-        feesStatus: formState.feesStatus,
-        joinedAt: formState.joiningDate || new Date().toISOString().slice(0, 10),
-      });
-      toast.success("Student added.");
+      try {
+        await addStudent({
+          name: formState.name.trim(),
+          email: studentEmail,
+          parentEmail: studentEmail,
+          parentMobile: formState.parentMobile.trim(),
+          whatsappNumber: formState.whatsappNumber.trim(),
+          dateOfBirth: formState.dateOfBirth,
+          gender: formState.gender,
+          course: formState.course,
+          avatarUrl: formState.avatarUrl,
+          level: formState.level,
+          batchId: formState.batchId === "none" ? null : formState.batchId,
+          levelStartDate: formState.levelStartDate,
+          levelEndDate: formState.levelEndDate,
+          feesStatus: formState.feesStatus,
+          joinedAt: formState.joiningDate || new Date().toISOString().slice(0, 10),
+        });
+        toast.success("Student added and synced with the admin panel.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Student could not be added.");
+        return;
+      }
     }
     resetForm();
     setIsStudentFormOpen(false);

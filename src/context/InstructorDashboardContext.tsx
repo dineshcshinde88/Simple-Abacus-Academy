@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { AuthUser } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
-import { assignTutorBatchStudent, createTutorBatch, createTutorClass, fetchTutorBatches, fetchTutorStudentsForBatches, removeTutorBatch, toggleTutorAttendance } from "@/services/batchApi";
+import { assignTutorBatchStudent, createTutorBatch, createTutorClass, createTutorStudent, fetchTutorBatches, fetchTutorStudentsForBatches, removeTutorBatch, toggleTutorAttendance } from "@/services/batchApi";
 
 export type FeesStatus = "paid" | "unpaid";
 export type PerformanceStatus = "Good" | "Average" | "Needs Improvement";
@@ -110,7 +110,7 @@ type InstructorDashboardContextType = {
   payments: Payment[];
   announcements: Announcement[];
   activities: Activity[];
-  addStudent: (student: Omit<Student, "id" | "progress"> & { progress?: Student["progress"] }) => void;
+  addStudent: (student: Omit<Student, "id" | "progress"> & { progress?: Student["progress"] }) => Promise<void>;
   updateStudent: (id: string, updates: Partial<Student>) => void;
   deleteStudent: (id: string) => void;
   addBatch: (batch: Omit<Batch, "id" | "studentIds">) => void;
@@ -237,7 +237,20 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
     if (!token || user?.role !== "tutor") return;
     let cancelled = false;
     Promise.all([fetchTutorBatches(token), fetchTutorStudentsForBatches(token)])
-      .then(([data, tutorStudents]) => {
+      .then(async ([data, tutorStudents]) => {
+        if (cancelled) return;
+        const cachedStudents = readDashboardState(storageKey, user).students;
+        const serverEmails = new Set(tutorStudents.map((student) => student.email.trim().toLowerCase()));
+        const unsyncedStudents = cachedStudents.filter((student) => {
+          const email = student.email.trim().toLowerCase();
+          return email !== "" && !serverEmails.has(email);
+        });
+        if (unsyncedStudents.length) {
+          const migrated = await Promise.allSettled(unsyncedStudents.map((student) => createTutorStudent(token, student)));
+          migrated.forEach((result) => {
+            if (result.status === "fulfilled") tutorStudents.push(result.value);
+          });
+        }
         if (cancelled) return;
         setBatches(data.batches);
         setClasses(data.classes);
@@ -248,7 +261,7 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [token, user?.role]);
+  }, [storageKey, token, user]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -270,13 +283,9 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
     setActivities((prev) => [{ id: uid(), text, time: "Just now" }, ...prev].slice(0, 8));
   };
 
-  const addStudent: InstructorDashboardContextType["addStudent"] = (student) => {
-    const newStudent: Student = {
-      id: uid(),
-      joinedAt: new Date().toISOString().slice(0, 10),
-      progress: student.progress || { marks: 0, levelCompleted: 0, status: "Average" },
-      ...student,
-    };
+  const addStudent: InstructorDashboardContextType["addStudent"] = async (student) => {
+    if (!token) throw new Error("Your instructor session has expired. Please sign in again.");
+    const newStudent = await createTutorStudent(token, student);
     setStudents((prev) => [newStudent, ...prev]);
     addActivity(`Added new student ${newStudent.name}`);
   };

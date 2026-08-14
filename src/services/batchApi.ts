@@ -33,6 +33,32 @@ export const fetchTutorStudentsForBatches = async (token: string): Promise<Stude
     };
   });
 };
+export const createTutorStudent = async (token: string, payload: Omit<Student, "id" | "progress">): Promise<Student> => {
+  const data = await request<{ student: Record<string, unknown> }>(token, "/api/tutor/add-student", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const row = data.student;
+  return {
+    id: String(row.id || ""),
+    name: String(row.user_name || payload.name),
+    email: String(row.user_email || payload.email),
+    parentEmail: payload.parentEmail,
+    parentMobile: payload.parentMobile,
+    whatsappNumber: payload.whatsappNumber,
+    dateOfBirth: payload.dateOfBirth,
+    gender: payload.gender,
+    course: payload.course,
+    avatarUrl: payload.avatarUrl,
+    level: payload.level,
+    batchId: payload.batchId,
+    feesStatus: payload.feesStatus,
+    joinedAt: String(row.created_at || payload.joinedAt),
+    levelStartDate: payload.levelStartDate,
+    levelEndDate: payload.levelEndDate,
+    progress: { marks: 0, levelCompleted: 0, status: "Average" },
+  };
+};
 export const createTutorBatch = (token: string, batch: Omit<Batch, "id" | "studentIds">) => request<{ batch: Batch }>(token, "/api/tutor/batches", { method: "POST", body: JSON.stringify(batch) });
 export const removeTutorBatch = (token: string, id: string) => request<{ message: string }>(token, `/api/tutor/batches/${id}`, { method: "DELETE" });
 export const assignTutorBatchStudent = (token: string, batchId: string, studentId: string) => request<{ message: string }>(token, `/api/tutor/batches/${batchId}/students`, { method: "POST", body: JSON.stringify({ studentId }) });

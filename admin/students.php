@@ -58,20 +58,35 @@ function admin_students_env_value(string $path, string $key): string
 
 function admin_students_backend_pdo(): ?PDO
 {
-    $databaseUrl = admin_students_env_value(__DIR__ . '/../backend/.env', 'DATABASE_URL');
-    if ($databaseUrl === '') {
-        $databaseUrl = admin_students_env_value(__DIR__ . '/../.env', 'DATABASE_URL');
-    }
+    $envPaths = [__DIR__ . '/../backend/.env', __DIR__ . '/../.env'];
+    $envValue = static function (string $key) use ($envPaths): string {
+        foreach ($envPaths as $path) {
+            $value = admin_students_env_value($path, $key);
+            if ($value !== '') return $value;
+        }
+        return '';
+    };
+    $host = '';
+    $port = '3306';
+    $db = '';
+    $user = '';
+    $pass = '';
+    $databaseUrl = $envValue('DATABASE_URL');
     $parts = $databaseUrl !== '' ? parse_url($databaseUrl) : false;
-    if (!is_array($parts)) {
-        return null;
+    if (is_array($parts)) {
+        $host = (string) ($parts['host'] ?? 'localhost');
+        $port = (string) ($parts['port'] ?? '3306');
+        $db = isset($parts['path']) ? trim((string) $parts['path'], '/') : '';
+        $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
+        $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
     }
-
-    $host = (string) ($parts['host'] ?? 'localhost');
-    $port = (string) ($parts['port'] ?? '3306');
-    $db = isset($parts['path']) ? trim((string) $parts['path'], '/') : '';
-    $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
-    $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
+    if ($db === '' || $user === '') {
+        $host = $envValue('DB_HOST') ?: 'localhost';
+        $port = $envValue('DB_PORT') ?: '3306';
+        $db = $envValue('DB_DATABASE');
+        $user = $envValue('DB_USERNAME');
+        $pass = $envValue('DB_PASSWORD');
+    }
 
     if ($db === '' || $user === '') {
         return null;
