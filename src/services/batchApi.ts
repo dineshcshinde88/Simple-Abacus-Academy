@@ -1,0 +1,41 @@
+import { getApiBase } from "@/lib/apiBase";
+import type { Batch, ClassSession } from "@/context/InstructorDashboardContext";
+import type { Student } from "@/context/InstructorDashboardContext";
+
+const API_BASE = getApiBase();
+
+async function request<T>(token: string, path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(options.headers || {}) },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error((data as { message?: string }).message || "Batch request failed");
+  return data as T;
+}
+
+export type StudentBatch = Omit<Batch, "studentIds"> & { classes: ClassSession[] };
+
+export const fetchTutorBatches = (token: string) => request<{ batches: Batch[]; classes: ClassSession[] }>(token, "/api/tutor/batches");
+export const fetchTutorStudentsForBatches = async (token: string): Promise<Student[]> => {
+  const data = await request<{ students: Array<Record<string, unknown>> }>(token, "/api/tutor/students");
+  return data.students.map((row) => {
+    const user = (row.user || {}) as Record<string, unknown>;
+    return {
+      id: String(row.id || ""),
+      name: String(user.name || "Student"),
+      email: String(user.email || ""),
+      level: String(row.level_name || "Not assigned"),
+      batchId: null,
+      feesStatus: "unpaid",
+      joinedAt: String(row.created_at || ""),
+      progress: { marks: 0, levelCompleted: 0, status: "Average" },
+    };
+  });
+};
+export const createTutorBatch = (token: string, batch: Omit<Batch, "id" | "studentIds">) => request<{ batch: Batch }>(token, "/api/tutor/batches", { method: "POST", body: JSON.stringify(batch) });
+export const removeTutorBatch = (token: string, id: string) => request<{ message: string }>(token, `/api/tutor/batches/${id}`, { method: "DELETE" });
+export const assignTutorBatchStudent = (token: string, batchId: string, studentId: string) => request<{ message: string }>(token, `/api/tutor/batches/${batchId}/students`, { method: "POST", body: JSON.stringify({ studentId }) });
+export const createTutorClass = (token: string, session: Omit<ClassSession, "id" | "attendance">) => request<{ class: ClassSession }>(token, "/api/tutor/classes", { method: "POST", body: JSON.stringify(session) });
+export const toggleTutorAttendance = (token: string, classId: string, studentId: string) => request<{ present: boolean }>(token, `/api/tutor/classes/${classId}/attendance/${studentId}`, { method: "PATCH" });
+export const fetchStudentBatches = (token: string) => request<{ batches: StudentBatch[] }>(token, "/api/student/batches");

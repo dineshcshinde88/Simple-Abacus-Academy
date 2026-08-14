@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff, RefreshCcw } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ const buildCaptcha = () => {
 const InstructorLogin = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [captcha, setCaptcha] = useState(buildCaptcha());
@@ -29,6 +30,16 @@ const InstructorLogin = () => {
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [form, setForm] = useState({ email: "", password: "" });
+
+  useEffect(() => {
+    if (searchParams.get("reason") !== "session-replaced") return;
+    toast({
+      title: "Session ended",
+      description: "This instructor account was signed in on another device. Please sign in again.",
+      variant: "destructive",
+    });
+    sessionStorage.removeItem("instructor_session_replaced");
+  }, [searchParams, toast]);
 
   const refreshCaptcha = () => {
     setCaptcha(buildCaptcha());

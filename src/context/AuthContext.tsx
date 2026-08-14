@@ -14,7 +14,8 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 const TOKEN_KEY = "abacus_auth_token";
 const SESSION_REPLACED_KEY = "student_session_replaced";
-const STUDENT_SESSION_CHECK_MS = 15_000;
+const INSTRUCTOR_SESSION_REPLACED_KEY = "instructor_session_replaced";
+const SESSION_CHECK_MS = 15_000;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -33,10 +34,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const handleAuthError = (error: unknown) => {
       const sessionWasReplaced = error instanceof AuthApiError && error.code === "STUDENT_SESSION_REPLACED";
+      const instructorSessionWasReplaced = error instanceof AuthApiError && error.code === "INSTRUCTOR_SESSION_REPLACED";
       clearAuth();
       if (sessionWasReplaced) {
         sessionStorage.setItem(SESSION_REPLACED_KEY, "1");
         window.location.replace("/student-login?reason=session-replaced");
+      } else if (instructorSessionWasReplaced) {
+        sessionStorage.setItem(INSTRUCTOR_SESSION_REPLACED_KEY, "1");
+        window.location.replace("/instructor-login?reason=session-replaced");
       }
     };
 
@@ -50,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const response = await getMe(token);
         if (cancelled) return;
         setUser(response.user);
-        if (response.user.role === "student") {
+        if (response.user.role === "student" || response.user.role === "tutor") {
           sessionCheckTimer = window.setInterval(async () => {
             try {
               await getMe(token);
@@ -60,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               }
               handleAuthError(error);
             }
-          }, STUDENT_SESSION_CHECK_MS);
+          }, SESSION_CHECK_MS);
         }
       } catch (error) {
         if (cancelled) return;

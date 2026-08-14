@@ -15,7 +15,7 @@ const RequireRole = ({ role, children }: RequireRoleProps) => {
   }
 
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={role === "tutor" ? "/instructor-login" : "/student-login"} replace />;
   }
 
   if (user.role !== role) {

@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { AuthUser } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
+import { assignTutorBatchStudent, createTutorBatch, createTutorClass, fetchTutorBatches, fetchTutorStudentsForBatches, removeTutorBatch, toggleTutorAttendance } from "@/services/batchApi";
 
 export type FeesStatus = "paid" | "unpaid";
 export type PerformanceStatus = "Good" | "Average" | "Needs Improvement";
@@ -206,7 +207,7 @@ const readDashboardState = (key: string, user: AuthUser | null): InstructorDashb
 };
 
 export const InstructorDashboardProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const storageKey = instructorStorageKey(user);
   const initialDashboard = readDashboardState(storageKey, user);
   const [profile, setProfile] = useState<InstructorProfile>(initialDashboard.profile);
@@ -231,6 +232,23 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
     setAnnouncements(storedDashboard.announcements);
     setActivities(storedDashboard.activities);
   }, [storageKey, user]);
+
+  useEffect(() => {
+    if (!token || user?.role !== "tutor") return;
+    let cancelled = false;
+    Promise.all([fetchTutorBatches(token), fetchTutorStudentsForBatches(token)])
+      .then(([data, tutorStudents]) => {
+        if (cancelled) return;
+        setBatches(data.batches);
+        setClasses(data.classes);
+        setStudents(tutorStudents.map((student) => {
+          const assigned = data.batches.find((batch) => batch.studentIds.includes(student.id));
+          return { ...student, batchId: assigned?.id || null };
+        }));
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [token, user?.role]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -275,46 +293,59 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
   };
 
   const addBatch: InstructorDashboardContextType["addBatch"] = (batch) => {
-    const newBatch: Batch = { id: uid(), studentIds: [], ...batch };
-    setBatches((prev) => [newBatch, ...prev]);
-    addActivity(`Created batch ${newBatch.name}`);
+    if (!token) return;
+    void createTutorBatch(token, batch).then(({ batch: newBatch }) => {
+      setBatches((prev) => [newBatch, ...prev]);
+      addActivity(`Created batch ${newBatch.name}`);
+    });
   };
 
   const deleteBatch: InstructorDashboardContextType["deleteBatch"] = (id) => {
+    if (!token) return;
+    void removeTutorBatch(token, id).then(() => {
     setBatches((prev) => prev.filter((batch) => batch.id !== id));
     setStudents((prev) => prev.map((student) => (student.batchId === id ? { ...student, batchId: null } : student)));
     setClasses((prev) => prev.filter((session) => session.batchId !== id));
     setMaterials((prev) => prev.filter((material) => material.batchId !== id));
     setAssignments((prev) => prev.filter((assignment) => assignment.assignedTo.type !== "batch" || assignment.assignedTo.id !== id));
     addActivity("Removed a batch");
+    });
   };
 
   const assignStudentToBatch: InstructorDashboardContextType["assignStudentToBatch"] = (studentId, batchId) => {
+    if (!token) return;
+    void assignTutorBatchStudent(token, batchId, studentId).then(() => {
     setStudents((prev) => prev.map((student) => (student.id === studentId ? { ...student, batchId } : student)));
     setBatches((prev) =>
       prev.map((batch) =>
-        batch.id === batchId && !batch.studentIds.includes(studentId)
-          ? { ...batch, studentIds: [...batch.studentIds, studentId] }
-          : batch,
+        batch.id === batchId
+          ? { ...batch, studentIds: Array.from(new Set([...batch.studentIds, studentId])) }
+          : { ...batch, studentIds: batch.studentIds.filter((id) => id !== studentId) },
       ),
     );
     addActivity("Assigned student to batch");
+    });
   };
 
   const scheduleClass: InstructorDashboardContextType["scheduleClass"] = (session) => {
-    const newClass: ClassSession = { id: uid(), attendance: {}, ...session };
-    setClasses((prev) => [newClass, ...prev]);
-    addActivity(`Scheduled class ${newClass.topic}`);
+    if (!token) return;
+    void createTutorClass(token, session).then(({ class: newClass }) => {
+      setClasses((prev) => [newClass, ...prev]);
+      addActivity(`Scheduled class ${newClass.topic}`);
+    });
   };
 
   const toggleAttendance: InstructorDashboardContextType["toggleAttendance"] = (classId, studentId) => {
+    if (!token) return;
+    void toggleTutorAttendance(token, classId, studentId).then(({ present }) => {
     setClasses((prev) =>
       prev.map((session) =>
         session.id === classId
-          ? { ...session, attendance: { ...session.attendance, [studentId]: !session.attendance[studentId] } }
+          ? { ...session, attendance: { ...session.attendance, [studentId]: present } }
           : session,
       ),
     );
+    });
   };
 
   const addAssignment: InstructorDashboardContextType["addAssignment"] = (assignment) => {
