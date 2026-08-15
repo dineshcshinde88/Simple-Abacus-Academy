@@ -52,6 +52,7 @@ if ($method === 'GET' && $path === '/api/tutor/profile') {     controller_tutor_
 if ($method === 'POST' && $path === '/api/tutor/profile') {     controller_tutor_profile_update(require_role(['tutor']), $data); }
 if ($method === 'PATCH' && $path === '/api/tutor/profile') {     controller_tutor_profile_update(require_role(['tutor']), $data); }
 if ($method === 'GET' && $path === '/api/tutor/students') {     controller_tutor_students(require_role(['tutor'])); }
+if ($method === 'PATCH' && preg_match('#^/api/tutor/students/([a-f0-9-]+)$#i', $path, $m)) {     controller_tutor_update_student(require_role(['tutor']), $m[1], $data); }
 if ($method === 'GET' && $path === '/api/tutor/batches') {     controller_tutor_batches(require_role(['tutor'])); }
 if ($method === 'POST' && $path === '/api/tutor/batches') {     controller_tutor_batch_create(require_role(['tutor']), $data); }
 if ($method === 'DELETE' && preg_match('#^/api/tutor/batches/([a-f0-9-]+)$#i', $path, $m)) {     controller_tutor_batch_delete(require_role(['tutor']), $m[1]); }

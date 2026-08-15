@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { AuthUser } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
-import { assignTutorBatchStudent, createTutorBatch, createTutorClass, createTutorStudent, fetchTutorBatches, fetchTutorStudentsForBatches, removeTutorBatch, toggleTutorAttendance } from "@/services/batchApi";
+import { assignTutorBatchStudent, createTutorBatch, createTutorClass, createTutorStudent, fetchTutorBatches, fetchTutorStudentsForBatches, removeTutorBatch, toggleTutorAttendance, updateTutorStudent } from "@/services/batchApi";
 import { fetchTutorProfile, saveTutorProfile } from "@/services/tutorProfileApi";
 
 export type FeesStatus = "paid" | "unpaid";
@@ -112,7 +112,7 @@ type InstructorDashboardContextType = {
   announcements: Announcement[];
   activities: Activity[];
   addStudent: (student: Omit<Student, "id" | "progress"> & { password: string; progress?: Student["progress"] }) => Promise<void>;
-  updateStudent: (id: string, updates: Partial<Student>) => void;
+  updateStudent: (id: string, updates: Partial<Student>) => Promise<void>;
   deleteStudent: (id: string) => void;
   addBatch: (batch: Omit<Batch, "id" | "studentIds">) => void;
   deleteBatch: (id: string) => void;
@@ -290,7 +290,9 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
     addActivity(`Added new student ${newStudent.name}`);
   };
 
-  const updateStudent: InstructorDashboardContextType["updateStudent"] = (id, updates) => {
+  const updateStudent: InstructorDashboardContextType["updateStudent"] = async (id, updates) => {
+    if (!token) throw new Error("Your instructor session has expired. Please sign in again.");
+    await updateTutorStudent(token, id, updates);
     setStudents((prev) => prev.map((student) => (student.id === id ? { ...student, ...updates } : student)));
     addActivity("Updated student profile");
   };

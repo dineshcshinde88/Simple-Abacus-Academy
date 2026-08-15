@@ -413,23 +413,23 @@ const StudentsSection = () => {
     }
     const studentEmail = formState.parentEmail.trim();
     if (editingStudent) {
-      updateStudent(editingStudent.id, {
-        name: formState.name.trim(),
-        email: studentEmail,
-        parentEmail: studentEmail,
-        parentMobile: formState.parentMobile.trim(),
-        whatsappNumber: formState.whatsappNumber.trim(),
-        dateOfBirth: formState.dateOfBirth,
-        gender: formState.gender,
-        course: formState.course,
-        avatarUrl: formState.avatarUrl,
-        level: formState.level,
-        batchId: formState.batchId === "none" ? null : formState.batchId,
-        levelStartDate: formState.levelStartDate,
-        levelEndDate: formState.levelEndDate,
-        feesStatus: formState.feesStatus,
-        joinedAt: formState.joiningDate || editingStudent.joinedAt,
-      });
+      try {
+        setIsSavingStudent(true);
+        await updateStudent(editingStudent.id, {
+          name: formState.name.trim(), email: studentEmail, parentEmail: studentEmail,
+          parentMobile: formState.parentMobile.trim(), whatsappNumber: formState.whatsappNumber.trim(),
+          dateOfBirth: formState.dateOfBirth, gender: formState.gender, course: formState.course,
+          avatarUrl: formState.avatarUrl, level: formState.level,
+          batchId: formState.batchId === "none" ? null : formState.batchId,
+          levelStartDate: formState.levelStartDate, levelEndDate: formState.levelEndDate,
+          feesStatus: formState.feesStatus, joinedAt: formState.joiningDate || editingStudent.joinedAt,
+        });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Student could not be updated.");
+        return;
+      } finally {
+        setIsSavingStudent(false);
+      }
       setEditingStudent(null);
       toast.success("Student updated.");
     } else {

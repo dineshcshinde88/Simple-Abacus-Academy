@@ -145,6 +145,7 @@ function controller_tutor_add_student(array $ctx, array $data): void
     $dob = trim((string) ($data['dateOfBirth'] ?? $data['dob'] ?? ''));
     $levelStartDate = trim((string) ($data['levelStartDate'] ?? ''));
     $levelEndDate = trim((string) ($data['levelEndDate'] ?? ''));
+    $joinedDate = trim((string) ($data['joinedAt'] ?? ''));
     $levelStartDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $levelStartDate) ? $levelStartDate : null;
     $levelEndDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $levelEndDate) ? $levelEndDate : null;
     $levelName = trim((string) ($data['level'] ?? ''));
@@ -171,6 +172,7 @@ function controller_tutor_add_student(array $ctx, array $data): void
     }
     $studentId = $existingStudent ? (string) $existingStudent['id'] : uuid_v4();
     $now = now_sql();
+    $studentCreatedAt = preg_match('/^\d{4}-\d{2}-\d{2}$/', $joinedDate) ? $joinedDate . ' 00:00:00' : $now;
     $usersWriteTable = auth_writable_table(['users', 'user', 'User']);
     $userCreatedColumn = auth_table_column($usersWriteTable, 'created_at', 'createdAt');
     $userUpdatedColumn = auth_table_column($usersWriteTable, 'updated_at', 'updatedAt');
@@ -250,7 +252,7 @@ function controller_tutor_add_student(array $ctx, array $data): void
                 . ($studentEndColumn !== '' ? ", {$studentEndColumn}" : '');
             $dateInsertValues = ($studentStartColumn !== '' ? ', :level_start_date' : '')
                 . ($studentEndColumn !== '' ? ', :level_end_date' : '');
-            $studentInsertParams = ['id'=>$studentId,'user_id'=>$userId,'tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'created_at'=>$now,'updated_at'=>$now];
+            $studentInsertParams = ['id'=>$studentId,'user_id'=>$userId,'tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'created_at'=>$studentCreatedAt,'updated_at'=>$now];
             if ($studentWhatsappColumn !== '') {
                 $studentInsertParams['whatsapp_number'] = $whatsappNumber;
             }
@@ -285,6 +287,105 @@ function controller_tutor_add_student(array $ctx, array $data): void
 
     $student = db_one('SELECT s.*, u.name AS user_name, u.email AS user_email FROM students s INNER JOIN users u ON u.id=s.user_id WHERE s.id=:id', ['id'=>$studentId]);
     json_response(['student' => $student], $existingStudent ? 200 : 201);
+}
+
+function controller_tutor_update_student(array $ctx, string $studentId, array $data): void
+{
+    try {
+        ensure_student_registration_schema();
+    } catch (Throwable $e) {
+        error_log('[TutorUpdateStudentSchema] ' . $e->getMessage());
+    }
+
+    $tutor = current_tutor($ctx['user']['id']);
+    if (!$tutor) json_response(['message' => 'Tutor not found'], 404);
+
+    $existing = db_one(
+        'SELECT id, user_id, tutor_id FROM students WHERE id = :id LIMIT 1',
+        ['id' => $studentId]
+    );
+    if (!$existing || (string) ($existing['tutor_id'] ?? '') !== (string) $tutor['id']) {
+        json_response(['message' => 'Student not found for this instructor'], 404);
+    }
+
+    $name = trim((string) ($data['name'] ?? ''));
+    $email = strtolower(trim((string) ($data['email'] ?? $data['parentEmail'] ?? '')));
+    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        json_response(['message' => 'Student name and valid parent email are required'], 422);
+    }
+
+    $studentsWriteTable = auth_writable_table(['students', 'student', 'Student']);
+    $usersWriteTable = auth_writable_table(['users', 'user', 'User']);
+    $studentColumns = [
+        'course' => trim((string) ($data['course'] ?? '')),
+        auth_table_column($studentsWriteTable, 'phone', 'phone') => preg_replace('/\D+/', '', (string) ($data['parentMobile'] ?? '')),
+        auth_table_column($studentsWriteTable, 'gender', 'gender') => strtolower(trim((string) ($data['gender'] ?? ''))),
+        auth_table_column($studentsWriteTable, 'dob', 'dob') => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($data['dateOfBirth'] ?? '')) ? $data['dateOfBirth'] : null,
+        auth_table_column($studentsWriteTable, 'fees_status', 'feesStatus') => strtolower((string) ($data['feesStatus'] ?? '')) === 'paid' ? 'paid' : 'unpaid',
+    ];
+
+    $optionalValues = [
+        'whatsapp_number|whatsappNumber' => preg_replace('/\D+/', '', (string) ($data['whatsappNumber'] ?? '')),
+        'subscription_start|subscriptionStart' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($data['levelStartDate'] ?? '')) ? $data['levelStartDate'] : null,
+        'subscription_end|subscriptionEnd' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($data['levelEndDate'] ?? '')) ? $data['levelEndDate'] : null,
+    ];
+    foreach ($optionalValues as $candidateList => $value) {
+        foreach (explode('|', $candidateList) as $candidate) {
+            if (auth_table_has_column($studentsWriteTable, $candidate)) {
+                $studentColumns[$candidate] = $value;
+                break;
+            }
+        }
+    }
+
+    $levelName = trim((string) ($data['level'] ?? ''));
+    $levelId = null;
+    if ($levelName !== '' && strtolower($levelName) !== 'not assigned') {
+        if ($studentsWriteTable === 'Student' && auth_table_exists('Level')) {
+            $level = db_one('SELECT id FROM `Level` WHERE LOWER(`levelName`) = LOWER(:name) LIMIT 1', ['name' => $levelName]);
+        } else {
+            $level = db_one('SELECT id FROM levels WHERE LOWER(level_name) = LOWER(:name) LIMIT 1', ['name' => $levelName]);
+        }
+        $levelId = $level['id'] ?? null;
+    }
+    $levelColumn = auth_table_column($studentsWriteTable, 'level_id', 'levelId');
+    if (auth_table_has_column($studentsWriteTable, $levelColumn)) $studentColumns[$levelColumn] = $levelId;
+
+    $joinedAt = (string) ($data['joinedAt'] ?? '');
+    $createdColumn = auth_table_column($studentsWriteTable, 'created_at', 'createdAt');
+    if (auth_table_has_column($studentsWriteTable, $createdColumn) && preg_match('/^\d{4}-\d{2}-\d{2}/', $joinedAt)) {
+        $studentColumns[$createdColumn] = substr($joinedAt, 0, 10) . ' 00:00:00';
+    }
+    $updatedColumn = auth_table_column($studentsWriteTable, 'updated_at', 'updatedAt');
+    if (auth_table_has_column($studentsWriteTable, $updatedColumn)) $studentColumns[$updatedColumn] = now_sql();
+
+    $sets = [];
+    $params = ['id' => $studentId];
+    foreach ($studentColumns as $column => $value) {
+        if (!auth_table_has_column($studentsWriteTable, $column)) continue;
+        $param = 'field_' . count($sets);
+        $sets[] = "{$column} = :{$param}";
+        $params[$param] = $value;
+    }
+
+    $userUpdatedColumn = auth_table_column($usersWriteTable, 'updated_at', 'updatedAt');
+    $userUpdateSql = auth_table_has_column($usersWriteTable, $userUpdatedColumn) ? ", {$userUpdatedColumn} = :updated_at" : '';
+    $userParams = ['name' => $name, 'email' => $email, 'id' => $existing['user_id']];
+    if ($userUpdateSql !== '') $userParams['updated_at'] = now_sql();
+
+    $pdo = db_conn();
+    $pdo->beginTransaction();
+    try {
+        db_exec_sql("UPDATE {$usersWriteTable} SET name = :name, email = :email{$userUpdateSql} WHERE id = :id", $userParams);
+        if ($sets) db_exec_sql("UPDATE {$studentsWriteTable} SET " . implode(', ', $sets) . ' WHERE id = :id', $params);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[TutorUpdateStudent] ' . $e->getMessage());
+        json_response(['message' => 'Student details could not be updated'], 500);
+    }
+
+    json_response(['student' => ['id' => $studentId, 'name' => $name, 'email' => $email]]);
 }
 
 function controller_tutor_assign_level(array $ctx, string $studentId, array $data): void
