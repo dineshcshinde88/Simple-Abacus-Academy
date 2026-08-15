@@ -105,6 +105,53 @@ function admin_teacher_profile_picture_url(?string $url): string
     return $url;
 }
 
+function admin_teacher_upload_image(array &$errors): string
+{
+    if (!isset($_FILES['teacher_image']) || !is_array($_FILES['teacher_image'])) {
+        return '';
+    }
+
+    $file = $_FILES['teacher_image'];
+    $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($error === UPLOAD_ERR_NO_FILE) {
+        return '';
+    }
+    if ($error !== UPLOAD_ERR_OK) {
+        $errors[] = 'Teacher photo upload failed. Please try again.';
+        return '';
+    }
+    if ((int) ($file['size'] ?? 0) > 2 * 1024 * 1024) {
+        $errors[] = 'Teacher photo must be 2MB or smaller.';
+        return '';
+    }
+
+    $tmp = (string) ($file['tmp_name'] ?? '');
+    $mime = $tmp !== '' && function_exists('mime_content_type') ? (string) mime_content_type($tmp) : '';
+    $extensions = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+    if (!isset($extensions[$mime])) {
+        $errors[] = 'Teacher photo must be a JPG, PNG, or WebP image.';
+        return '';
+    }
+
+    $uploadDir = __DIR__ . '/../backend/uploads';
+    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
+        $errors[] = 'Teacher photo folder could not be created.';
+        return '';
+    }
+
+    $fileName = 'teacher-' . bin2hex(random_bytes(16)) . '.' . $extensions[$mime];
+    if (!move_uploaded_file($tmp, $uploadDir . '/' . $fileName)) {
+        $errors[] = 'Teacher photo could not be saved.';
+        return '';
+    }
+
+    return '/uploads/' . $fileName;
+}
+
 function admin_teachers_sync_approved_instructors(PDO $teacherPdo, PDO $instructorPdo): void
 {
     $experienceSelect = admin_teachers_column_exists($instructorPdo, 'instructors', 'experience') ? 'experience' : "'' AS experience";
@@ -306,7 +353,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $experience = trim($_POST['experience'] ?? '');
     $location = trim($_POST['location'] ?? '');
     $specialization = trim($_POST['specialization'] ?? '');
-    $image = trim($_POST['image'] ?? '');
+    $imagePath = trim((string) ($_POST['image_path'] ?? ''));
+    $image = $imagePath !== '' ? $imagePath : trim((string) ($_POST['existing_image'] ?? ''));
+    $uploadedImage = admin_teacher_upload_image($errors);
+    if ($uploadedImage !== '') {
+        $image = $uploadedImage;
+    }
     $description = trim($_POST['description'] ?? '');
 
     if ($action === 'add' || $action === 'edit') {
@@ -368,10 +420,11 @@ if (isset($_GET['edit'])) {
     <div class="card shadow-sm border-0">
       <div class="card-body">
         <h5 class="card-title"><?php echo $editTeacher ? 'Edit Teacher' : 'Add Teacher'; ?></h5>
-        <form method="post">
+        <form method="post" enctype="multipart/form-data">
           <input type="hidden" name="action" value="<?php echo $editTeacher ? 'edit' : 'add'; ?>" />
           <?php if ($editTeacher): ?>
             <input type="hidden" name="id" value="<?php echo (int) $editTeacher['id']; ?>" />
+            <input type="hidden" name="existing_image" value="<?php echo htmlspecialchars($editTeacher['image'] ?? ''); ?>" />
           <?php endif; ?>
           <div class="mb-3">
             <label class="form-label">Name</label>
@@ -406,8 +459,23 @@ if (isset($_GET['edit'])) {
             <input type="text" name="specialization" class="form-control" value="<?php echo htmlspecialchars($editTeacher['specialization'] ?? 'Abacus'); ?>" required />
           </div>
           <div class="mb-3">
-            <label class="form-label">Image Path</label>
-            <input type="text" name="image" class="form-control" value="<?php echo htmlspecialchars($editTeacher['image'] ?? ''); ?>" placeholder="/assets/teachers/name.png" required />
+            <label class="form-label">Teacher Photo</label>
+            <input type="file" name="teacher_image" class="form-control" accept="image/jpeg,image/png,image/webp" />
+            <div class="form-text">JPG, PNG or WebP up to 2MB.</div>
+            <?php if (!empty($editTeacher['image'])): ?>
+              <img
+                src="<?php echo htmlspecialchars(admin_image_url_or_placeholder($editTeacher['image'], (string) $editTeacher['name'])); ?>"
+                alt="Current teacher photo"
+                width="72"
+                height="72"
+                class="mt-2 rounded border object-fit-cover"
+              />
+            <?php endif; ?>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Image URL <span class="text-muted">(optional)</span></label>
+            <input type="text" name="image_path" class="form-control" value="" placeholder="https://... or /assets/teachers/name.png" />
+            <div class="form-text">Use this only when the image is already hosted online.</div>
           </div>
           <div class="mb-3">
             <label class="form-label">Description</label>
