@@ -29,7 +29,7 @@ export async function saveTutorProfile(token: string, profile: TutorProfile, pro
   if (profilePicture) body.append("profilePicture", profilePicture);
 
   return parseResponse(await fetch(`${API_BASE}/api/tutor/profile`, {
-    method: "PATCH",
+    method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body,
   }));
