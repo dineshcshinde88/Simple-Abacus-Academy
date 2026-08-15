@@ -99,6 +99,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(response.user);
         setToken(response.token);
         localStorage.setItem(TOKEN_KEY, response.token);
+        if (role === "tutor") {
+          localStorage.setItem("instructor_active_tab", "overview");
+        }
       },
       register: async (name: string, email: string, password: string, role: "student" | "tutor", details: RegisterDetails = {}) => {
         const response = await registerApi(name, email, password, role, details);
