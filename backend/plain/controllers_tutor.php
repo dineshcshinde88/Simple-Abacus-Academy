@@ -7,7 +7,13 @@ function controller_tutor_profile(array $ctx): void
         json_response(['message' => 'Tutor not found'], 404);
     }
 
+    $instructor = db_one('SELECT profile_picture FROM instructors WHERE email = :email LIMIT 1', ['email' => $tutor['user_email']]);
     json_response([
+        'profile' => [
+            'name' => $tutor['user_name'],
+            'email' => $tutor['user_email'],
+            'avatarUrl' => !empty($instructor['profile_picture']) ? $instructor['profile_picture'] : null,
+        ],
         'tutor' => [
             'id' => $tutor['id'],
             'user_id' => $tutor['user_id'],
@@ -21,6 +27,59 @@ function controller_tutor_profile(array $ctx): void
             ],
         ],
     ]);
+}
+
+function controller_tutor_profile_update(array $ctx, array $data): void
+{
+    ensure_instructor_auth_schema();
+    $tutor = current_tutor($ctx['user']['id']);
+    if (!$tutor) {
+        json_response(['message' => 'Tutor not found'], 404);
+    }
+
+    $name = trim((string) ($data['name'] ?? ''));
+    $email = strtolower(trim((string) ($data['email'] ?? '')));
+    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        json_response(['message' => 'A valid name and email are required.'], 422);
+    }
+    $duplicate = db_one('SELECT id FROM users WHERE email = :email AND id <> :id LIMIT 1', [
+        'email' => $email,
+        'id' => $ctx['user']['id'],
+    ]);
+    if ($duplicate) {
+        json_response(['message' => 'This email is already registered.'], 409);
+    }
+
+    $oldEmail = (string) $tutor['user_email'];
+    $instructor = db_one('SELECT profile_picture FROM instructors WHERE email = :email LIMIT 1', ['email' => $oldEmail]);
+    $uploadedPicture = instructor_handle_profile_picture();
+    $profilePicture = $uploadedPicture !== '' ? $uploadedPicture : (string) ($instructor['profile_picture'] ?? '');
+    $usersWriteTable = auth_writable_table(['users', 'user', 'User']);
+    $userUpdatedColumn = auth_table_column($usersWriteTable, 'updated_at', 'updatedAt');
+    $now = now_sql();
+    $pdo = db_conn();
+    $pdo->beginTransaction();
+    try {
+        db_exec_sql(
+            "UPDATE {$usersWriteTable} SET name = :name, email = :email, {$userUpdatedColumn} = :updated_at WHERE id = :id",
+            ['name' => $name, 'email' => $email, 'updated_at' => $now, 'id' => $ctx['user']['id']]
+        );
+        db_exec_sql(
+            'UPDATE instructors SET full_name = :name, email = :email, profile_picture = :profile_picture WHERE email = :old_email',
+            ['name' => $name, 'email' => $email, 'profile_picture' => $profilePicture, 'old_email' => $oldEmail]
+        );
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[TutorProfileUpdate] ' . $e->getMessage());
+        json_response(['message' => 'Instructor profile could not be saved.'], 500);
+    }
+
+    json_response(['profile' => [
+        'name' => $name,
+        'email' => $email,
+        'avatarUrl' => $profilePicture !== '' ? $profilePicture : null,
+    ]]);
 }
 
 function controller_tutor_students(array $ctx): void

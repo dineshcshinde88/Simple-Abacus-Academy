@@ -1968,7 +1968,9 @@ const ProfileSection = () => {
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" });
   const [passwordError, setPasswordError] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatarUrl);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   useEffect(() => {
     setName(profile.name);
@@ -1980,6 +1982,12 @@ const ProfileSection = () => {
   const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Profile picture must be 2MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+    setAvatarFile(file);
     const reader = new FileReader();
     reader.onload = () => {
       const result = typeof reader.result === "string" ? reader.result : null;
@@ -1988,7 +1996,7 @@ const ProfileSection = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleProfileSave = () => {
+  const handleProfileSave = async () => {
     const nextName = name.trim();
     const nextEmail = email.trim();
     if (!nextName) {
@@ -2000,11 +2008,19 @@ const ProfileSection = () => {
       return;
     }
 
-    updateProfile({ name: nextName, email: nextEmail, avatarUrl: avatarPreview });
-    setLoginId(nextEmail);
-    setProfileSaved(true);
-    toast.success("Profile saved successfully.");
-    window.setTimeout(() => setProfileSaved(false), 2200);
+    try {
+      setIsSavingProfile(true);
+      await updateProfile({ name: nextName, email: nextEmail, avatarUrl: avatarPreview }, avatarFile);
+      setLoginId(nextEmail);
+      setAvatarFile(null);
+      setProfileSaved(true);
+      toast.success("Profile saved successfully.");
+      window.setTimeout(() => setProfileSaved(false), 2200);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Profile could not be saved.");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const handlePasswordUpdate = () => {
@@ -2045,12 +2061,12 @@ const ProfileSection = () => {
           <div className="space-y-3">
             <h3 className="text-base font-semibold">Profile Picture</h3>
             <Input type="file" accept="image/*" onChange={handleAvatarChange} />
-            <p className="text-xs text-muted-foreground">PNG, JPG up to 5MB. Square images work best.</p>
+            <p className="text-xs text-muted-foreground">PNG, JPG or WebP up to 2MB. Square images work best.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={handleProfileSave}>
-              {profileSaved ? "Saved" : "Save Profile"}
+            <Button onClick={handleProfileSave} disabled={isSavingProfile}>
+              {isSavingProfile ? "Saving..." : profileSaved ? "Saved" : "Save Profile"}
             </Button>
             {profileSaved ? (
               <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700">
@@ -2390,16 +2406,6 @@ const InstructorDashboardShell = () => {
     logout();
     navigate("/instructor-login");
   };
-
-  useEffect(() => {
-    if (!user || user.role !== "tutor") return;
-    if (profile.name !== user.name || profile.email !== user.email) {
-      updateProfile({
-        name: user.name,
-        email: user.email,
-      });
-    }
-  }, [profile.email, profile.name, updateProfile, user]);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#e9ebf1]">

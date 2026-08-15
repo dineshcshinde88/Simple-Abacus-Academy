@@ -2,6 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useMemo, useState } fr
 import { AuthUser } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
 import { assignTutorBatchStudent, createTutorBatch, createTutorClass, createTutorStudent, fetchTutorBatches, fetchTutorStudentsForBatches, removeTutorBatch, toggleTutorAttendance } from "@/services/batchApi";
+import { fetchTutorProfile, saveTutorProfile } from "@/services/tutorProfileApi";
 
 export type FeesStatus = "paid" | "unpaid";
 export type PerformanceStatus = "Good" | "Average" | "Needs Improvement";
@@ -124,7 +125,7 @@ type InstructorDashboardContextType = {
   addPayment: (payment: Omit<Payment, "id">) => void;
   addMaterial: (material: Omit<Material, "id" | "uploadedAt">) => void;
   addAnnouncement: (announcement: Omit<Announcement, "id" | "sentAt">) => void;
-  updateProfile: (updates: Partial<InstructorProfile>) => void;
+  updateProfile: (updates: Partial<InstructorProfile>, profilePicture?: File | null) => Promise<void>;
 };
 
 const InstructorDashboardContext = createContext<InstructorDashboardContextType | null>(null);
@@ -250,6 +251,17 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [storageKey, token, user]);
+
+  useEffect(() => {
+    if (!token || user?.role !== "tutor") return;
+    let cancelled = false;
+    fetchTutorProfile(token)
+      .then((serverProfile) => {
+        if (!cancelled) setProfile(serverProfile);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [token, user?.role]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -410,13 +422,12 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
     addActivity(`Sent announcement: ${newAnnouncement.title}`);
   };
 
-  const updateProfile: InstructorDashboardContextType["updateProfile"] = (updates) => {
-    setProfile((prev) => ({
-      ...prev,
-      ...updates,
-      name: user?.name || updates.name || prev.name,
-      email: user?.email || updates.email || prev.email,
-    }));
+  const updateProfile: InstructorDashboardContextType["updateProfile"] = async (updates, profilePicture) => {
+    if (!token) throw new Error("Your instructor session has expired. Please sign in again.");
+    const nextProfile = { ...profile, ...updates };
+    const savedProfile = await saveTutorProfile(token, nextProfile, profilePicture);
+    setProfile(savedProfile);
+    addActivity("Updated instructor profile");
   };
 
   const value = useMemo(
