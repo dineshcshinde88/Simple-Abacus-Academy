@@ -304,6 +304,7 @@ const StudentsSection = () => {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
   const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
+  const [isSavingStudent, setIsSavingStudent] = useState(false);
 
   const [formState, setFormState] = useState<StudentFormState>({
     name: "",
@@ -373,6 +374,7 @@ const StudentsSection = () => {
   };
 
   const handleSaveStudent = async () => {
+    if (isSavingStudent) return;
     if (!formState.name.trim() || !formState.parentEmail.trim() || !formState.parentMobile.trim()) {
       toast.error("Please enter student name, parent email, and parent mobile.");
       return;
@@ -404,6 +406,7 @@ const StudentsSection = () => {
       toast.success("Student updated.");
     } else {
       try {
+        setIsSavingStudent(true);
         await addStudent({
           name: formState.name.trim(),
           email: studentEmail,
@@ -426,6 +429,8 @@ const StudentsSection = () => {
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Student could not be added.");
         return;
+      } finally {
+        setIsSavingStudent(false);
       }
     }
     resetForm();
@@ -629,8 +634,8 @@ const StudentsSection = () => {
                 <Input id="profilePic" type="file" accept="image/*" onChange={handleStudentPhotoChange} />
               </div>
               <div className="flex items-end justify-end">
-                <Button disabled={!isStudentFormValid} className="rounded-full bg-[#465b91] px-6 hover:bg-[#384979]" onClick={handleSaveStudent}>
-                  Submit
+                <Button disabled={!isStudentFormValid || isSavingStudent} className="rounded-full bg-[#465b91] px-6 hover:bg-[#384979]" onClick={handleSaveStudent}>
+                  {isSavingStudent ? "Saving..." : "Submit"}
                 </Button>
               </div>
             </div>

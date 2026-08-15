@@ -34,9 +34,12 @@ export const fetchTutorStudentsForBatches = async (token: string): Promise<Stude
   });
 };
 export const createTutorStudent = async (token: string, payload: Omit<Student, "id" | "progress"> & { password: string }): Promise<Student> => {
+  // The student endpoint does not persist profile images. Avoid sending a potentially
+  // multi-megabyte data URL that can make production proxies reject the JSON request.
+  const apiPayload = { ...payload, avatarUrl: undefined };
   const data = await request<{ student: Record<string, unknown> }>(token, "/api/tutor/add-student", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(apiPayload),
   });
   const row = data.student;
   return {
