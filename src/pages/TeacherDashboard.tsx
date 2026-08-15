@@ -305,6 +305,34 @@ const StudentsSection = () => {
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
   const [isStudentFormOpen, setIsStudentFormOpen] = useState(false);
   const [isSavingStudent, setIsSavingStudent] = useState(false);
+  const studentFormHistoryEntry = useRef(false);
+
+  const changeStudentFormOpen = (open: boolean) => {
+    if (open) {
+      if (!studentFormHistoryEntry.current) {
+        window.history.pushState({ studentForm: true }, "");
+        studentFormHistoryEntry.current = true;
+      }
+      setIsStudentFormOpen(true);
+      return;
+    }
+
+    setIsStudentFormOpen(false);
+    if (studentFormHistoryEntry.current) {
+      studentFormHistoryEntry.current = false;
+      window.history.back();
+    }
+  };
+
+  useEffect(() => {
+    const handleBrowserBack = () => {
+      if (!studentFormHistoryEntry.current) return;
+      studentFormHistoryEntry.current = false;
+      setIsStudentFormOpen(false);
+    };
+    window.addEventListener("popstate", handleBrowserBack);
+    return () => window.removeEventListener("popstate", handleBrowserBack);
+  }, []);
 
   const [formState, setFormState] = useState<StudentFormState>({
     name: "",
@@ -434,7 +462,7 @@ const StudentsSection = () => {
       }
     }
     resetForm();
-    setIsStudentFormOpen(false);
+    changeStudentFormOpen(false);
   };
 
   const startEdit = (student: Student) => {
@@ -456,14 +484,14 @@ const StudentsSection = () => {
       levelEndDate: student.levelEndDate || "",
       feesStatus: student.feesStatus,
     });
-    setIsStudentFormOpen(true);
+    changeStudentFormOpen(true);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <SectionTitle title="My Students" subtitle="Manage all enrolled learners" />
-        <Dialog open={isStudentFormOpen} onOpenChange={setIsStudentFormOpen}>
+        <Dialog open={isStudentFormOpen} onOpenChange={changeStudentFormOpen}>
           <DialogTrigger asChild>
             <Button
               className="gap-2"
@@ -475,8 +503,8 @@ const StudentsSection = () => {
               <Plus className="h-4 w-4" /> Add Student
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-6xl">
-            <DialogHeader className="border-b pb-3">
+          <DialogContent className="left-0 top-0 flex h-[100dvh] max-h-[100dvh] max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:left-[50%] sm:top-[50%] sm:h-auto sm:max-h-[90vh] sm:max-w-6xl sm:translate-x-[-50%] sm:translate-y-[-50%]">
+            <DialogHeader className="shrink-0 border-b px-4 py-4 pr-10 sm:px-6">
               <div className="flex items-center justify-between gap-3">
                 <DialogTitle>{editingStudent ? "Edit Student Form" : "Student Form"}</DialogTitle>
                 <Button
@@ -484,13 +512,13 @@ const StudentsSection = () => {
                   variant="outline"
                   size="sm"
                   className="h-8 rounded-full border-[#465b91] px-5 text-xs text-[#24366f]"
-                  onClick={() => setIsStudentFormOpen(false)}
+                  onClick={() => changeStudentFormOpen(false)}
                 >
                   Students List
                 </Button>
               </div>
             </DialogHeader>
-            <div className="grid gap-x-6 gap-y-3 md:grid-cols-3">
+            <div className="grid flex-1 content-start gap-x-6 gap-y-3 overflow-y-auto px-4 pb-24 pt-4 sm:px-6 md:grid-cols-3 md:pb-6">
               <div className="space-y-1.5">
                 <Label htmlFor="studentName" className="text-xs font-normal text-slate-500">Full Name</Label>
                 <Input
@@ -633,8 +661,8 @@ const StudentsSection = () => {
                 <Label htmlFor="profilePic" className="text-xs font-normal text-slate-500">Profile Pic</Label>
                 <Input id="profilePic" type="file" accept="image/*" onChange={handleStudentPhotoChange} />
               </div>
-              <div className="flex items-end justify-end">
-                <Button disabled={!isStudentFormValid || isSavingStudent} className="rounded-full bg-[#465b91] px-6 hover:bg-[#384979]" onClick={handleSaveStudent}>
+              <div className="sticky bottom-0 col-span-full -mx-4 flex items-center justify-end border-t bg-background px-4 py-3 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0 md:shadow-none">
+                <Button disabled={!isStudentFormValid || isSavingStudent} className="w-full rounded-full bg-[#465b91] px-6 hover:bg-[#384979] md:w-auto" onClick={handleSaveStudent}>
                   {isSavingStudent ? "Saving..." : "Submit"}
                 </Button>
               </div>
