@@ -33,7 +33,7 @@ export const fetchTutorStudentsForBatches = async (token: string): Promise<Stude
     };
   });
 };
-export const createTutorStudent = async (token: string, payload: Omit<Student, "id" | "progress">): Promise<Student> => {
+export const createTutorStudent = async (token: string, payload: Omit<Student, "id" | "progress"> & { password: string }): Promise<Student> => {
   const data = await request<{ student: Record<string, unknown> }>(token, "/api/tutor/add-student", {
     method: "POST",
     body: JSON.stringify(payload),

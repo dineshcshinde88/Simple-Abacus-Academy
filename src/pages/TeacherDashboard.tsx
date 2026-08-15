@@ -76,6 +76,7 @@ type NavKey = (typeof navItems)[number]["key"] | "courses" | "materials";
 type StudentFormState = {
   name: string;
   parentEmail: string;
+  password: string;
   parentMobile: string;
   whatsappNumber: string;
   dateOfBirth: string;
@@ -307,6 +308,7 @@ const StudentsSection = () => {
   const [formState, setFormState] = useState<StudentFormState>({
     name: "",
     parentEmail: "",
+    password: "",
     parentMobile: "",
     whatsappNumber: "",
     dateOfBirth: "",
@@ -331,6 +333,7 @@ const StudentsSection = () => {
   const isStudentFormValid = Boolean(
     formState.name.trim() &&
     formState.parentEmail.trim() &&
+    (editingStudent || formState.password.length >= 6) &&
     /^\d{10}$/.test(formState.parentMobile) &&
     /^\d{10}$/.test(formState.whatsappNumber) &&
     formState.course &&
@@ -341,6 +344,7 @@ const StudentsSection = () => {
     setFormState({
       name: "",
       parentEmail: "",
+      password: "",
       parentMobile: "",
       whatsappNumber: "",
       dateOfBirth: "",
@@ -403,6 +407,7 @@ const StudentsSection = () => {
         await addStudent({
           name: formState.name.trim(),
           email: studentEmail,
+          password: formState.password,
           parentEmail: studentEmail,
           parentMobile: formState.parentMobile.trim(),
           whatsappNumber: formState.whatsappNumber.trim(),
@@ -432,6 +437,7 @@ const StudentsSection = () => {
     setFormState({
       name: student.name,
       parentEmail: student.parentEmail || student.email,
+      password: "",
       parentMobile: student.parentMobile || "",
       whatsappNumber: student.whatsappNumber || student.motherTongue || "",
       dateOfBirth: student.dateOfBirth || "",
@@ -497,6 +503,20 @@ const StudentsSection = () => {
                   onChange={(e) => setFormState((prev) => ({ ...prev, parentEmail: e.target.value }))}
                 />
               </div>
+              {!editingStudent ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="studentPassword" className="text-xs font-normal text-slate-500">Student Login Password</Label>
+                  <Input
+                    id="studentPassword"
+                    type="password"
+                    minLength={6}
+                    autoComplete="new-password"
+                    value={formState.password}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, password: e.target.value }))}
+                    placeholder="Minimum 6 characters"
+                  />
+                </div>
+              ) : null}
               <div className="space-y-1.5">
                 <Label htmlFor="parentMobile" className="text-xs font-normal text-slate-500">Parent Mobile</Label>
                 <Input

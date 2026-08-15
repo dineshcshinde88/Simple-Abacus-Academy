@@ -110,7 +110,7 @@ type InstructorDashboardContextType = {
   payments: Payment[];
   announcements: Announcement[];
   activities: Activity[];
-  addStudent: (student: Omit<Student, "id" | "progress"> & { progress?: Student["progress"] }) => Promise<void>;
+  addStudent: (student: Omit<Student, "id" | "progress"> & { password: string; progress?: Student["progress"] }) => Promise<void>;
   updateStudent: (id: string, updates: Partial<Student>) => void;
   deleteStudent: (id: string) => void;
   addBatch: (batch: Omit<Batch, "id" | "studentIds">) => void;
@@ -239,18 +239,6 @@ export const InstructorDashboardProvider = ({ children }: { children: ReactNode 
     Promise.all([fetchTutorBatches(token), fetchTutorStudentsForBatches(token)])
       .then(async ([data, tutorStudents]) => {
         if (cancelled) return;
-        const cachedStudents = readDashboardState(storageKey, user).students;
-        const serverEmails = new Set(tutorStudents.map((student) => student.email.trim().toLowerCase()));
-        const unsyncedStudents = cachedStudents.filter((student) => {
-          const email = student.email.trim().toLowerCase();
-          return email !== "" && !serverEmails.has(email);
-        });
-        if (unsyncedStudents.length) {
-          const migrated = await Promise.allSettled(unsyncedStudents.map((student) => createTutorStudent(token, student)));
-          migrated.forEach((result) => {
-            if (result.status === "fulfilled") tutorStudents.push(result.value);
-          });
-        }
         if (cancelled) return;
         setBatches(data.batches);
         setClasses(data.classes);
