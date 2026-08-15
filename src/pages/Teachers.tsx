@@ -130,6 +130,10 @@ const Teachers = () => {
                     alt={teacher.name}
                     className="h-72 w-full object-contain bg-[#eef5ff]"
                     loading="lazy"
+                    onError={(event) => {
+                      event.currentTarget.onerror = null;
+                      event.currentTarget.src = "/placeholder.svg";
+                    }}
                   />
                   <div className="absolute left-4 bottom-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#0f5132] shadow-sm">
                     {teacher.specialization}

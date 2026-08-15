@@ -149,7 +149,7 @@ function admin_teacher_upload_image(array &$errors): string
         return '';
     }
 
-    return '/uploads/' . $fileName;
+    return '/backend/uploads/' . $fileName;
 }
 
 function admin_teachers_sync_approved_instructors(PDO $teacherPdo, PDO $instructorPdo): void
