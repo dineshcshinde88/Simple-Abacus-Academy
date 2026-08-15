@@ -342,11 +342,35 @@ function controller_tutor_update_student(array $ctx, string $studentId, array $d
     $levelId = null;
     if ($levelName !== '' && strtolower($levelName) !== 'not assigned') {
         if ($studentsWriteTable === 'Student' && auth_table_exists('Level')) {
-            $level = db_one('SELECT id FROM `Level` WHERE LOWER(`levelName`) = LOWER(:name) LIMIT 1', ['name' => $levelName]);
+            $level = db_one('SELECT id FROM `Level` WHERE LOWER(TRIM(`levelName`)) = LOWER(TRIM(:name)) LIMIT 1', ['name' => $levelName]);
+            if (!$level) {
+                $modernLevel = db_one(
+                    'SELECT id, duration, description FROM levels WHERE LOWER(TRIM(level_name)) = LOWER(TRIM(:name)) LIMIT 1',
+                    ['name' => $levelName]
+                );
+                $newLevelId = (string) ($modernLevel['id'] ?? uuid_v4());
+                $levelNow = now_sql();
+                db_exec_sql(
+                    'INSERT INTO `Level` (id, `levelName`, duration, description, `createdAt`, `updatedAt`)
+                     VALUES (:id, :name, :duration, :description, :created_at, :updated_at)',
+                    [
+                        'id' => $newLevelId,
+                        'name' => $levelName,
+                        'duration' => max(1, (int) ($modernLevel['duration'] ?? 1)),
+                        'description' => $modernLevel['description'] ?? null,
+                        'created_at' => $levelNow,
+                        'updated_at' => $levelNow,
+                    ]
+                );
+                $level = ['id' => $newLevelId];
+            }
         } else {
-            $level = db_one('SELECT id FROM levels WHERE LOWER(level_name) = LOWER(:name) LIMIT 1', ['name' => $levelName]);
+            $level = db_one('SELECT id FROM levels WHERE LOWER(TRIM(level_name)) = LOWER(TRIM(:name)) LIMIT 1', ['name' => $levelName]);
         }
         $levelId = $level['id'] ?? null;
+        if ($levelId === null) {
+            json_response(['message' => 'Selected level is not configured'], 422);
+        }
     }
     $levelColumn = auth_table_column($studentsWriteTable, 'level_id', 'levelId');
     if (auth_table_has_column($studentsWriteTable, $levelColumn)) $studentColumns[$levelColumn] = $levelId;
