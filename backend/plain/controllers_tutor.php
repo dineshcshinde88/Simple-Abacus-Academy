@@ -134,6 +134,7 @@ function controller_tutor_add_student(array $ctx, array $data): void
 
     $course = trim((string) ($data['course'] ?? ''));
     $phone = preg_replace('/\D+/', '', (string) ($data['parentMobile'] ?? $data['phone'] ?? ''));
+    $whatsappNumber = preg_replace('/\D+/', '', (string) ($data['whatsappNumber'] ?? ''));
     $gender = strtolower(trim((string) ($data['gender'] ?? '')));
     $dob = trim((string) ($data['dateOfBirth'] ?? $data['dob'] ?? ''));
     $levelName = trim((string) ($data['level'] ?? ''));
@@ -168,6 +169,7 @@ function controller_tutor_add_student(array $ctx, array $data): void
     $studentTutorColumn = auth_table_column($studentsWriteTable, 'tutor_id', 'tutorId');
     $studentLevelColumn = auth_table_column($studentsWriteTable, 'level_id', 'levelId');
     $studentPhoneCountryColumn = auth_table_column($studentsWriteTable, 'phone_country', 'phoneCountry');
+    $studentWhatsappColumn = auth_table_column($studentsWriteTable, 'whatsapp_number', 'whatsappNumber');
     $studentCreatedColumn = auth_table_column($studentsWriteTable, 'created_at', 'createdAt');
     $studentUpdatedColumn = auth_table_column($studentsWriteTable, 'updated_at', 'updatedAt');
     $studentFeesColumn = auth_table_column($studentsWriteTable, 'fees_status', 'feesStatus');
@@ -225,14 +227,14 @@ function controller_tutor_add_student(array $ctx, array $data): void
 
         if (!$existingStudent) {
             db_exec_sql(
-                "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, {$studentTutorColumn}, course, {$studentPhoneCountryColumn}, phone, gender, dob, {$studentFeesColumn}, {$studentLevelColumn}, {$studentCreatedColumn}, {$studentUpdatedColumn})
-                 VALUES (:id,:user_id,:tutor_id,:course,:phone_country,:phone,:gender,:dob,:fees_status,:level_id,:created_at,:updated_at)",
-                ['id'=>$studentId,'user_id'=>$userId,'tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'created_at'=>$now,'updated_at'=>$now]
+                "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, {$studentTutorColumn}, course, {$studentPhoneCountryColumn}, phone, {$studentWhatsappColumn}, gender, dob, {$studentFeesColumn}, {$studentLevelColumn}, {$studentCreatedColumn}, {$studentUpdatedColumn})
+                 VALUES (:id,:user_id,:tutor_id,:course,:phone_country,:phone,:whatsapp_number,:gender,:dob,:fees_status,:level_id,:created_at,:updated_at)",
+                ['id'=>$studentId,'user_id'=>$userId,'tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'whatsapp_number'=>$whatsappNumber,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'created_at'=>$now,'updated_at'=>$now]
             );
         } else {
             db_exec_sql(
-                "UPDATE {$studentsWriteTable} SET {$studentTutorColumn}=:tutor_id, course=:course, {$studentPhoneCountryColumn}=:phone_country, phone=:phone, gender=:gender, dob=:dob, {$studentFeesColumn}=:fees_status, {$studentLevelColumn}=COALESCE(:level_id,{$studentLevelColumn}), {$studentUpdatedColumn}=:updated_at WHERE id=:id",
-                ['tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'updated_at'=>$now,'id'=>$studentId]
+                "UPDATE {$studentsWriteTable} SET {$studentTutorColumn}=:tutor_id, course=:course, {$studentPhoneCountryColumn}=:phone_country, phone=:phone, {$studentWhatsappColumn}=:whatsapp_number, gender=:gender, dob=:dob, {$studentFeesColumn}=:fees_status, {$studentLevelColumn}=COALESCE(:level_id,{$studentLevelColumn}), {$studentUpdatedColumn}=:updated_at WHERE id=:id",
+                ['tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'whatsapp_number'=>$whatsappNumber,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'updated_at'=>$now,'id'=>$studentId]
             );
         }
         $pdo->commit();

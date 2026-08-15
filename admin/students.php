@@ -139,6 +139,7 @@ function admin_students_backend_storage(PDO $pdo): array
             'tutor_id' => 'tutorId',
             'phone_country' => 'phoneCountry',
             'mother_tongue' => 'motherTongue',
+            'whatsapp_number' => 'whatsappNumber',
             'level_id' => 'levelId',
             'subscription_status' => 'subscriptionStatus',
             'created_at' => 'createdAt',
@@ -156,6 +157,7 @@ function admin_students_backend_storage(PDO $pdo): array
             'tutor_id' => 'tutor_id',
             'phone_country' => 'phone_country',
             'mother_tongue' => 'mother_tongue',
+            'whatsapp_number' => 'whatsapp_number',
             'level_id' => 'level_id',
             'subscription_status' => 'subscription_status',
             'created_at' => 'created_at',
@@ -173,6 +175,7 @@ function admin_students_backend_storage(PDO $pdo): array
             'tutor_id' => 'tutorId',
             'phone_country' => 'phoneCountry',
             'mother_tongue' => 'motherTongue',
+            'whatsapp_number' => 'whatsappNumber',
             'level_id' => 'levelId',
             'subscription_status' => 'subscriptionStatus',
             'created_at' => 'createdAt',
@@ -190,6 +193,7 @@ function admin_students_backend_storage(PDO $pdo): array
             'tutor_id' => 'tutorId',
             'phone_country' => 'phoneCountry',
             'mother_tongue' => 'motherTongue',
+            'whatsapp_number' => 'whatsappNumber',
             'level_id' => 'levelId',
             'subscription_status' => 'subscriptionStatus',
             'created_at' => 'createdAt',
@@ -271,6 +275,7 @@ function admin_students_ensure_backend_profile_columns(PDO $pdo, array $storage)
     admin_students_ensure_column($pdo, $storage['table'], 'phone', "VARCHAR(40) NOT NULL DEFAULT ''");
     admin_students_ensure_column($pdo, $storage['table'], 'gender', "VARCHAR(30) NOT NULL DEFAULT ''");
     admin_students_ensure_column($pdo, $storage['table'], $storage['mother_tongue'], "VARCHAR(120) NOT NULL DEFAULT ''");
+    admin_students_ensure_column($pdo, $storage['table'], $storage['whatsapp_number'], "VARCHAR(40) NOT NULL DEFAULT ''");
     admin_students_ensure_column($pdo, $storage['table'], 'dob', 'DATE NULL');
 }
 
@@ -278,6 +283,7 @@ if (admin_students_table_type($pdo, 'students') === 'BASE TABLE') {
     admin_students_ensure_column($pdo, 'students', 'phone_country', "VARCHAR(10) NOT NULL DEFAULT '+91'");
     admin_students_ensure_column($pdo, 'students', 'gender', "VARCHAR(20) NOT NULL DEFAULT ''");
     admin_students_ensure_column($pdo, 'students', 'mother_tongue', "VARCHAR(120) NOT NULL DEFAULT ''");
+    admin_students_ensure_column($pdo, 'students', 'whatsapp_number', "VARCHAR(40) NOT NULL DEFAULT ''");
     admin_students_ensure_column($pdo, 'students', 'dob', 'DATE NULL');
     admin_students_ensure_column($pdo, 'students', 'password', "VARCHAR(255) NOT NULL DEFAULT ''");
 }
@@ -317,6 +323,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $course = implode(', ', $courseTypes);
     $gender = trim($_POST['gender'] ?? '');
     $motherTongue = trim($_POST['mother_tongue'] ?? '');
+    $whatsappNumber = preg_replace('/\D+/', '', (string) ($_POST['whatsapp_number'] ?? ''));
     $dob = trim($_POST['dob'] ?? '');
     $password = (string) ($_POST['password'] ?? '');
     $postedStatus = (string) ($_POST['status'] ?? 'active');
@@ -331,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             || $phone === ''
             || $course === ''
             || $gender === ''
-            || $motherTongue === ''
+            || $whatsappNumber === ''
             || $dob === ''
             || ($action === 'add' && trim($password) === '')
         ) {
@@ -341,8 +348,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors && $action === 'add') {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare('INSERT INTO students (name, email, phone_country, phone, course, gender, mother_tongue, dob, password, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$name, $email, $phoneCountry, $phone, $course, $gender, $motherTongue, $dob, $passwordHash, $status]);
+        $stmt = $pdo->prepare('INSERT INTO students (name, email, phone_country, phone, course, gender, whatsapp_number, dob, password, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$name, $email, $phoneCountry, $phone, $course, $gender, $whatsappNumber, $dob, $passwordHash, $status]);
         $success = 'Student added successfully.';
     }
 
@@ -350,11 +357,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int) ($_POST['id'] ?? 0);
         if (trim($password) !== '') {
             $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare('UPDATE students SET name = ?, email = ?, phone_country = ?, phone = ?, course = ?, gender = ?, mother_tongue = ?, dob = ?, password = ?, status = ? WHERE id = ?');
-            $stmt->execute([$name, $email, $phoneCountry, $phone, $course, $gender, $motherTongue, $dob, $passwordHash, $status, $id]);
+            $stmt = $pdo->prepare('UPDATE students SET name = ?, email = ?, phone_country = ?, phone = ?, course = ?, gender = ?, whatsapp_number = ?, dob = ?, password = ?, status = ? WHERE id = ?');
+            $stmt->execute([$name, $email, $phoneCountry, $phone, $course, $gender, $whatsappNumber, $dob, $passwordHash, $status, $id]);
         } else {
-            $stmt = $pdo->prepare('UPDATE students SET name = ?, email = ?, phone_country = ?, phone = ?, course = ?, gender = ?, mother_tongue = ?, dob = ?, status = ? WHERE id = ?');
-            $stmt->execute([$name, $email, $phoneCountry, $phone, $course, $gender, $motherTongue, $dob, $status, $id]);
+            $stmt = $pdo->prepare('UPDATE students SET name = ?, email = ?, phone_country = ?, phone = ?, course = ?, gender = ?, whatsapp_number = ?, dob = ?, status = ? WHERE id = ?');
+            $stmt->execute([$name, $email, $phoneCountry, $phone, $course, $gender, $whatsappNumber, $dob, $status, $id]);
         }
         $success = 'Student updated successfully.';
     }
@@ -384,6 +391,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'phone' => $phone,
                     'gender' => $gender,
                     $backendStorage['mother_tongue'] => $motherTongue,
+                    $backendStorage['whatsapp_number'] => $whatsappNumber,
                     'dob' => $dob !== '' ? $dob : null,
                     $backendStorage['subscription_status'] => in_array(($_POST['website_status'] ?? 'expired'), ['active', 'expired'], true) ? $_POST['website_status'] : 'expired',
                 ];
@@ -484,6 +492,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'phone' => $phone,
                     'gender' => $gender,
                     $backendStorage['mother_tongue'] => $motherTongue,
+                    $backendStorage['whatsapp_number'] => $whatsappNumber,
                     'dob' => $dob !== '' ? $dob : null,
                     $backendStorage['subscription_status'] => in_array(($_POST['website_status'] ?? 'expired'), ['active', 'expired'], true) ? $_POST['website_status'] : 'expired',
                 ];
@@ -571,7 +580,7 @@ $offset = ($page - 1) * $limit;
 $where = [];
 $params = [];
 if ($search !== '') {
-    $where[] = '(name LIKE ? OR email LIKE ? OR phone LIKE ? OR course LIKE ? OR mother_tongue LIKE ?)';
+    $where[] = '(name LIKE ? OR email LIKE ? OR phone LIKE ? OR course LIKE ? OR whatsapp_number LIKE ?)';
     $params[] = "%{$search}%";
     $params[] = "%{$search}%";
     $params[] = "%{$search}%";
@@ -615,10 +624,15 @@ if ($backendPdo && $backendStorage && admin_students_table_exists($backendPdo, $
     $hasStudentPhone = admin_students_column_exists($backendPdo, $studentTable, 'phone');
     $hasStudentGender = admin_students_column_exists($backendPdo, $studentTable, 'gender');
     $hasStudentMotherTongue = admin_students_column_exists($backendPdo, $studentTable, $backendStorage['mother_tongue']);
+    $hasStudentWhatsapp = admin_students_column_exists($backendPdo, $studentTable, $backendStorage['whatsapp_number']);
     $hasStudentDob = admin_students_column_exists($backendPdo, $studentTable, 'dob');
     $hasStudentLevel = admin_students_column_exists($backendPdo, $studentTable, $studentLevelColumn);
     $hasStudentSubscriptionStatus = admin_students_column_exists($backendPdo, $studentTable, $studentStatusColumn);
     $hasStudentCreatedAt = admin_students_column_exists($backendPdo, $studentTable, $studentCreatedColumn);
+    $subscriptionTable = admin_students_table_exists($backendPdo, 'student_subscriptions') ? 'student_subscriptions' : '';
+    $hasSubscriptionLevel = $subscriptionTable !== ''
+        && admin_students_column_exists($backendPdo, $subscriptionTable, 'student_id')
+        && admin_students_column_exists($backendPdo, $subscriptionTable, 'level_id');
     $studentTutorColumn = $backendStorage['tutor_id'] ?? 'tutor_id';
     $tutorTable = admin_students_table_exists($backendPdo, 'Tutor') ? 'Tutor' : 'tutors';
     $tutorUserColumn = admin_students_column_exists($backendPdo, $tutorTable, 'userId') ? 'userId' : 'user_id';
@@ -656,6 +670,13 @@ if ($backendPdo && $backendStorage && admin_students_table_exists($backendPdo, $
 
     if (isset($_GET['edit_website'])) {
         $websiteEditId = (string) $_GET['edit_website'];
+        $editLevelSelect = $hasStudentLevel ? "s.{$studentLevelColumn}" : 'NULL';
+        if ($hasSubscriptionLevel && $hasLevels) {
+            $subscriptionOrder = admin_students_column_exists($backendPdo, $subscriptionTable, 'created_at')
+                ? 'ss.created_at DESC'
+                : 'ss.id DESC';
+            $editLevelSelect = "COALESCE({$editLevelSelect}, (SELECT ss.level_id FROM {$subscriptionTable} ss INNER JOIN {$levelTable} sl ON sl.id = ss.level_id WHERE ss.student_id = s.id ORDER BY {$subscriptionOrder} LIMIT 1))";
+        }
         $editSelect = [
             's.id',
             "s.{$studentUserColumn} AS user_id",
@@ -666,8 +687,11 @@ if ($backendPdo && $backendStorage && admin_students_table_exists($backendPdo, $
             ($hasStudentPhone ? 's.phone' : "'' AS phone"),
             ($hasStudentGender ? 's.gender' : "'' AS gender"),
             ($hasStudentMotherTongue ? "s.{$backendStorage['mother_tongue']} AS mother_tongue" : "'' AS mother_tongue"),
+            ($hasStudentWhatsapp
+                ? "COALESCE(NULLIF(s.{$backendStorage['whatsapp_number']}, ''), " . ($hasStudentMotherTongue ? "NULLIF(s.{$backendStorage['mother_tongue']}, '')" : "''") . ", '') AS whatsapp_number"
+                : ($hasStudentMotherTongue ? "s.{$backendStorage['mother_tongue']} AS whatsapp_number" : "'' AS whatsapp_number")),
             ($hasStudentDob ? 's.dob' : 'NULL AS dob'),
-            ($hasStudentLevel ? "s.{$studentLevelColumn} AS level_id" : 'NULL AS level_id'),
+            "{$editLevelSelect} AS level_id",
             ($hasStudentSubscriptionStatus ? "s.{$studentStatusColumn} AS status" : "'expired' AS status"),
         ];
         $editStmt = $backendPdo->prepare("SELECT " . implode(', ', $editSelect) . " FROM {$studentTable} s INNER JOIN {$backendUserTable} u ON u.id = s.{$studentUserColumn} WHERE s.id = ? LIMIT 1");
@@ -801,8 +825,8 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
               </select>
             </div>
             <div class="mb-3">
-              <label class="form-label">Mother Tongue</label>
-              <input type="text" name="mother_tongue" class="form-control" value="<?php echo htmlspecialchars($editStudent['mother_tongue'] ?? ''); ?>" placeholder="Mother Tongue" required />
+              <label class="form-label">WhatsApp Number</label>
+              <input type="text" name="whatsapp_number" class="form-control" value="<?php echo htmlspecialchars($editStudent['whatsapp_number'] ?? ''); ?>" placeholder="WhatsApp Number" required />
             </div>
             <div class="mb-3">
               <label class="form-label">Date Of Birth</label>
@@ -884,8 +908,8 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
               </select>
             </div>
             <div class="mb-3">
-              <label class="form-label">Mother Tongue</label>
-              <input type="text" name="mother_tongue" class="form-control" placeholder="Mother Tongue" />
+              <label class="form-label">WhatsApp Number</label>
+              <input type="text" name="whatsapp_number" class="form-control" placeholder="WhatsApp Number" />
             </div>
             <div class="mb-3">
               <label class="form-label">Date of Birth</label>
@@ -912,7 +936,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
             <div class="col-md-6 mt-2"><strong>Mobile Number:</strong> <?php echo htmlspecialchars(trim(($viewStudent['phone_country'] ?? '') . ' ' . ($viewStudent['phone'] ?? ''))); ?></div>
             <div class="col-md-6 mt-2"><strong>Course:</strong> <?php echo htmlspecialchars($viewStudent['course']); ?></div>
             <div class="col-md-6 mt-2"><strong>Gender:</strong> <?php echo htmlspecialchars(ucfirst((string) ($viewStudent['gender'] ?? 'Not added'))); ?></div>
-            <div class="col-md-6 mt-2"><strong>Mother Tongue:</strong> <?php echo htmlspecialchars($viewStudent['mother_tongue'] ?? 'Not added'); ?></div>
+            <div class="col-md-6 mt-2"><strong>WhatsApp Number:</strong> <?php echo htmlspecialchars($viewStudent['whatsapp_number'] ?? $viewStudent['mother_tongue'] ?? 'Not added'); ?></div>
             <div class="col-md-6 mt-2"><strong>Date Of Birth:</strong> <?php echo htmlspecialchars($viewStudent['dob'] ?? 'Not added'); ?></div>
             <div class="col-md-6 mt-2"><strong>Status:</strong> <?php echo htmlspecialchars($viewStudent['status']); ?></div>
             <div class="col-md-6 mt-2"><strong>Created:</strong> <?php echo htmlspecialchars($viewStudent['created_at']); ?></div>
@@ -963,7 +987,7 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
                 <select name="level_id" class="form-select">
                   <option value="">Not assigned</option>
                   <?php foreach ($websiteLevels as $level): ?>
-                    <option value="<?php echo htmlspecialchars((string) $level['id']); ?>" <?php echo (($websiteEditStudent['level_id'] ?? '') === $level['id']) ? 'selected' : ''; ?>>
+                    <option value="<?php echo htmlspecialchars((string) $level['id']); ?>" <?php echo ((string) ($websiteEditStudent['level_id'] ?? '') === (string) $level['id']) ? 'selected' : ''; ?>>
                       <?php echo htmlspecialchars($level['level_name']); ?>
                     </option>
                   <?php endforeach; ?>
@@ -987,8 +1011,8 @@ if ($hasLegacyStudentColumns && isset($_GET['view'])) {
                 </select>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Mother Tongue</label>
-                <input type="text" name="mother_tongue" class="form-control" value="<?php echo htmlspecialchars($websiteEditStudent['mother_tongue'] ?? ''); ?>" />
+                <label class="form-label">WhatsApp Number</label>
+                <input type="text" name="whatsapp_number" class="form-control" inputmode="numeric" value="<?php echo htmlspecialchars($websiteEditStudent['whatsapp_number'] ?? ''); ?>" />
               </div>
               <div class="col-md-6">
                 <label class="form-label">Date Of Birth</label>

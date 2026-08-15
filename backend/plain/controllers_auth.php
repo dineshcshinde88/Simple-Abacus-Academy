@@ -134,6 +134,7 @@ function ensure_student_registration_schema(): void
         auth_ensure_column('students', 'phone', "VARCHAR(40) NOT NULL DEFAULT '' AFTER phone_country");
         auth_ensure_column('students', 'gender', "VARCHAR(30) NOT NULL DEFAULT '' AFTER phone");
         auth_ensure_column('students', 'mother_tongue', "VARCHAR(120) NOT NULL DEFAULT '' AFTER gender");
+        auth_ensure_column('students', 'whatsapp_number', "VARCHAR(40) NOT NULL DEFAULT '' AFTER mother_tongue");
         auth_ensure_column('students', 'dob', 'DATE NULL AFTER mother_tongue');
         auth_ensure_column('students', 'fees_status', 'VARCHAR(20) NULL AFTER dob');
         return;
@@ -145,6 +146,7 @@ function ensure_student_registration_schema(): void
         auth_ensure_column('student', 'phone', "VARCHAR(40) NOT NULL DEFAULT '' AFTER phoneCountry");
         auth_ensure_column('student', 'gender', "VARCHAR(30) NOT NULL DEFAULT '' AFTER phone");
         auth_ensure_column('student', 'motherTongue', "VARCHAR(120) NOT NULL DEFAULT '' AFTER gender");
+        auth_ensure_column('student', 'whatsappNumber', "VARCHAR(40) NOT NULL DEFAULT '' AFTER motherTongue");
           auth_ensure_column('student', 'dob', 'DATE NULL AFTER motherTongue');
           auth_ensure_column('student', 'feesStatus', 'VARCHAR(20) NULL AFTER dob');
         db_exec_sql(
@@ -157,6 +159,7 @@ function ensure_student_registration_schema(): void
                student.phone AS phone,
                student.gender AS gender,
                student.motherTongue AS mother_tongue,
+               student.whatsappNumber AS whatsapp_number,
                student.dob AS dob,
                student.tutorId AS tutor_id,
                student.levelId AS level_id,
@@ -177,6 +180,7 @@ function ensure_student_registration_schema(): void
         auth_ensure_column('Student', 'phone', "VARCHAR(40) NOT NULL DEFAULT '' AFTER phoneCountry");
         auth_ensure_column('Student', 'gender', "VARCHAR(30) NOT NULL DEFAULT '' AFTER phone");
         auth_ensure_column('Student', 'motherTongue', "VARCHAR(120) NOT NULL DEFAULT '' AFTER gender");
+        auth_ensure_column('Student', 'whatsappNumber', "VARCHAR(40) NOT NULL DEFAULT '' AFTER motherTongue");
           auth_ensure_column('Student', 'dob', 'DATE NULL AFTER motherTongue');
           auth_ensure_column('Student', 'feesStatus', 'VARCHAR(20) NULL AFTER dob');
         db_exec_sql(
@@ -189,6 +193,7 @@ function ensure_student_registration_schema(): void
                Student.phone AS phone,
                Student.gender AS gender,
                Student.motherTongue AS mother_tongue,
+               Student.whatsappNumber AS whatsapp_number,
                Student.dob AS dob,
                Student.tutorId AS tutor_id,
                Student.levelId AS level_id,
