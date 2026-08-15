@@ -118,7 +118,13 @@ function controller_tutor_students(array $ctx): void
 function controller_tutor_add_student(array $ctx, array $data): void
 {
     if (function_exists('ensure_student_registration_schema')) {
-        ensure_student_registration_schema();
+        try {
+            ensure_student_registration_schema();
+        } catch (Throwable $e) {
+            // Keep student creation available on restricted production databases;
+            // optional profile columns are handled dynamically below.
+            error_log('[TutorAddStudentSchema] ' . $e->getMessage());
+        }
     }
     $tutor = current_tutor($ctx['user']['id']);
     if (!$tutor) {
@@ -169,7 +175,9 @@ function controller_tutor_add_student(array $ctx, array $data): void
     $studentTutorColumn = auth_table_column($studentsWriteTable, 'tutor_id', 'tutorId');
     $studentLevelColumn = auth_table_column($studentsWriteTable, 'level_id', 'levelId');
     $studentPhoneCountryColumn = auth_table_column($studentsWriteTable, 'phone_country', 'phoneCountry');
-    $studentWhatsappColumn = auth_table_column($studentsWriteTable, 'whatsapp_number', 'whatsappNumber');
+    $studentWhatsappColumn = auth_table_has_column($studentsWriteTable, 'whatsapp_number')
+        ? 'whatsapp_number'
+        : (auth_table_has_column($studentsWriteTable, 'whatsappNumber') ? 'whatsappNumber' : '');
     $studentCreatedColumn = auth_table_column($studentsWriteTable, 'created_at', 'createdAt');
     $studentUpdatedColumn = auth_table_column($studentsWriteTable, 'updated_at', 'updatedAt');
     $studentFeesColumn = auth_table_column($studentsWriteTable, 'fees_status', 'feesStatus');
@@ -226,15 +234,26 @@ function controller_tutor_add_student(array $ctx, array $data): void
         }
 
         if (!$existingStudent) {
+            $whatsappInsertColumn = $studentWhatsappColumn !== '' ? ", {$studentWhatsappColumn}" : '';
+            $whatsappInsertValue = $studentWhatsappColumn !== '' ? ', :whatsapp_number' : '';
+            $studentInsertParams = ['id'=>$studentId,'user_id'=>$userId,'tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'created_at'=>$now,'updated_at'=>$now];
+            if ($studentWhatsappColumn !== '') {
+                $studentInsertParams['whatsapp_number'] = $whatsappNumber;
+            }
             db_exec_sql(
-                "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, {$studentTutorColumn}, course, {$studentPhoneCountryColumn}, phone, {$studentWhatsappColumn}, gender, dob, {$studentFeesColumn}, {$studentLevelColumn}, {$studentCreatedColumn}, {$studentUpdatedColumn})
-                 VALUES (:id,:user_id,:tutor_id,:course,:phone_country,:phone,:whatsapp_number,:gender,:dob,:fees_status,:level_id,:created_at,:updated_at)",
-                ['id'=>$studentId,'user_id'=>$userId,'tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'whatsapp_number'=>$whatsappNumber,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'created_at'=>$now,'updated_at'=>$now]
+                "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, {$studentTutorColumn}, course, {$studentPhoneCountryColumn}, phone{$whatsappInsertColumn}, gender, dob, {$studentFeesColumn}, {$studentLevelColumn}, {$studentCreatedColumn}, {$studentUpdatedColumn})
+                 VALUES (:id,:user_id,:tutor_id,:course,:phone_country,:phone{$whatsappInsertValue},:gender,:dob,:fees_status,:level_id,:created_at,:updated_at)",
+                $studentInsertParams
             );
         } else {
+            $whatsappUpdateSql = $studentWhatsappColumn !== '' ? ", {$studentWhatsappColumn}=:whatsapp_number" : '';
+            $studentUpdateParams = ['tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'updated_at'=>$now,'id'=>$studentId];
+            if ($studentWhatsappColumn !== '') {
+                $studentUpdateParams['whatsapp_number'] = $whatsappNumber;
+            }
             db_exec_sql(
-                "UPDATE {$studentsWriteTable} SET {$studentTutorColumn}=:tutor_id, course=:course, {$studentPhoneCountryColumn}=:phone_country, phone=:phone, {$studentWhatsappColumn}=:whatsapp_number, gender=:gender, dob=:dob, {$studentFeesColumn}=:fees_status, {$studentLevelColumn}=COALESCE(:level_id,{$studentLevelColumn}), {$studentUpdatedColumn}=:updated_at WHERE id=:id",
-                ['tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'whatsapp_number'=>$whatsappNumber,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'updated_at'=>$now,'id'=>$studentId]
+                "UPDATE {$studentsWriteTable} SET {$studentTutorColumn}=:tutor_id, course=:course, {$studentPhoneCountryColumn}=:phone_country, phone=:phone{$whatsappUpdateSql}, gender=:gender, dob=:dob, {$studentFeesColumn}=:fees_status, {$studentLevelColumn}=COALESCE(:level_id,{$studentLevelColumn}), {$studentUpdatedColumn}=:updated_at WHERE id=:id",
+                $studentUpdateParams
             );
         }
         $pdo->commit();

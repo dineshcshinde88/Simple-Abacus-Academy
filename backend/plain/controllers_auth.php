@@ -174,7 +174,7 @@ function ensure_student_registration_schema(): void
         );
     }
 
-    if (!auth_table_exists('students') && auth_table_exists('Student')) {
+    if ((auth_table_type('students') === 'VIEW' || !auth_table_exists('students')) && auth_table_exists('Student')) {
         auth_ensure_column('Student', 'course', "VARCHAR(120) NOT NULL DEFAULT '' AFTER userId");
         auth_ensure_column('Student', 'phoneCountry', "VARCHAR(10) NOT NULL DEFAULT '+91' AFTER course");
         auth_ensure_column('Student', 'phone', "VARCHAR(40) NOT NULL DEFAULT '' AFTER phoneCountry");
