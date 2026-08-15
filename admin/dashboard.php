@@ -169,8 +169,30 @@ $appStudents = $hasAppStudents ? admin_dashboard_count($backendPdo, "SELECT COUN
 $totalStudents = $legacyStudents + $appStudents;
 $totalSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE LOWER(payment_status) IN ('paid', 'captured', 'success', 'successful')") : 0)
   + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE LOWER(payment_status) IN ('paid', 'captured', 'success', 'successful')") : 0);
-$totalUnpaidSubscriptions = ($hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')") : 0)
-  + ($hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')") : 0);
+$legacyUnpaidSubscriptions = $hasLegacySubscriptions ? admin_dashboard_count($pdo, "SELECT COUNT(*) FROM subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')") : 0;
+$appUnpaidSubscriptions = $hasAppSubscriptions ? admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM student_subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')") : 0;
+$studentFeesTable = '';
+$studentFeesColumn = '';
+if ($backendPdo && admin_dashboard_table_exists($backendPdo, 'Student') && admin_dashboard_column_exists($backendPdo, 'Student', 'feesStatus')) {
+  $studentFeesTable = 'Student';
+  $studentFeesColumn = 'feesStatus';
+} elseif ($backendPdo && admin_dashboard_table_exists($backendPdo, 'students') && admin_dashboard_column_exists($backendPdo, 'students', 'fees_status')) {
+  $studentFeesTable = 'students';
+  $studentFeesColumn = 'fees_status';
+}
+if ($studentFeesTable !== '') {
+  $appUnpaidSubscriptions = $hasAppSubscriptions
+    ? admin_dashboard_count(
+        $backendPdo,
+        "SELECT COUNT(*) FROM (
+           SELECT id AS student_id FROM {$studentFeesTable} WHERE LOWER(COALESCE({$studentFeesColumn}, '')) = 'unpaid'
+           UNION
+           SELECT student_id FROM student_subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')
+         ) unpaid_students"
+      )
+    : admin_dashboard_count($backendPdo, "SELECT COUNT(*) FROM {$studentFeesTable} WHERE LOWER(COALESCE({$studentFeesColumn}, '')) = 'unpaid'");
+}
+$totalUnpaidSubscriptions = $legacyUnpaidSubscriptions + $appUnpaidSubscriptions;
 $totalPaidFees = ($hasLegacySubscriptions && admin_dashboard_column_exists($pdo, 'subscriptions', 'amount') ? admin_dashboard_amount($pdo, "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE LOWER(payment_status) IN ('paid', 'captured', 'success', 'successful')") : 0)
   + ($hasAppSubscriptions && admin_dashboard_column_exists($backendPdo, 'student_subscriptions', 'amount') ? admin_dashboard_amount($backendPdo, "SELECT COALESCE(SUM(amount), 0) FROM student_subscriptions WHERE LOWER(payment_status) IN ('paid', 'captured', 'success', 'successful')") : 0);
 $totalUnpaidFees = ($hasLegacySubscriptions && admin_dashboard_column_exists($pdo, 'subscriptions', 'amount') ? admin_dashboard_amount($pdo, "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE LOWER(payment_status) IN ('unpaid', 'pending')") : 0)

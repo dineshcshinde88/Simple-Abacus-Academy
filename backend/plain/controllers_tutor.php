@@ -31,9 +31,11 @@ function controller_tutor_students(array $ctx): void
     }
 
     $rows = db_all(
-        'SELECT s.*, u.id AS user_id_ref, u.name AS user_name, u.email AS user_email, u.role AS user_role
+        'SELECT s.*, u.id AS user_id_ref, u.name AS user_name, u.email AS user_email, u.role AS user_role,
+                l.level_name AS level_name
          FROM students s
          INNER JOIN users u ON u.id = s.user_id
+         LEFT JOIN levels l ON l.id = s.level_id
          WHERE s.tutor_id = :tutor_id
          ORDER BY s.created_at DESC',
         ['tutor_id' => $tutor['id']]
@@ -67,8 +69,8 @@ function controller_tutor_add_student(array $ctx, array $data): void
     $name = trim((string) ($data['name'] ?? ''));
     $email = strtolower(trim((string) ($data['email'] ?? '')));
     $password = (string) ($data['password'] ?? '');
-    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || ($password !== '' && strlen($password) < 6)) {
-        json_response(['message' => 'Invalid request data'], 422);
+    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 6) {
+        json_response(['message' => 'Name, a valid email, and a password of at least 6 characters are required'], 422);
     }
 
     $course = trim((string) ($data['course'] ?? ''));
@@ -76,6 +78,10 @@ function controller_tutor_add_student(array $ctx, array $data): void
     $gender = strtolower(trim((string) ($data['gender'] ?? '')));
     $dob = trim((string) ($data['dateOfBirth'] ?? $data['dob'] ?? ''));
     $levelName = trim((string) ($data['level'] ?? ''));
+    $feesStatus = strtolower(trim((string) ($data['feesStatus'] ?? 'unpaid')));
+    if (!in_array($feesStatus, ['paid', 'unpaid'], true)) {
+        $feesStatus = 'unpaid';
+    }
     $existingUser = db_one('SELECT id, role FROM users WHERE email = :email LIMIT 1', ['email' => $email]);
     if ($existingUser && (string) $existingUser['role'] !== 'student') {
         json_response(['message' => 'This email is already registered with another account type'], 409);
@@ -89,38 +95,91 @@ function controller_tutor_add_student(array $ctx, array $data): void
 
     $pdo = db_conn();
     $userId = $existingUser ? (string) $existingUser['id'] : uuid_v4();
-    $existingStudent = $existingUser ? db_one('SELECT id FROM students WHERE user_id = :user_id ORDER BY updated_at DESC LIMIT 1', ['user_id' => $userId]) : null;
+    $existingStudent = $existingUser ? db_one('SELECT id, tutor_id FROM students WHERE user_id = :user_id ORDER BY updated_at DESC LIMIT 1', ['user_id' => $userId]) : null;
+    if ($existingStudent && !empty($existingStudent['tutor_id']) && (string) $existingStudent['tutor_id'] !== (string) $tutor['id']) {
+        json_response(['message' => 'This student is already assigned to another instructor'], 409);
+    }
     $studentId = $existingStudent ? (string) $existingStudent['id'] : uuid_v4();
     $now = now_sql();
+    $usersWriteTable = auth_writable_table(['users', 'user', 'User']);
+    $userCreatedColumn = auth_table_column($usersWriteTable, 'created_at', 'createdAt');
+    $userUpdatedColumn = auth_table_column($usersWriteTable, 'updated_at', 'updatedAt');
+    $studentsWriteTable = auth_writable_table(['students', 'student', 'Student']);
+    $studentUserColumn = auth_table_column($studentsWriteTable, 'user_id', 'userId');
+    $studentTutorColumn = auth_table_column($studentsWriteTable, 'tutor_id', 'tutorId');
+    $studentLevelColumn = auth_table_column($studentsWriteTable, 'level_id', 'levelId');
+    $studentPhoneCountryColumn = auth_table_column($studentsWriteTable, 'phone_country', 'phoneCountry');
+    $studentCreatedColumn = auth_table_column($studentsWriteTable, 'created_at', 'createdAt');
+    $studentUpdatedColumn = auth_table_column($studentsWriteTable, 'updated_at', 'updatedAt');
+    $studentFeesColumn = auth_table_column($studentsWriteTable, 'fees_status', 'feesStatus');
+
+    // Legacy Student.levelId references the legacy Level table, while the public
+    // levels view can contain IDs from the newer levels table. Resolve by name so
+    // the foreign key always receives an ID from the table it actually references.
+    if ($levelName !== '' && $studentsWriteTable === 'Student') {
+        $legacyLevel = db_one(
+            'SELECT id FROM `Level` WHERE LOWER(`levelName`) = LOWER(:level_name) LIMIT 1',
+            ['level_name' => $levelName]
+        );
+        if ($legacyLevel) {
+            $levelId = (string) $legacyLevel['id'];
+        } elseif ($levelId !== null) {
+            $modernLevel = db_one(
+                'SELECT duration, description FROM levels WHERE id = :id LIMIT 1',
+                ['id' => $levelId]
+            );
+            db_exec_sql(
+                'INSERT INTO `Level` (id, `levelName`, duration, description, `createdAt`, `updatedAt`)
+                 VALUES (:id, :level_name, :duration, :description, :created_at, :updated_at)',
+                [
+                    'id' => $levelId,
+                    'level_name' => $levelName,
+                    'duration' => max(1, (int) ($modernLevel['duration'] ?? 1)),
+                    'description' => $modernLevel['description'] ?? null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+        }
+    } elseif ($levelName !== '' && $studentsWriteTable === 'student') {
+        $legacyLevel = db_one(
+            'SELECT id FROM `level` WHERE LOWER(`levelName`) = LOWER(:level_name) LIMIT 1',
+            ['level_name' => $levelName]
+        );
+        $levelId = $legacyLevel['id'] ?? null;
+    }
 
     $pdo->beginTransaction();
     try {
         if (!$existingUser) {
-            $generatedPassword = $password !== '' ? $password : bin2hex(random_bytes(16));
             db_exec_sql(
-                'INSERT INTO users (id, name, email, password, role, created_at, updated_at)
-                 VALUES (:id, :name, :email, :password, :role, :created_at, :updated_at)',
-                ['id'=>$userId,'name'=>$name,'email'=>$email,'password'=>password_hash($generatedPassword, PASSWORD_BCRYPT),'role'=>'student','created_at'=>$now,'updated_at'=>$now]
+                "INSERT INTO {$usersWriteTable} (id, name, email, password, role, {$userCreatedColumn}, {$userUpdatedColumn})
+                 VALUES (:id, :name, :email, :password, :role, :created_at, :updated_at)",
+                ['id'=>$userId,'name'=>$name,'email'=>$email,'password'=>password_hash($password, PASSWORD_BCRYPT),'role'=>'student','created_at'=>$now,'updated_at'=>$now]
             );
         } else {
-            db_exec_sql('UPDATE users SET name = :name, updated_at = :updated_at WHERE id = :id', ['name'=>$name,'updated_at'=>$now,'id'=>$userId]);
+            db_exec_sql(
+                "UPDATE {$usersWriteTable} SET name = :name, password = :password, {$userUpdatedColumn} = :updated_at WHERE id = :id",
+                ['name'=>$name,'password'=>password_hash($password, PASSWORD_BCRYPT),'updated_at'=>$now,'id'=>$userId]
+            );
         }
 
         if (!$existingStudent) {
             db_exec_sql(
-                'INSERT INTO students (id, user_id, tutor_id, course, phone_country, phone, gender, dob, level_id, created_at, updated_at)
-                 VALUES (:id,:user_id,:tutor_id,:course,:phone_country,:phone,:gender,:dob,:level_id,:created_at,:updated_at)',
-                ['id'=>$studentId,'user_id'=>$userId,'tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'level_id'=>$levelId,'created_at'=>$now,'updated_at'=>$now]
+                "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, {$studentTutorColumn}, course, {$studentPhoneCountryColumn}, phone, gender, dob, {$studentFeesColumn}, {$studentLevelColumn}, {$studentCreatedColumn}, {$studentUpdatedColumn})
+                 VALUES (:id,:user_id,:tutor_id,:course,:phone_country,:phone,:gender,:dob,:fees_status,:level_id,:created_at,:updated_at)",
+                ['id'=>$studentId,'user_id'=>$userId,'tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'created_at'=>$now,'updated_at'=>$now]
             );
         } else {
             db_exec_sql(
-                'UPDATE students SET tutor_id=:tutor_id, course=:course, phone_country=:phone_country, phone=:phone, gender=:gender, dob=:dob, level_id=COALESCE(:level_id,level_id), updated_at=:updated_at WHERE id=:id',
-                ['tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'level_id'=>$levelId,'updated_at'=>$now,'id'=>$studentId]
+                "UPDATE {$studentsWriteTable} SET {$studentTutorColumn}=:tutor_id, course=:course, {$studentPhoneCountryColumn}=:phone_country, phone=:phone, gender=:gender, dob=:dob, {$studentFeesColumn}=:fees_status, {$studentLevelColumn}=COALESCE(:level_id,{$studentLevelColumn}), {$studentUpdatedColumn}=:updated_at WHERE id=:id",
+                ['tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'updated_at'=>$now,'id'=>$studentId]
             );
         }
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
+        error_log('[TutorAddStudent] ' . $e->getMessage());
         json_response(['message' => 'Failed to add student'], 500);
     }
 

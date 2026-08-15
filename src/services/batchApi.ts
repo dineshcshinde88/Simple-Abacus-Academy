@@ -27,7 +27,7 @@ export const fetchTutorStudentsForBatches = async (token: string): Promise<Stude
       email: String(user.email || ""),
       level: String(row.level_name || "Not assigned"),
       batchId: null,
-      feesStatus: "unpaid",
+      feesStatus: String(row.fees_status || row.feesStatus || "unpaid") === "paid" ? "paid" : "unpaid",
       joinedAt: String(row.created_at || ""),
       progress: { marks: 0, levelCompleted: 0, status: "Average" },
     };

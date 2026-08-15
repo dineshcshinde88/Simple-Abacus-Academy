@@ -136,6 +136,7 @@ function admin_students_backend_storage(PDO $pdo): array
         return [
             'table' => 'Student',
             'user_id' => 'userId',
+            'tutor_id' => 'tutorId',
             'phone_country' => 'phoneCountry',
             'mother_tongue' => 'motherTongue',
             'level_id' => 'levelId',
@@ -152,6 +153,7 @@ function admin_students_backend_storage(PDO $pdo): array
         return [
             'table' => 'students',
             'user_id' => 'user_id',
+            'tutor_id' => 'tutor_id',
             'phone_country' => 'phone_country',
             'mother_tongue' => 'mother_tongue',
             'level_id' => 'level_id',
@@ -168,6 +170,7 @@ function admin_students_backend_storage(PDO $pdo): array
         return [
             'table' => 'student',
             'user_id' => 'userId',
+            'tutor_id' => 'tutorId',
             'phone_country' => 'phoneCountry',
             'mother_tongue' => 'motherTongue',
             'level_id' => 'levelId',
@@ -184,6 +187,7 @@ function admin_students_backend_storage(PDO $pdo): array
         return [
             'table' => 'students',
             'user_id' => 'userId',
+            'tutor_id' => 'tutorId',
             'phone_country' => 'phoneCountry',
             'mother_tongue' => 'motherTongue',
             'level_id' => 'levelId',
@@ -615,14 +619,17 @@ if ($backendPdo && $backendStorage && admin_students_table_exists($backendPdo, $
     $hasStudentLevel = admin_students_column_exists($backendPdo, $studentTable, $studentLevelColumn);
     $hasStudentSubscriptionStatus = admin_students_column_exists($backendPdo, $studentTable, $studentStatusColumn);
     $hasStudentCreatedAt = admin_students_column_exists($backendPdo, $studentTable, $studentCreatedColumn);
-    $hasStudentTutor = admin_students_column_exists($backendPdo, $studentTable, 'tutor_id')
-        && admin_students_table_exists($backendPdo, 'tutors');
+    $studentTutorColumn = $backendStorage['tutor_id'] ?? 'tutor_id';
+    $tutorTable = admin_students_table_exists($backendPdo, 'Tutor') ? 'Tutor' : 'tutors';
+    $tutorUserColumn = admin_students_column_exists($backendPdo, $tutorTable, 'userId') ? 'userId' : 'user_id';
+    $hasStudentTutor = admin_students_column_exists($backendPdo, $studentTable, $studentTutorColumn)
+        && admin_students_table_exists($backendPdo, $tutorTable);
     $levelTable = admin_students_level_table($backendPdo);
     $levelNameColumn = $levelTable !== '' ? admin_students_level_name_column($backendPdo, $levelTable) : '';
     $hasLevels = $hasStudentLevel && $levelTable !== '' && admin_students_column_exists($backendPdo, $levelTable, 'id');
     $levelJoin = $hasLevels ? "LEFT JOIN {$levelTable} l ON l.id = s.{$studentLevelColumn}" : '';
     $instructorJoin = $hasStudentTutor
-        ? 'LEFT JOIN tutors t ON t.id = s.tutor_id LEFT JOIN users iu ON iu.id = t.user_id'
+        ? "LEFT JOIN {$tutorTable} t ON t.id = s.{$studentTutorColumn} LEFT JOIN {$backendUserTable} iu ON iu.id = t.{$tutorUserColumn}"
         : '';
     $instructorSelect = $hasStudentTutor ? "COALESCE(NULLIF(iu.name, ''), 'Not assigned')" : "'Not assigned'";
     $courseSelect = $hasLevels

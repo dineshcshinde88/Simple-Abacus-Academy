@@ -77,8 +77,16 @@ function auth_ensure_column(string $table, string $column, string $definition): 
 function auth_writable_table(array $candidates): string
 {
     foreach ($candidates as $table) {
-        if (auth_table_type($table) === 'BASE TABLE') {
-            return $table;
+        $row = db_one(
+            'SELECT TABLE_NAME, TABLE_TYPE
+             FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(:table)
+             ORDER BY CASE WHEN BINARY TABLE_NAME = BINARY :exact_table THEN 0 ELSE 1 END
+             LIMIT 1',
+            ['table' => $table, 'exact_table' => $table]
+        );
+        if ($row && (string) ($row['TABLE_TYPE'] ?? '') === 'BASE TABLE') {
+            return (string) $row['TABLE_NAME'];
         }
     }
 
@@ -127,6 +135,7 @@ function ensure_student_registration_schema(): void
         auth_ensure_column('students', 'gender', "VARCHAR(30) NOT NULL DEFAULT '' AFTER phone");
         auth_ensure_column('students', 'mother_tongue', "VARCHAR(120) NOT NULL DEFAULT '' AFTER gender");
         auth_ensure_column('students', 'dob', 'DATE NULL AFTER mother_tongue');
+        auth_ensure_column('students', 'fees_status', 'VARCHAR(20) NULL AFTER dob');
         return;
     }
 
@@ -136,7 +145,8 @@ function ensure_student_registration_schema(): void
         auth_ensure_column('student', 'phone', "VARCHAR(40) NOT NULL DEFAULT '' AFTER phoneCountry");
         auth_ensure_column('student', 'gender', "VARCHAR(30) NOT NULL DEFAULT '' AFTER phone");
         auth_ensure_column('student', 'motherTongue', "VARCHAR(120) NOT NULL DEFAULT '' AFTER gender");
-        auth_ensure_column('student', 'dob', 'DATE NULL AFTER motherTongue');
+          auth_ensure_column('student', 'dob', 'DATE NULL AFTER motherTongue');
+          auth_ensure_column('student', 'feesStatus', 'VARCHAR(20) NULL AFTER dob');
         db_exec_sql(
             'CREATE OR REPLACE VIEW students AS
              SELECT
@@ -167,7 +177,8 @@ function ensure_student_registration_schema(): void
         auth_ensure_column('Student', 'phone', "VARCHAR(40) NOT NULL DEFAULT '' AFTER phoneCountry");
         auth_ensure_column('Student', 'gender', "VARCHAR(30) NOT NULL DEFAULT '' AFTER phone");
         auth_ensure_column('Student', 'motherTongue', "VARCHAR(120) NOT NULL DEFAULT '' AFTER gender");
-        auth_ensure_column('Student', 'dob', 'DATE NULL AFTER motherTongue');
+          auth_ensure_column('Student', 'dob', 'DATE NULL AFTER motherTongue');
+          auth_ensure_column('Student', 'feesStatus', 'VARCHAR(20) NULL AFTER dob');
         db_exec_sql(
             'CREATE OR REPLACE VIEW students AS
              SELECT

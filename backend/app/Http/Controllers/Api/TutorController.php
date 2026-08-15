@@ -12,6 +12,7 @@ use App\Models\Worksheet;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 class TutorController extends Controller
 {
@@ -49,29 +50,31 @@ class TutorController extends Controller
             'password' => ['required', 'string', 'min:6'],
         ]);
 
-        $existing = User::where('email', strtolower($data['email']))->first();
-        if ($existing) {
-            return response()->json(['message' => 'Email already registered'], 409);
-        }
-
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => strtolower($data['email']),
-            'password' => Hash::make($data['password']),
-            'role' => 'student',
-        ]);
-
         $tutor = $this->currentTutor($request);
         if (!$tutor) {
             return response()->json(['message' => 'Tutor not found'], 404);
         }
 
-        $student = Student::create([
-            'user_id' => $user->id,
-            'tutor_id' => $tutor->id,
-        ]);
+        $existing = User::where('email', strtolower($data['email']))->first();
+        if ($existing) {
+            return response()->json(['message' => 'Email already registered'], 409);
+        }
 
-        return response()->json(['student' => $student], 201);
+        $student = DB::transaction(function () use ($data, $tutor) {
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => strtolower($data['email']),
+                'password' => Hash::make($data['password']),
+                'role' => 'student',
+            ]);
+
+            return Student::create([
+                'user_id' => $user->id,
+                'tutor_id' => $tutor->id,
+            ]);
+        });
+
+        return response()->json(['student' => $student->load(['user', 'level'])], 201);
     }
 
     public function assignLevel(Request $request, string $studentId)
