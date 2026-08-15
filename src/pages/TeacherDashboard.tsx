@@ -504,7 +504,7 @@ const StudentsSection = () => {
             </Button>
           </DialogTrigger>
           <DialogContent className="left-0 top-0 flex h-[100dvh] max-h-[100dvh] max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:left-[50%] sm:top-[50%] sm:h-auto sm:max-h-[90vh] sm:max-w-6xl sm:translate-x-[-50%] sm:translate-y-[-50%]">
-            <DialogHeader className="shrink-0 border-b px-4 py-4 pr-10 sm:px-6">
+            <DialogHeader className="shrink-0 border-b py-4 pl-4 pr-14 sm:pl-6 sm:pr-16">
               <div className="flex items-center justify-between gap-3">
                 <DialogTitle>{editingStudent ? "Edit Student Form" : "Student Form"}</DialogTitle>
                 <Button
