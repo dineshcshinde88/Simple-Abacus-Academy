@@ -143,6 +143,10 @@ function controller_tutor_add_student(array $ctx, array $data): void
     $whatsappNumber = preg_replace('/\D+/', '', (string) ($data['whatsappNumber'] ?? ''));
     $gender = strtolower(trim((string) ($data['gender'] ?? '')));
     $dob = trim((string) ($data['dateOfBirth'] ?? $data['dob'] ?? ''));
+    $levelStartDate = trim((string) ($data['levelStartDate'] ?? ''));
+    $levelEndDate = trim((string) ($data['levelEndDate'] ?? ''));
+    $levelStartDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $levelStartDate) ? $levelStartDate : null;
+    $levelEndDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $levelEndDate) ? $levelEndDate : null;
     $levelName = trim((string) ($data['level'] ?? ''));
     $feesStatus = strtolower(trim((string) ($data['feesStatus'] ?? 'unpaid')));
     if (!in_array($feesStatus, ['paid', 'unpaid'], true)) {
@@ -181,6 +185,12 @@ function controller_tutor_add_student(array $ctx, array $data): void
     $studentCreatedColumn = auth_table_column($studentsWriteTable, 'created_at', 'createdAt');
     $studentUpdatedColumn = auth_table_column($studentsWriteTable, 'updated_at', 'updatedAt');
     $studentFeesColumn = auth_table_column($studentsWriteTable, 'fees_status', 'feesStatus');
+    $studentStartColumn = auth_table_has_column($studentsWriteTable, 'subscription_start')
+        ? 'subscription_start'
+        : (auth_table_has_column($studentsWriteTable, 'subscriptionStart') ? 'subscriptionStart' : '');
+    $studentEndColumn = auth_table_has_column($studentsWriteTable, 'subscription_end')
+        ? 'subscription_end'
+        : (auth_table_has_column($studentsWriteTable, 'subscriptionEnd') ? 'subscriptionEnd' : '');
 
     // Legacy Student.levelId references the legacy Level table, while the public
     // levels view can contain IDs from the newer levels table. Resolve by name so
@@ -236,23 +246,33 @@ function controller_tutor_add_student(array $ctx, array $data): void
         if (!$existingStudent) {
             $whatsappInsertColumn = $studentWhatsappColumn !== '' ? ", {$studentWhatsappColumn}" : '';
             $whatsappInsertValue = $studentWhatsappColumn !== '' ? ', :whatsapp_number' : '';
+            $dateInsertColumns = ($studentStartColumn !== '' ? ", {$studentStartColumn}" : '')
+                . ($studentEndColumn !== '' ? ", {$studentEndColumn}" : '');
+            $dateInsertValues = ($studentStartColumn !== '' ? ', :level_start_date' : '')
+                . ($studentEndColumn !== '' ? ', :level_end_date' : '');
             $studentInsertParams = ['id'=>$studentId,'user_id'=>$userId,'tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'created_at'=>$now,'updated_at'=>$now];
             if ($studentWhatsappColumn !== '') {
                 $studentInsertParams['whatsapp_number'] = $whatsappNumber;
             }
+            if ($studentStartColumn !== '') $studentInsertParams['level_start_date'] = $levelStartDate;
+            if ($studentEndColumn !== '') $studentInsertParams['level_end_date'] = $levelEndDate;
             db_exec_sql(
-                "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, {$studentTutorColumn}, course, {$studentPhoneCountryColumn}, phone{$whatsappInsertColumn}, gender, dob, {$studentFeesColumn}, {$studentLevelColumn}, {$studentCreatedColumn}, {$studentUpdatedColumn})
-                 VALUES (:id,:user_id,:tutor_id,:course,:phone_country,:phone{$whatsappInsertValue},:gender,:dob,:fees_status,:level_id,:created_at,:updated_at)",
+                "INSERT INTO {$studentsWriteTable} (id, {$studentUserColumn}, {$studentTutorColumn}, course, {$studentPhoneCountryColumn}, phone{$whatsappInsertColumn}{$dateInsertColumns}, gender, dob, {$studentFeesColumn}, {$studentLevelColumn}, {$studentCreatedColumn}, {$studentUpdatedColumn})
+                 VALUES (:id,:user_id,:tutor_id,:course,:phone_country,:phone{$whatsappInsertValue}{$dateInsertValues},:gender,:dob,:fees_status,:level_id,:created_at,:updated_at)",
                 $studentInsertParams
             );
         } else {
             $whatsappUpdateSql = $studentWhatsappColumn !== '' ? ", {$studentWhatsappColumn}=:whatsapp_number" : '';
+            $dateUpdateSql = ($studentStartColumn !== '' ? ", {$studentStartColumn}=:level_start_date" : '')
+                . ($studentEndColumn !== '' ? ", {$studentEndColumn}=:level_end_date" : '');
             $studentUpdateParams = ['tutor_id'=>$tutor['id'],'course'=>$course,'phone_country'=>'+91','phone'=>$phone,'gender'=>$gender,'dob'=>$dob !== '' ? $dob : null,'fees_status'=>$feesStatus,'level_id'=>$levelId,'updated_at'=>$now,'id'=>$studentId];
             if ($studentWhatsappColumn !== '') {
                 $studentUpdateParams['whatsapp_number'] = $whatsappNumber;
             }
+            if ($studentStartColumn !== '') $studentUpdateParams['level_start_date'] = $levelStartDate;
+            if ($studentEndColumn !== '') $studentUpdateParams['level_end_date'] = $levelEndDate;
             db_exec_sql(
-                "UPDATE {$studentsWriteTable} SET {$studentTutorColumn}=:tutor_id, course=:course, {$studentPhoneCountryColumn}=:phone_country, phone=:phone{$whatsappUpdateSql}, gender=:gender, dob=:dob, {$studentFeesColumn}=:fees_status, {$studentLevelColumn}=COALESCE(:level_id,{$studentLevelColumn}), {$studentUpdatedColumn}=:updated_at WHERE id=:id",
+                "UPDATE {$studentsWriteTable} SET {$studentTutorColumn}=:tutor_id, course=:course, {$studentPhoneCountryColumn}=:phone_country, phone=:phone{$whatsappUpdateSql}{$dateUpdateSql}, gender=:gender, dob=:dob, {$studentFeesColumn}=:fees_status, {$studentLevelColumn}=COALESCE(:level_id,{$studentLevelColumn}), {$studentUpdatedColumn}=:updated_at WHERE id=:id",
                 $studentUpdateParams
             );
         }
