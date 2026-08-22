@@ -263,19 +263,50 @@ function controller_instructor_video_dashboard(array $ctx): void
     ]);
 }
 
+function cloudinary_video_public_id(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    // Accept either the public ID copied from Cloudinary or a complete
+    // Cloudinary delivery URL pasted by an administrator.
+    if (preg_match('#^https?://#i', $value) === 1) {
+        $path = (string) (parse_url($value, PHP_URL_PATH) ?? '');
+        if (preg_match('#/video/(?:upload|private|authenticated)/(?:s--[^/]+--/)?(?:v[0-9]+/)?(.+)$#', $path, $matches) === 1) {
+            $value = rawurldecode($matches[1]);
+        }
+    }
+
+    $value = trim(str_replace('\\', '/', $value), '/');
+    return preg_replace('/\.(?:mp4|mov|m4v|webm)$/i', '', $value) ?? '';
+}
+
 function cloudinary_signed_video_url(string $publicId, int $expiresAt): ?string
 {
     $cloud = trim((string) envv('CLOUDINARY_CLOUD_NAME', ''));
+    $apiKey = trim((string) envv('CLOUDINARY_API_KEY', ''));
     $secret = trim((string) envv('CLOUDINARY_API_SECRET', ''));
-    if ($cloud === '' || $secret === '' || $publicId === '') {
+    $publicId = cloudinary_video_public_id($publicId);
+    if ($cloud === '' || $apiKey === '' || $secret === '' || $publicId === '') {
         return null;
     }
 
-    $publicId = trim($publicId, '/');
-    $signature = sha1('expires_at=' . $expiresAt . '&public_id=' . $publicId . $secret);
-    return 'https://res.cloudinary.com/' . rawurlencode($cloud)
-        . '/video/authenticated/s--' . substr($signature, 0, 8) . '--/e_' . $expiresAt . '/'
-        . str_replace('%2F', '/', rawurlencode($publicId)) . '.mp4';
+    $params = [
+        'timestamp' => time(),
+        'public_id' => $publicId,
+        'format' => 'mp4',
+        'expires_at' => $expiresAt,
+        'type' => 'authenticated',
+    ];
+    ksort($params);
+    $signaturePayload = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+    $params['signature'] = sha1($signaturePayload . $secret);
+    $params['api_key'] = $apiKey;
+
+    return 'https://api.cloudinary.com/v1_1/' . rawurlencode($cloud)
+        . '/video/download?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 }
 
 function controller_instructor_video_playback(array $ctx, string $videoId): void
@@ -292,7 +323,7 @@ function controller_instructor_video_playback(array $ctx, string $videoId): void
     $expiresAt = time() + 900;
     $playbackUrl = cloudinary_signed_video_url((string) $row['cloudinary_public_id'], $expiresAt);
     if (!$playbackUrl) {
-        json_response(['message' => 'Cloudinary playback is not configured.'], 503);
+        json_response(['message' => 'Cloudinary playback is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.'], 503);
     }
 
     json_response([

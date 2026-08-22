@@ -158,7 +158,7 @@ $vedicLevels = ['Level 1','Level 2','Level 3','Level 4'];
       <div class="card-body">
         <h5 class="card-title"><?php echo $editing ? 'Edit Video' : 'Add Cloudinary Video'; ?></h5>
         <p class="text-muted small">Upload videos in Cloudinary, then paste the protected public ID here. Video files are not stored on this hosting server.</p>
-        <form method="post">
+        <form method="post" action="training_videos.php">
           <input type="hidden" name="action" value="save" />
           <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($editing['id'] ?? '')); ?>" />
           <label class="form-label">Title</label>
@@ -191,7 +191,8 @@ $vedicLevels = ['Level 1','Level 2','Level 3','Level 4'];
             </div>
           </div>
           <label class="form-label mt-3">Cloudinary public ID</label>
-          <input class="form-control" name="cloudinary_public_id" value="<?php echo htmlspecialchars((string) ($editing['cloudinary_public_id'] ?? '')); ?>" required />
+          <input class="form-control" name="cloudinary_public_id" value="<?php echo htmlspecialchars((string) ($editing['cloudinary_public_id'] ?? '')); ?>" placeholder="teacher-training/lesson_2_introduction" required />
+          <div class="form-text">Paste the authenticated video's Public ID. A full Cloudinary video URL is also accepted.</div>
           <label class="form-label mt-3">Thumbnail URL</label>
           <input class="form-control" name="thumbnail" value="<?php echo htmlspecialchars((string) ($editing['thumbnail'] ?? '')); ?>" />
           <label class="form-label mt-3">Status</label>
