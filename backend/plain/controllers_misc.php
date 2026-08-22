@@ -340,12 +340,10 @@ function public_teacher_image_url(?string $url): string
     $path = is_array($parts) ? (string) ($parts['path'] ?? '') : '';
     $baseUrl = rtrim((string) envv('BASE_URL', get_base_url()), '/');
     if ($path !== '' && str_starts_with($path, '/uploads/')) {
-        return $baseUrl . $path;
+        return $baseUrl . '/backend' . $path;
     }
     if ($path !== '' && str_starts_with($path, '/backend/uploads/')) {
-        // Backward compatibility for teacher photos saved before paths were
-        // normalized to /uploads/.
-        return $baseUrl . substr($path, strlen('/backend'));
+        return $baseUrl . $path;
     }
 
     return $url;

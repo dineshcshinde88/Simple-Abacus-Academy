@@ -149,9 +149,8 @@ function admin_teacher_upload_image(array &$errors): string
         return '';
     }
 
-    // Store the path relative to the backend host. The public API expands this
-    // to BASE_URL/uploads/...; storing /backend here duplicates that segment
-    // when the backend is hosted on its own subdomain.
+    // Store a canonical upload path. The public API expands this to the
+    // deployment's externally accessible /backend/uploads/... URL.
     return '/uploads/' . $fileName;
 }
 
