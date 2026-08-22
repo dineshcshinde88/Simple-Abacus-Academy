@@ -27,6 +27,10 @@ function admin_asset_url(string $path): string
         return '../backend' . $path;
     }
 
+    if (strpos($path, '/backend/uploads/') === 0) {
+        return '..' . $path;
+    }
+
     return 'uploads/' . ltrim($path, '/');
 }
 
@@ -50,6 +54,8 @@ function admin_local_image_exists(string $path): bool
         $candidates[] = $rootDir . '/' . $path;
     } elseif (strpos($path, '/uploads/') === 0) {
         $candidates[] = $rootDir . '/backend' . $path;
+    } elseif (strpos($path, '/backend/uploads/') === 0) {
+        $candidates[] = $rootDir . $path;
     } elseif (strpos($path, 'uploads/') === 0) {
         $candidates[] = $adminDir . '/' . $path;
     } else {

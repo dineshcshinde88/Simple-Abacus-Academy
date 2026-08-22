@@ -149,7 +149,10 @@ function admin_teacher_upload_image(array &$errors): string
         return '';
     }
 
-    return '/backend/uploads/' . $fileName;
+    // Store the path relative to the backend host. The public API expands this
+    // to BASE_URL/uploads/...; storing /backend here duplicates that segment
+    // when the backend is hosted on its own subdomain.
+    return '/uploads/' . $fileName;
 }
 
 function admin_teachers_sync_approved_instructors(PDO $teacherPdo, PDO $instructorPdo): void

@@ -338,11 +338,14 @@ function public_teacher_image_url(?string $url): string
 
     $parts = parse_url($url);
     $path = is_array($parts) ? (string) ($parts['path'] ?? '') : '';
+    $baseUrl = rtrim((string) envv('BASE_URL', get_base_url()), '/');
     if ($path !== '' && str_starts_with($path, '/uploads/')) {
-        return rtrim((string) envv('BASE_URL', get_base_url()), '/') . '/backend' . $path;
+        return $baseUrl . $path;
     }
     if ($path !== '' && str_starts_with($path, '/backend/uploads/')) {
-        return rtrim((string) envv('BASE_URL', get_base_url()), '/') . $path;
+        // Backward compatibility for teacher photos saved before paths were
+        // normalized to /uploads/.
+        return $baseUrl . substr($path, strlen('/backend'));
     }
 
     return $url;
