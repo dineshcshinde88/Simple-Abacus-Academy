@@ -177,22 +177,33 @@ function instructor_video_library(string $instructorId, ?array $subscription): a
          FROM instructor_training_videos v
          LEFT JOIN instructor_video_progress p ON p.video_id = v.id AND p.instructor_id = :instructor_id
          WHERE v.status = 'published'
-         ORDER BY v.program, v.level, v.sequence_number",
+         ORDER BY v.program,
+                  CASE v.level
+                    WHEN 'Level 1' THEN 1 WHEN 'Level 2' THEN 2
+                    WHEN 'Level 3' THEN 3 WHEN 'Level 4' THEN 4
+                    WHEN 'Level 5' THEN 5 WHEN 'Level 6' THEN 6
+                    WHEN 'Level 7' THEN 7 WHEN 'Level 8' THEN 8
+                    ELSE 99
+                  END,
+                  v.sequence_number,
+                  v.created_at,
+                  v.id",
         ['instructor_id' => $instructorId]
     );
 
-    $previousComplete = [];
+    $programChainComplete = [];
     $completed = 0;
     $items = [];
     foreach ($videos as $video) {
-        $key = instructor_video_group_key($video);
+        $program = strtolower((string) $video['program']);
         $sequence = (int) $video['sequence_number'];
         $isCompleted = (int) ($video['is_completed'] ?? 0) === 1;
-        $isUnlocked = $sequence <= 1 || (($previousComplete[$key] ?? false) === true);
+        $previousLessonsComplete = $programChainComplete[$program] ?? true;
+        $isUnlocked = $previousLessonsComplete;
         if ($isCompleted) {
             $completed += 1;
         }
-        $previousComplete[$key] = $isCompleted;
+        $programChainComplete[$program] = $previousLessonsComplete && $isCompleted;
 
         $items[] = [
             'id' => $video['id'],
