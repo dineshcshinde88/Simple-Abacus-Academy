@@ -85,6 +85,7 @@ function ensure_instructor_video_schema(): void
             INDEX idx_ivws_lookup (instructor_id, video_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
+    db_exec_sql("UPDATE instructor_training_videos SET level = 'Level 1' WHERE program = 'abacus' AND level = 'Foundation'");
 }
 
 function instructor_video_context(array $ctx): array

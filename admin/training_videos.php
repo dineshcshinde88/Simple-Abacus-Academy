@@ -64,12 +64,15 @@ function tv_ensure_schema(PDO $pdo): void {
     updated_at DATETIME NOT NULL,
     UNIQUE KEY uniq_ivp_instructor_video (instructor_id, video_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+  $pdo->exec("UPDATE instructor_training_videos SET level = 'Level 1' WHERE program = 'abacus' AND level = 'Foundation'");
 }
 
 $success = '';
 $errors = [];
 $editing = null;
 $videoPdo = $pdo;
+$abacusLevels = ['Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7','Level 8'];
+$vedicLevels = ['Level 1','Level 2','Level 3','Level 4'];
 
 try {
   admin_training_ensure_instructor_schema($pdo);
@@ -92,11 +95,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   try {
     if ($action === 'save') {
       $id = (string) ($_POST['id'] ?? '');
+      $program = (string) ($_POST['program'] ?? '');
+      $level = (string) ($_POST['level'] ?? '');
+      $allowedLevels = $program === 'vedic_maths' ? $vedicLevels : ($program === 'abacus' ? $abacusLevels : []);
+      if (!in_array($level, $allowedLevels, true)) {
+        throw new RuntimeException('Please select a valid level for the chosen program.');
+      }
       $payload = [
         trim((string) $_POST['title']),
         trim((string) ($_POST['description'] ?? '')),
-        (string) $_POST['program'],
-        (string) $_POST['level'],
+        $program,
+        $level,
         max(1, (int) $_POST['sequence_number']),
         trim((string) $_POST['cloudinary_public_id']),
         trim((string) ($_POST['thumbnail'] ?? '')),
@@ -145,8 +154,12 @@ $reports = $videoPdo->query("SELECT i.full_name, i.mobile, i.email,
   ORDER BY last_watched_at DESC, i.full_name
   LIMIT 100")->fetchAll();
 
-$abacusLevels = ['Foundation','Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7'];
-$vedicLevels = ['Level 1','Level 2','Level 3','Level 4'];
+$selectedProgram = (($editing['program'] ?? '') === 'vedic_maths') ? 'vedic_maths' : 'abacus';
+$selectedLevel = (string) ($editing['level'] ?? 'Level 1');
+$visibleLevels = $selectedProgram === 'vedic_maths' ? $vedicLevels : $abacusLevels;
+if (!in_array($selectedLevel, $visibleLevels, true)) {
+  $selectedLevel = 'Level 1';
+}
 ?>
 
 <style>
@@ -195,16 +208,16 @@ $vedicLevels = ['Level 1','Level 2','Level 3','Level 4'];
           <div class="row g-3 mt-1">
             <div class="col-6">
               <label class="form-label">Program</label>
-              <select class="form-select" name="program">
-                <option value="abacus" <?php echo (($editing['program'] ?? '') === 'abacus') ? 'selected' : ''; ?>>Abacus</option>
-                <option value="vedic_maths" <?php echo (($editing['program'] ?? '') === 'vedic_maths') ? 'selected' : ''; ?>>Vedic Maths</option>
+              <select class="form-select" name="program" id="training-video-program">
+                <option value="abacus" <?php echo $selectedProgram === 'abacus' ? 'selected' : ''; ?>>Abacus</option>
+                <option value="vedic_maths" <?php echo $selectedProgram === 'vedic_maths' ? 'selected' : ''; ?>>Vedic Maths</option>
               </select>
             </div>
             <div class="col-6">
               <label class="form-label">Level</label>
-              <select class="form-select" name="level">
-                <?php foreach (array_unique([...$abacusLevels, ...$vedicLevels]) as $level): ?>
-                  <option <?php echo (($editing['level'] ?? '') === $level) ? 'selected' : ''; ?>><?php echo htmlspecialchars($level); ?></option>
+              <select class="form-select" name="level" id="training-video-level">
+                <?php foreach ($visibleLevels as $level): ?>
+                  <option <?php echo $selectedLevel === $level ? 'selected' : ''; ?>><?php echo htmlspecialchars($level); ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
@@ -281,6 +294,29 @@ $vedicLevels = ['Level 1','Level 2','Level 3','Level 4'];
     </div>
   </div>
 </div>
+
+<script>
+  (() => {
+    const program = document.getElementById('training-video-program');
+    const level = document.getElementById('training-video-level');
+    if (!program || !level) return;
+
+    const levels = <?php echo json_encode([
+      'abacus' => $abacusLevels,
+      'vedic_maths' => $vedicLevels,
+    ], JSON_UNESCAPED_SLASHES); ?>;
+
+    program.addEventListener('change', () => {
+      const options = levels[program.value] || [];
+      level.replaceChildren(...options.map((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        return option;
+      }));
+    });
+  })();
+</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
 
