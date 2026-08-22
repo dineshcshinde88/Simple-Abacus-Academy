@@ -284,6 +284,64 @@ function cloudinary_video_public_id(string $value): string
     return preg_replace('/\.(?:mp4|mov|m4v|webm)$/i', '', $value) ?? '';
 }
 
+function cloudinary_video_asset_details(string $publicId): ?array
+{
+    $cloud = trim((string) envv('CLOUDINARY_CLOUD_NAME', ''));
+    $apiKey = trim((string) envv('CLOUDINARY_API_KEY', ''));
+    $secret = trim((string) envv('CLOUDINARY_API_SECRET', ''));
+    if ($cloud === '' || $apiKey === '' || $secret === '' || $publicId === '') {
+        return null;
+    }
+
+    $encodedPublicId = implode('/', array_map('rawurlencode', explode('/', $publicId)));
+    foreach (['authenticated', 'private', 'upload'] as $deliveryType) {
+        $url = 'https://api.cloudinary.com/v1_1/' . rawurlencode($cloud)
+            . '/resources/video/' . $deliveryType . '/' . $encodedPublicId;
+        $body = false;
+        $status = 0;
+
+        if (function_exists('curl_init')) {
+            $curl = curl_init($url);
+            curl_setopt_array($curl, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_USERPWD => $apiKey . ':' . $secret,
+                CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT => 10,
+            ]);
+            $body = curl_exec($curl);
+            $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            curl_close($curl);
+        } else {
+            $context = stream_context_create(['http' => [
+                'header' => 'Authorization: Basic ' . base64_encode($apiKey . ':' . $secret),
+                'ignore_errors' => true,
+                'timeout' => 10,
+            ]]);
+            $body = @file_get_contents($url, false, $context);
+            foreach ($http_response_header ?? [] as $header) {
+                if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $matches) === 1) {
+                    $status = (int) $matches[1];
+                    break;
+                }
+            }
+        }
+
+        if ($status === 200 && is_string($body)) {
+            $asset = json_decode($body, true);
+            if (is_array($asset)) {
+                return [
+                    'type' => (string) ($asset['type'] ?? $deliveryType),
+                    'format' => strtolower((string) ($asset['format'] ?? 'mp4')),
+                    'version' => max(0, (int) ($asset['version'] ?? 0)),
+                ];
+            }
+        }
+    }
+
+    return null;
+}
+
 function cloudinary_signed_video_url(string $publicId, int $expiresAt): ?string
 {
     $cloud = trim((string) envv('CLOUDINARY_CLOUD_NAME', ''));
@@ -293,17 +351,23 @@ function cloudinary_signed_video_url(string $publicId, int $expiresAt): ?string
         return null;
     }
 
-    // Authenticated delivery URLs use the first eight characters of a
+    $asset = cloudinary_video_asset_details($publicId);
+    $deliveryType = (string) ($asset['type'] ?? 'authenticated');
+    $format = preg_replace('/[^a-z0-9]/', '', (string) ($asset['format'] ?? 'mp4')) ?: 'mp4';
+    $version = (int) ($asset['version'] ?? 0);
+
+    // Signed delivery URLs use the first eight characters of a
     // URL-safe Base64 SHA digest of everything after the signature component.
-    // Unlike the API download endpoint, this CDN URL supports HTML5 streaming
-    // and byte-range requests required by the video element.
-    $deliveryPath = $publicId . '.mp4';
+    // Asset metadata supplies the actual delivery type, format and version so
+    // the generated URL addresses the exact video stored in Cloudinary.
+    $deliveryPath = ($version > 0 ? 'v' . $version . '/' : '') . $publicId . '.' . $format;
     $digest = base64_encode(sha1($deliveryPath . $secret, true));
     $signature = substr(rtrim(strtr($digest, '+/', '-_'), '='), 0, 8);
     $encodedPublicId = implode('/', array_map('rawurlencode', explode('/', $publicId)));
 
     return 'https://res.cloudinary.com/' . rawurlencode($cloud)
-        . '/video/authenticated/s--' . $signature . '--/' . $encodedPublicId . '.mp4';
+        . '/video/' . rawurlencode($deliveryType) . '/s--' . $signature . '--/'
+        . ($version > 0 ? 'v' . $version . '/' : '') . $encodedPublicId . '.' . rawurlencode($format);
 }
 
 function controller_instructor_video_playback(array $ctx, string $videoId): void
