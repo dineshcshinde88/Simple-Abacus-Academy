@@ -287,27 +287,23 @@ function cloudinary_video_public_id(string $value): string
 function cloudinary_signed_video_url(string $publicId, int $expiresAt): ?string
 {
     $cloud = trim((string) envv('CLOUDINARY_CLOUD_NAME', ''));
-    $apiKey = trim((string) envv('CLOUDINARY_API_KEY', ''));
     $secret = trim((string) envv('CLOUDINARY_API_SECRET', ''));
     $publicId = cloudinary_video_public_id($publicId);
-    if ($cloud === '' || $apiKey === '' || $secret === '' || $publicId === '') {
+    if ($cloud === '' || $secret === '' || $publicId === '') {
         return null;
     }
 
-    $params = [
-        'timestamp' => time(),
-        'public_id' => $publicId,
-        'format' => 'mp4',
-        'expires_at' => $expiresAt,
-        'type' => 'authenticated',
-    ];
-    ksort($params);
-    $signaturePayload = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
-    $params['signature'] = sha1($signaturePayload . $secret);
-    $params['api_key'] = $apiKey;
+    // Authenticated delivery URLs use the first eight characters of a
+    // URL-safe Base64 SHA digest of everything after the signature component.
+    // Unlike the API download endpoint, this CDN URL supports HTML5 streaming
+    // and byte-range requests required by the video element.
+    $deliveryPath = $publicId . '.mp4';
+    $digest = base64_encode(sha1($deliveryPath . $secret, true));
+    $signature = substr(rtrim(strtr($digest, '+/', '-_'), '='), 0, 8);
+    $encodedPublicId = implode('/', array_map('rawurlencode', explode('/', $publicId)));
 
-    return 'https://api.cloudinary.com/v1_1/' . rawurlencode($cloud)
-        . '/video/download?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+    return 'https://res.cloudinary.com/' . rawurlencode($cloud)
+        . '/video/authenticated/s--' . $signature . '--/' . $encodedPublicId . '.mp4';
 }
 
 function controller_instructor_video_playback(array $ctx, string $videoId): void
@@ -324,7 +320,7 @@ function controller_instructor_video_playback(array $ctx, string $videoId): void
     $expiresAt = time() + 900;
     $playbackUrl = cloudinary_signed_video_url((string) $row['cloudinary_public_id'], $expiresAt);
     if (!$playbackUrl) {
-        json_response(['message' => 'Cloudinary playback is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.'], 503);
+        json_response(['message' => 'Cloudinary playback is not configured. Set CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_SECRET.'], 503);
     }
 
     json_response([
