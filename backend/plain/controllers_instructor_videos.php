@@ -86,6 +86,19 @@ function ensure_instructor_video_schema(): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
     db_exec_sql("UPDATE instructor_training_videos SET level = 'Level 1' WHERE program = 'abacus' AND level = 'Foundation'");
+    db_exec_sql("UPDATE instructor_training_videos
+        SET level = CASE
+            WHEN UPPER(title) REGEXP 'LEVEL[[:space:]]*8([^0-9]|$)' THEN 'Level 8'
+            WHEN UPPER(title) REGEXP 'LEVEL[[:space:]]*7([^0-9]|$)' THEN 'Level 7'
+            WHEN UPPER(title) REGEXP 'LEVEL[[:space:]]*6([^0-9]|$)' THEN 'Level 6'
+            WHEN UPPER(title) REGEXP 'LEVEL[[:space:]]*5([^0-9]|$)' THEN 'Level 5'
+            WHEN UPPER(title) REGEXP 'LEVEL[[:space:]]*4([^0-9]|$)' THEN 'Level 4'
+            WHEN UPPER(title) REGEXP 'LEVEL[[:space:]]*3([^0-9]|$)' THEN 'Level 3'
+            WHEN UPPER(title) REGEXP 'LEVEL[[:space:]]*2([^0-9]|$)' THEN 'Level 2'
+            WHEN UPPER(title) REGEXP 'LEVEL[[:space:]]*1([^0-9]|$)' THEN 'Level 1'
+            ELSE level
+        END
+        WHERE program = 'abacus' AND UPPER(title) REGEXP 'LEVEL[[:space:]]*[1-8]([^0-9]|$)'");
 }
 
 function instructor_video_context(array $ctx): array
