@@ -15,6 +15,7 @@ function ivs_ensure_schema(PDO $pdo): void {
   $pdo->exec("CREATE TABLE IF NOT EXISTS instructor_video_subscriptions (
     id CHAR(36) PRIMARY KEY,
     instructor_id CHAR(36) NOT NULL,
+    program VARCHAR(40) NOT NULL DEFAULT 'abacus',
     plan_name VARCHAR(80) NOT NULL DEFAULT '90 Days',
     duration_days INT NOT NULL DEFAULT 90,
     payment_method VARCHAR(40) NULL,
@@ -32,6 +33,9 @@ function ivs_ensure_schema(PDO $pdo): void {
     INDEX idx_ivs_instructor_status (instructor_id, status),
     INDEX idx_ivs_expiry (expiry_date)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+  if (!admin_training_table_has_column($pdo, 'instructor_video_subscriptions', 'program')) {
+    $pdo->exec("ALTER TABLE instructor_video_subscriptions ADD COLUMN program VARCHAR(40) NOT NULL DEFAULT 'abacus' AFTER instructor_id");
+  }
 }
 
 $success = '';
@@ -54,20 +58,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   try {
     if ($action === 'activate' || $action === 'renew') {
       $instructorId = (string) ($_POST['instructor_id'] ?? '');
+      $program = (string) ($_POST['program'] ?? '');
       $startDate = (string) ($_POST['start_date'] ?? date('Y-m-d'));
       $start = date('Y-m-d 00:00:00', strtotime($startDate));
       $expiry = date('Y-m-d 23:59:59', strtotime($start . ' +90 days'));
-      if ($instructorId === '' || strtotime($startDate) === false) {
-        throw new RuntimeException('Select instructor and activation start date.');
+      if ($instructorId === '' || !in_array($program, ['abacus', 'vedic_maths'], true) || strtotime($startDate) === false) {
+        throw new RuntimeException('Select instructor, program and activation start date.');
       }
       $videoPdo->prepare("UPDATE instructor_video_subscriptions SET status = 'expired', updated_at = UTC_TIMESTAMP() WHERE instructor_id = ? AND status = 'active'")->execute([$instructorId]);
       $stmt = $videoPdo->prepare("INSERT INTO instructor_video_subscriptions (
-        id, instructor_id, plan_name, duration_days, payment_method, payment_amount, payment_reference,
+        id, instructor_id, program, plan_name, duration_days, payment_method, payment_amount, payment_reference,
         payment_note, start_date, expiry_date, status, activated_by_admin_id, activated_at, admin_note, created_at, updated_at
-      ) VALUES (?, ?, '90 Days', 90, ?, ?, ?, ?, ?, ?, 'active', ?, UTC_TIMESTAMP(), ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())");
+      ) VALUES (?, ?, ?, '90 Days', 90, ?, ?, ?, ?, ?, ?, 'active', ?, UTC_TIMESTAMP(), ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())");
       $stmt->execute([
         ivs_uuid(),
         $instructorId,
+        $program,
         $_POST['payment_method'] ?? 'Cash',
         $_POST['payment_amount'] !== '' ? $_POST['payment_amount'] : null,
         trim((string) ($_POST['payment_reference'] ?? '')),
@@ -135,6 +141,11 @@ $subscriptions = $videoPdo->query("SELECT s.*, i.full_name, i.email, i.mobile
               </option>
             <?php endforeach; ?>
           </select>
+          <label class="form-label mt-3">Program</label>
+          <select class="form-select" name="program" required>
+            <option value="abacus">Abacus</option>
+            <option value="vedic_maths">Vedic Maths</option>
+          </select>
           <div class="row g-3 mt-1">
             <div class="col-6">
               <label class="form-label">Plan</label>
@@ -172,11 +183,12 @@ $subscriptions = $videoPdo->query("SELECT s.*, i.full_name, i.email, i.mobile
         <h5 class="card-title">Active, Expired and Suspended Subscriptions</h5>
         <div class="table-responsive mt-3">
           <table class="table align-middle">
-            <thead><tr><th>Instructor</th><th>Plan</th><th>Payment</th><th>Access</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Instructor</th><th>Program</th><th>Plan</th><th>Payment</th><th>Access</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               <?php foreach ($subscriptions as $sub): ?>
                 <tr>
                   <td><div><?php echo htmlspecialchars($sub['full_name'] ?? 'Unknown'); ?></div><div class="text-muted small"><?php echo htmlspecialchars(($sub['email'] ?? '') . ' ' . ($sub['mobile'] ?? '')); ?></div></td>
+                  <td><?php echo ($sub['program'] ?? 'abacus') === 'vedic_maths' ? 'Vedic Maths' : 'Abacus'; ?></td>
                   <td><?php echo htmlspecialchars($sub['plan_name']); ?><div class="text-muted small"><?php echo (int) $sub['duration_days']; ?> days</div></td>
                   <td><?php echo htmlspecialchars((string) $sub['payment_method']); ?><div class="text-muted small"><?php echo htmlspecialchars((string) $sub['payment_reference']); ?></div></td>
                   <td><div><?php echo htmlspecialchars($sub['start_date']); ?></div><div class="text-muted small">to <?php echo htmlspecialchars($sub['expiry_date']); ?></div></td>
@@ -189,7 +201,7 @@ $subscriptions = $videoPdo->query("SELECT s.*, i.full_name, i.email, i.mobile
                   </td>
                 </tr>
               <?php endforeach; ?>
-              <?php if (!$subscriptions): ?><tr><td colspan="6" class="text-center text-muted">No subscriptions yet.</td></tr><?php endif; ?>
+              <?php if (!$subscriptions): ?><tr><td colspan="7" class="text-center text-muted">No subscriptions yet.</td></tr><?php endif; ?>
             </tbody>
           </table>
         </div>

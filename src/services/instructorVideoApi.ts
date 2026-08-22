@@ -36,6 +36,7 @@ export type InstructorVideoDashboard = {
       expiryDate: string;
       status: string;
       remainingDays: number;
+      program: "abacus" | "vedic_maths" | string;
     };
   };
   library: {

@@ -14,6 +14,7 @@ function ensure_instructor_video_schema(): void
         "CREATE TABLE IF NOT EXISTS instructor_video_subscriptions (
             id CHAR(36) PRIMARY KEY,
             instructor_id CHAR(36) NOT NULL,
+            program VARCHAR(40) NOT NULL DEFAULT 'abacus',
             plan_name VARCHAR(80) NOT NULL DEFAULT '90 Days',
             duration_days INT NOT NULL DEFAULT 90,
             payment_method VARCHAR(40) NULL,
@@ -32,6 +33,9 @@ function ensure_instructor_video_schema(): void
             INDEX idx_ivs_expiry (expiry_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
+    if (!instructor_video_table_has_column('instructor_video_subscriptions', 'program')) {
+        db_exec_sql("ALTER TABLE instructor_video_subscriptions ADD COLUMN program VARCHAR(40) NOT NULL DEFAULT 'abacus' AFTER instructor_id");
+    }
 
     db_exec_sql(
         "CREATE TABLE IF NOT EXISTS instructor_training_videos (
@@ -168,6 +172,7 @@ function instructor_video_subscription_payload(string $instructorId): array
             'expiryDate' => $latest['expiry_date'],
             'status' => $latest['status'],
             'remainingDays' => $remaining,
+            'program' => (string) ($latest['program'] ?? 'abacus'),
         ] : null,
     ];
 }
@@ -179,6 +184,7 @@ function instructor_video_group_key(array $video): string
 
 function instructor_video_library(string $instructorId, ?array $subscription): array
 {
+    $program = (string) ($subscription['program'] ?? '');
     $videos = db_all(
         "SELECT v.*,
                 p.current_position_seconds,
@@ -190,6 +196,7 @@ function instructor_video_library(string $instructorId, ?array $subscription): a
          FROM instructor_training_videos v
          LEFT JOIN instructor_video_progress p ON p.video_id = v.id AND p.instructor_id = :instructor_id
          WHERE v.status = 'published'
+           AND (:program_filter = '' OR v.program = :program_value)
          ORDER BY v.program,
                   CASE v.level
                     WHEN 'Level 1' THEN 1 WHEN 'Level 2' THEN 2
@@ -201,7 +208,7 @@ function instructor_video_library(string $instructorId, ?array $subscription): a
                   v.sequence_number,
                   v.created_at,
                   v.id",
-        ['instructor_id' => $instructorId]
+        ['instructor_id' => $instructorId, 'program_filter' => $program, 'program_value' => $program]
     );
 
     $programChainComplete = [];
