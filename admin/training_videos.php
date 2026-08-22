@@ -149,6 +149,33 @@ $abacusLevels = ['Foundation','Level 1','Level 2','Level 3','Level 4','Level 5',
 $vedicLevels = ['Level 1','Level 2','Level 3','Level 4'];
 ?>
 
+<style>
+  .training-video-table {
+    table-layout: fixed;
+    min-width: 760px;
+  }
+  .training-video-table .video-column { width: 34%; }
+  .training-video-table .program-column { width: 14%; }
+  .training-video-table .cloudinary-column { width: 25%; }
+  .training-video-table .status-column { width: 10%; }
+  .training-video-table .completed-column { width: 8%; }
+  .training-video-table .actions-column { width: 110px; }
+  .training-video-public-id {
+    display: block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .training-video-actions {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: var(--bs-body-bg, #fff);
+    box-shadow: -8px 0 12px -12px rgba(15, 23, 42, .45);
+  }
+  .training-video-table thead .training-video-actions { z-index: 3; }
+</style>
+
 <?php if ($success): ?><div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
 <?php if ($errors): ?><div class="alert alert-danger"><?php echo htmlspecialchars(implode(' ', $errors)); ?></div><?php endif; ?>
 
@@ -211,17 +238,17 @@ $vedicLevels = ['Level 1','Level 2','Level 3','Level 4'];
       <div class="card-body">
         <h5 class="card-title">Video Library</h5>
         <div class="table-responsive mt-3">
-          <table class="table align-middle">
-            <thead><tr><th>Video</th><th>Program</th><th>Cloudinary</th><th>Status</th><th>Completed</th><th>Actions</th></tr></thead>
+          <table class="table align-middle training-video-table">
+            <thead><tr><th class="video-column">Video</th><th class="program-column">Program</th><th class="cloudinary-column">Cloudinary</th><th class="status-column">Status</th><th class="completed-column">Completed</th><th class="actions-column training-video-actions">Actions</th></tr></thead>
             <tbody>
               <?php foreach ($videos as $video): ?>
                 <tr>
                   <td><div><?php echo htmlspecialchars($video['sequence_number'] . '. ' . $video['title']); ?></div><div class="text-muted small"><?php echo htmlspecialchars((string) $video['description']); ?></div></td>
                   <td><?php echo htmlspecialchars($video['program'] === 'vedic_maths' ? 'Vedic Maths' : 'Abacus'); ?><div class="text-muted small"><?php echo htmlspecialchars($video['level']); ?></div></td>
-                  <td><code><?php echo htmlspecialchars($video['cloudinary_public_id']); ?></code><div class="text-muted small"><?php echo (int) $video['duration_seconds']; ?> sec</div></td>
+                  <td><code class="training-video-public-id"><?php echo htmlspecialchars($video['cloudinary_public_id']); ?></code><div class="text-muted small"><?php echo (int) $video['duration_seconds']; ?> sec</div></td>
                   <td><span class="badge bg-secondary"><?php echo htmlspecialchars($video['status']); ?></span></td>
                   <td><?php echo (int) $video['completed_count']; ?></td>
-                  <td class="d-flex gap-2"><a class="btn btn-sm btn-outline-primary" href="?edit=<?php echo htmlspecialchars($video['id']); ?>">Edit</a><form method="post"><input type="hidden" name="action" value="delete" /><input type="hidden" name="id" value="<?php echo htmlspecialchars($video['id']); ?>" /><button class="btn btn-sm btn-outline-warning">Unpublish</button></form></td>
+                  <td class="actions-column training-video-actions"><div class="d-flex flex-column gap-2"><a class="btn btn-sm btn-outline-primary" href="?edit=<?php echo htmlspecialchars($video['id']); ?>">Edit</a><form method="post"><input type="hidden" name="action" value="delete" /><input type="hidden" name="id" value="<?php echo htmlspecialchars($video['id']); ?>" /><button class="btn btn-sm btn-outline-warning w-100">Unpublish</button></form></div></td>
                 </tr>
               <?php endforeach; ?>
               <?php if (!$videos): ?><tr><td colspan="6" class="text-center text-muted">No videos added.</td></tr><?php endif; ?>
