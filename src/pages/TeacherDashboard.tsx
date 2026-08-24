@@ -2162,6 +2162,7 @@ const programLabel = (program: string) => (program === "vedic_maths" ? "Vedic Ma
 
 const TrainingVideosSection = ({ token }: { token: string | null }) => {
   const [dashboard, setDashboard] = useState<InstructorVideoDashboard | null>(null);
+  const [selectedProgram, setSelectedProgram] = useState<string>("abacus");
   const [selectedVideo, setSelectedVideo] = useState<InstructorTrainingVideo | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState("");
   const [loading, setLoading] = useState(true);
@@ -2267,12 +2268,23 @@ const TrainingVideosSection = ({ token }: { token: string | null }) => {
 
   const groupedVideos = useMemo(() => {
     const groups = new Map<string, InstructorTrainingVideo[]>();
-    (dashboard?.library.videos || []).forEach((video) => {
+    (dashboard?.library.videos || []).filter((video) => video.program === selectedProgram).forEach((video) => {
       const key = `${video.program}__${video.level}`;
       groups.set(key, [...(groups.get(key) || []), video]);
     });
     return Array.from(groups.entries()).map(([key, videos]) => ({ key, videos }));
-  }, [dashboard?.library.videos]);
+  }, [dashboard?.library.videos, selectedProgram]);
+
+  const activePrograms = useMemo(
+    () => Array.from(new Set((dashboard?.subscription.subscriptions || []).map((item) => item.program))),
+    [dashboard?.subscription.subscriptions],
+  );
+
+  useEffect(() => {
+    if (activePrograms.length && !activePrograms.includes(selectedProgram)) {
+      setSelectedProgram(activePrograms[0]);
+    }
+  }, [activePrograms, selectedProgram]);
 
   if (loading) {
     return <Card className="p-6 shadow-card text-sm text-slate-500">Loading training videos...</Card>;
@@ -2382,6 +2394,25 @@ const TrainingVideosSection = ({ token }: { token: string | null }) => {
         </Card>
       ) : null}
 
+      {activePrograms.length > 1 ? (
+        <div className="flex flex-wrap gap-2 rounded-lg bg-white p-3 shadow-card">
+          {activePrograms.map((program) => (
+            <Button
+              key={program}
+              type="button"
+              variant={selectedProgram === program ? "default" : "outline"}
+              onClick={() => {
+                setSelectedProgram(program);
+                setSelectedVideo(null);
+                setPlaybackUrl("");
+              }}
+            >
+              {program === "vedic_maths" ? "Vedic Maths" : "Abacus"}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
       {groupedVideos.map((group) => (
         <Card key={group.key} className="p-5 shadow-card">
           <h3 className="text-base font-semibold">{programLabel(group.videos[0].program)} - {group.videos[0].level}</h3>
@@ -2414,6 +2445,11 @@ const TrainingVideosSection = ({ token }: { token: string | null }) => {
           </div>
         </Card>
       ))}
+      {activePrograms.length > 0 && groupedVideos.length === 0 ? (
+        <Card className="p-6 text-sm text-slate-600 shadow-card">
+          No published {selectedProgram === "vedic_maths" ? "Vedic Maths" : "Abacus"} training videos are available yet.
+        </Card>
+      ) : null}
     </div>
   );
 };
