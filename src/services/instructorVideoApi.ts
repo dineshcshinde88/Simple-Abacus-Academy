@@ -38,6 +38,15 @@ export type InstructorVideoDashboard = {
       remainingDays: number;
       program: "abacus" | "vedic_maths" | string;
     };
+    subscriptions: Array<{
+      id: string;
+      planName: string;
+      startDate: string;
+      expiryDate: string;
+      status: string;
+      remainingDays: number;
+      program: "abacus" | "vedic_maths" | string;
+    }>;
   };
   library: {
     videos: InstructorTrainingVideo[];

@@ -2299,12 +2299,18 @@ const TrainingVideosSection = ({ token }: { token: string | null }) => {
       <div className="grid gap-4 lg:grid-cols-4">
         <Card className="p-5 shadow-card lg:col-span-2">
           <SectionTitle title="Training Videos" subtitle="Sequential Abacus and Vedic Maths instructor lessons" />
-          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            <div><span className="text-slate-500">Plan</span><p className="font-semibold">{subscription.subscription?.planName}</p></div>
-            <div><span className="text-slate-500">Program</span><p className="font-semibold">{subscription.subscription?.program === "vedic_maths" ? "Vedic Maths" : "Abacus"}</p></div>
-            <div><span className="text-slate-500">Remaining Days</span><p className="font-semibold">{subscription.subscription?.remainingDays}</p></div>
-            <div><span className="text-slate-500">Start Date</span><p className="font-semibold">{formatDate(subscription.subscription?.startDate || "")}</p></div>
-            <div><span className="text-slate-500">Expiry Date</span><p className="font-semibold">{formatDate(subscription.subscription?.expiryDate || "")}</p></div>
+          <div className="mt-4 space-y-3 text-sm">
+            {(subscription.subscriptions || (subscription.subscription ? [subscription.subscription] : [])).map((item) => (
+              <div key={item.id} className="rounded-md border border-slate-200 p-3">
+                <p className="font-semibold">{item.program === "vedic_maths" ? "Vedic Maths" : "Abacus"}</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <div><span className="text-slate-500">Plan</span><p>{item.planName}</p></div>
+                  <div><span className="text-slate-500">Remaining Days</span><p>{item.remainingDays}</p></div>
+                  <div><span className="text-slate-500">Start Date</span><p>{formatDate(item.startDate)}</p></div>
+                  <div><span className="text-slate-500">Expiry Date</span><p>{formatDate(item.expiryDate)}</p></div>
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
         <Card className="p-5 shadow-card lg:col-span-2">
