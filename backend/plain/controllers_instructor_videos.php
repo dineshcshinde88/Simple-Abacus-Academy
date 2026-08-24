@@ -130,24 +130,45 @@ function instructor_video_sync_expired(string $instructorId = ''): void
     db_exec_sql("UPDATE instructor_video_subscriptions SET status = 'expired', updated_at = :now WHERE {$where}", $params);
 }
 
-function instructor_video_active_subscription(string $instructorId): ?array
+function instructor_video_active_subscription(string $instructorId, string $program = ''): ?array
 {
     instructor_video_sync_expired($instructorId);
+    $programWhere = $program !== '' ? ' AND program = :program' : '';
+    $params = ['instructor_id' => $instructorId, 'now' => now_sql()];
+    if ($program !== '') {
+        $params['program'] = $program;
+    }
     return db_one(
         "SELECT * FROM instructor_video_subscriptions
          WHERE instructor_id = :instructor_id
            AND status = 'active'
            AND start_date <= :now
            AND expiry_date >= :now
+           {$programWhere}
          ORDER BY expiry_date DESC
          LIMIT 1",
+        $params
+    );
+}
+
+function instructor_video_active_subscriptions(string $instructorId): array
+{
+    instructor_video_sync_expired($instructorId);
+    return db_all(
+        "SELECT * FROM instructor_video_subscriptions
+         WHERE instructor_id = :instructor_id
+           AND status = 'active'
+           AND start_date <= :now
+           AND expiry_date >= :now
+         ORDER BY expiry_date DESC",
         ['instructor_id' => $instructorId, 'now' => now_sql()]
     );
 }
 
 function instructor_video_subscription_payload(string $instructorId): array
 {
-    $active = instructor_video_active_subscription($instructorId);
+    $activeSubscriptions = instructor_video_active_subscriptions($instructorId);
+    $active = $activeSubscriptions[0] ?? null;
     $latest = $active ?: db_one(
         'SELECT * FROM instructor_video_subscriptions WHERE instructor_id = :instructor_id ORDER BY created_at DESC LIMIT 1',
         ['instructor_id' => $instructorId]
@@ -163,7 +184,7 @@ function instructor_video_subscription_payload(string $instructorId): array
     }
 
     return [
-        'hasAccess' => (bool) $active,
+        'hasAccess' => count($activeSubscriptions) > 0,
         'state' => $active ? 'active' : ($status === 'expired' ? 'expired' : ($status === 'suspended' ? 'suspended' : 'none')),
         'subscription' => $latest ? [
             'id' => $latest['id'],
@@ -174,6 +195,17 @@ function instructor_video_subscription_payload(string $instructorId): array
             'remainingDays' => $remaining,
             'program' => (string) ($latest['program'] ?? 'abacus'),
         ] : null,
+        'subscriptions' => array_map(function (array $item): array {
+            return [
+                'id' => $item['id'],
+                'planName' => $item['plan_name'],
+                'startDate' => $item['start_date'],
+                'expiryDate' => $item['expiry_date'],
+                'status' => $item['status'],
+                'remainingDays' => max(0, (int) ceil((strtotime((string) $item['expiry_date']) - time()) / 86400)),
+                'program' => (string) ($item['program'] ?? 'abacus'),
+            ];
+        }, $activeSubscriptions),
     ];
 }
 
@@ -182,9 +214,11 @@ function instructor_video_group_key(array $video): string
     return strtolower((string) $video['program']) . '|' . strtolower((string) $video['level']);
 }
 
-function instructor_video_library(string $instructorId, ?array $subscription): array
+function instructor_video_library(string $instructorId, array $subscriptions): array
 {
-    $program = (string) ($subscription['program'] ?? '');
+    $programs = array_values(array_unique(array_map(fn(array $item): string => (string) ($item['program'] ?? ''), $subscriptions)));
+    $hasAbacus = in_array('abacus', $programs, true) ? 1 : 0;
+    $hasVedic = in_array('vedic_maths', $programs, true) ? 1 : 0;
     $videos = db_all(
         "SELECT v.*,
                 p.current_position_seconds,
@@ -196,7 +230,7 @@ function instructor_video_library(string $instructorId, ?array $subscription): a
          FROM instructor_training_videos v
          LEFT JOIN instructor_video_progress p ON p.video_id = v.id AND p.instructor_id = :instructor_id
          WHERE v.status = 'published'
-           AND (:program_filter = '' OR v.program = :program_value)
+           AND ((:has_abacus = 1 AND v.program = 'abacus') OR (:has_vedic = 1 AND v.program = 'vedic_maths'))
          ORDER BY v.program,
                   CASE v.level
                     WHEN 'Level 1' THEN 1 WHEN 'Level 2' THEN 2
@@ -208,7 +242,7 @@ function instructor_video_library(string $instructorId, ?array $subscription): a
                   v.sequence_number,
                   v.created_at,
                   v.id",
-        ['instructor_id' => $instructorId, 'program_filter' => $program, 'program_value' => $program]
+        ['instructor_id' => $instructorId, 'has_abacus' => $hasAbacus, 'has_vedic' => $hasVedic]
     );
 
     $programChainComplete = [];
@@ -234,8 +268,8 @@ function instructor_video_library(string $instructorId, ?array $subscription): a
             'sequenceNumber' => $sequence,
             'thumbnail' => $video['thumbnail'],
             'durationSeconds' => (int) $video['duration_seconds'],
-            'isUnlocked' => $subscription !== null && $isUnlocked,
-            'lockedReason' => $subscription === null ? 'Subscription Expired' : 'Complete the previous video to unlock this lesson.',
+            'isUnlocked' => $isUnlocked,
+            'lockedReason' => 'Complete the previous video to unlock this lesson.',
             'progress' => [
                 'currentPositionSeconds' => (int) ($video['current_position_seconds'] ?? 0),
                 'maximumWatchedPositionSeconds' => (int) ($video['maximum_watched_position_seconds'] ?? 0),
@@ -259,12 +293,12 @@ function instructor_video_library(string $instructorId, ?array $subscription): a
     ];
 }
 
-function instructor_video_find_unlocked(string $instructorId, string $videoId, ?array $subscription): array
+function instructor_video_find_unlocked(string $instructorId, string $videoId, array $subscriptions): array
 {
-    if (!$subscription) {
+    if (!$subscriptions) {
         json_response(['message' => 'Training Video subscription is not active.'], 403);
     }
-    $library = instructor_video_library($instructorId, $subscription);
+    $library = instructor_video_library($instructorId, $subscriptions);
     foreach ($library['videos'] as $video) {
         if ($video['id'] === $videoId) {
             if (!$video['isUnlocked']) {
@@ -280,9 +314,9 @@ function controller_instructor_video_dashboard(array $ctx): void
 {
     $iv = instructor_video_context($ctx);
     $instructorId = (string) $iv['instructor']['id'];
-    $subscription = instructor_video_active_subscription($instructorId);
+    $subscriptions = instructor_video_active_subscriptions($instructorId);
     $subscriptionPayload = instructor_video_subscription_payload($instructorId);
-    $library = instructor_video_library($instructorId, $subscription);
+    $library = instructor_video_library($instructorId, $subscriptions);
 
     json_response([
         'subscription' => $subscriptionPayload,
@@ -405,12 +439,12 @@ function controller_instructor_video_playback(array $ctx, string $videoId): void
 {
     $iv = instructor_video_context($ctx);
     $instructorId = (string) $iv['instructor']['id'];
-    $subscription = instructor_video_active_subscription($instructorId);
-    $video = instructor_video_find_unlocked($instructorId, $videoId, $subscription);
     $row = db_one('SELECT * FROM instructor_training_videos WHERE id = :id LIMIT 1', ['id' => $videoId]);
     if (!$row) {
         json_response(['message' => 'Video not found.'], 404);
     }
+    $subscription = instructor_video_active_subscription($instructorId, (string) $row['program']);
+    $video = instructor_video_find_unlocked($instructorId, $videoId, $subscription ? [$subscription] : []);
 
     $expiresAt = time() + 900;
     $playbackUrl = cloudinary_signed_video_url((string) $row['cloudinary_public_id'], $expiresAt);
@@ -457,8 +491,12 @@ function controller_instructor_video_progress(array $ctx, string $videoId, array
 {
     $iv = instructor_video_context($ctx);
     $instructorId = (string) $iv['instructor']['id'];
-    $subscription = instructor_video_active_subscription($instructorId);
-    $video = instructor_video_find_unlocked($instructorId, $videoId, $subscription);
+    $row = db_one('SELECT program FROM instructor_training_videos WHERE id = :id LIMIT 1', ['id' => $videoId]);
+    if (!$row) {
+        json_response(['message' => 'Video not found.'], 404);
+    }
+    $subscription = instructor_video_active_subscription($instructorId, (string) $row['program']);
+    $video = instructor_video_find_unlocked($instructorId, $videoId, $subscription ? [$subscription] : []);
 
     $sessionId = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) ($data['sessionId'] ?? ''));
     if ($sessionId === '') {
@@ -576,6 +614,6 @@ function controller_instructor_video_progress(array $ctx, string $videoId, array
             'completionPercentage' => $percentage,
             'isCompleted' => $isCompleted || (int) ($existing['is_completed'] ?? 0) === 1,
         ],
-        'library' => instructor_video_library($instructorId, $subscription),
+        'library' => instructor_video_library($instructorId, instructor_video_active_subscriptions($instructorId)),
     ]);
 }

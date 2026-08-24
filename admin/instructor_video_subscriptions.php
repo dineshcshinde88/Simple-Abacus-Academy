@@ -65,7 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if ($instructorId === '' || !in_array($program, ['abacus', 'vedic_maths'], true) || strtotime($startDate) === false) {
         throw new RuntimeException('Select instructor, program and activation start date.');
       }
-      $videoPdo->prepare("UPDATE instructor_video_subscriptions SET status = 'expired', updated_at = UTC_TIMESTAMP() WHERE instructor_id = ? AND status = 'active'")->execute([$instructorId]);
+      // A teacher may own both programs. Only replace the active subscription
+      // for the program currently being activated/renewed.
+      $videoPdo->prepare("UPDATE instructor_video_subscriptions SET status = 'expired', updated_at = UTC_TIMESTAMP() WHERE instructor_id = ? AND program = ? AND status = 'active'")->execute([$instructorId, $program]);
       $stmt = $videoPdo->prepare("INSERT INTO instructor_video_subscriptions (
         id, instructor_id, program, plan_name, duration_days, payment_method, payment_amount, payment_reference,
         payment_note, start_date, expiry_date, status, activated_by_admin_id, activated_at, admin_note, created_at, updated_at
